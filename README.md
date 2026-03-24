@@ -1,4 +1,4 @@
-# CheevoPresence
+# <img src=".github/assets/tray-default.png" width="30"/> CheevoPresence
 
 CheevoPresence is a (for now only) Windows desktop app that mirrors your RetroAchievements activity to Discord Rich Presence.
 
