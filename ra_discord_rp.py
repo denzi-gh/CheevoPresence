@@ -4,6 +4,7 @@ Mirrors your RetroAchievements activity to Discord Rich Presence.
 """
 
 import configparser
+from contextlib import contextmanager
 import ctypes
 import base64
 import json
@@ -45,6 +46,8 @@ def get_resource_dir():
 
 
 def get_config_dir():
+    if sys.platform == "darwin":
+        return os.path.join(os.path.expanduser("~"), "Library", "Application Support", APP_NAME)
     appdata = os.getenv("APPDATA")
     if appdata:
         return os.path.join(appdata, APP_NAME)
@@ -70,21 +73,37 @@ STARTUP_REG_NAME = "CheevoPresence"
 def acquire_single_instance():
     global _single_instance_mutex
 
-    if os.name != "nt":
-        return True
+    if os.name == "nt":
+        try:
+            kernel32 = ctypes.windll.kernel32
+            mutex = kernel32.CreateMutexW(None, False, SINGLE_INSTANCE_MUTEX_NAME)
+            if not mutex:
+                return True
 
-    try:
-        kernel32 = ctypes.windll.kernel32
-        mutex = kernel32.CreateMutexW(None, False, SINGLE_INSTANCE_MUTEX_NAME)
-        if not mutex:
+            if kernel32.GetLastError() == ERROR_ALREADY_EXISTS:
+                kernel32.CloseHandle(mutex)
+                return False
+
+            _single_instance_mutex = mutex
+            return True
+        except Exception:
             return True
 
-        if kernel32.GetLastError() == ERROR_ALREADY_EXISTS:
-            kernel32.CloseHandle(mutex)
-            return False
-
-        _single_instance_mutex = mutex
+    # Unix: use a file lock
+    lock_file = None
+    try:
+        import fcntl
+        os.makedirs(CONFIG_DIR, exist_ok=True)
+        lock_path = os.path.join(CONFIG_DIR, f".{APP_NAME}.lock")
+        lock_file = open(lock_path, "w")
+        fcntl.flock(lock_file, fcntl.LOCK_EX | fcntl.LOCK_NB)
+        # Keep the file object alive to hold the lock
+        _single_instance_mutex = lock_file
         return True
+    except (OSError, IOError):
+        if lock_file is not None:
+            lock_file.close()
+        return False
     except Exception:
         return True
 
@@ -290,7 +309,7 @@ def load_console_icons():
 
 
 # ---------------------------------------------------------------------------
-# Windows autostart helpers
+# Autostart helpers
 # ---------------------------------------------------------------------------
 def get_exe_path():
     """Return the path to the running executable or script."""
@@ -299,17 +318,35 @@ def get_exe_path():
     return os.path.abspath(sys.argv[0])
 
 
+_LAUNCHAGENT_LABEL = "com.cheevopresence.app"
+
+
+def _get_launchagent_path():
+    return os.path.join(
+        os.path.expanduser("~"), "Library", "LaunchAgents", f"{_LAUNCHAGENT_LABEL}.plist"
+    )
+
+
+def _get_launch_args():
+    exe = get_exe_path()
+    if exe.endswith(".py"):
+        return [sys.executable, exe, "--tray"]
+    return [exe, "--tray"]
+
+
 def set_autostart(enable):
+    if sys.platform == "darwin":
+        return _set_autostart_macos(enable)
+    return _set_autostart_windows(enable)
+
+
+def _set_autostart_windows(enable):
     try:
         import winreg
         key = winreg.OpenKey(winreg.HKEY_CURRENT_USER, STARTUP_REG_KEY, 0, winreg.KEY_SET_VALUE)
         try:
             if enable:
-                exe = get_exe_path()
-                if exe.endswith(".py"):
-                    val = f'"{sys.executable}" "{exe}" --tray'
-                else:
-                    val = f'"{exe}" --tray'
+                val = " ".join(f'"{a}"' for a in _get_launch_args())
                 winreg.SetValueEx(key, STARTUP_REG_NAME, 0, winreg.REG_SZ, val)
             else:
                 try:
@@ -323,7 +360,36 @@ def set_autostart(enable):
         return "Could not update the Windows startup setting."
 
 
+def _set_autostart_macos(enable):
+    import plistlib
+    plist_path = _get_launchagent_path()
+    try:
+        if enable:
+            plist = {
+                "Label": _LAUNCHAGENT_LABEL,
+                "ProgramArguments": _get_launch_args(),
+                "RunAtLoad": True,
+            }
+            os.makedirs(os.path.dirname(plist_path), exist_ok=True)
+            with open(plist_path, "wb") as f:
+                plistlib.dump(plist, f)
+        else:
+            try:
+                os.remove(plist_path)
+            except FileNotFoundError:
+                pass
+        return None
+    except Exception:
+        return "Could not update the login item setting."
+
+
 def is_autostart_enabled():
+    if sys.platform == "darwin":
+        return os.path.exists(_get_launchagent_path())
+    return _is_autostart_enabled_windows()
+
+
+def _is_autostart_enabled_windows():
     try:
         import winreg
         key = winreg.OpenKey(winreg.HKEY_CURRENT_USER, STARTUP_REG_KEY, 0, winreg.KEY_READ)
@@ -360,6 +426,14 @@ def load_icon_image(path):
         return None
 
 
+if sys.platform == "darwin":
+    SYSTEM_FONT = "Helvetica Neue"
+elif os.name == "nt":
+    SYSTEM_FONT = "Segoe UI"
+else:
+    SYSTEM_FONT = "sans-serif"
+
+
 class Tooltip:
     def __init__(self, widget, text):
         self.widget = widget
@@ -380,7 +454,7 @@ class Tooltip:
         tk.Label(
             tw, text=self.text, justify="left",
             bg="#1a1e26", fg="#e0e4ec", relief="solid", borderwidth=1,
-            padx=8, pady=6, font=("Segoe UI", 9), wraplength=280,
+            padx=8, pady=6, font=(SYSTEM_FONT, 9), wraplength=280,
         ).pack()
 
     def hide(self, _event=None):
@@ -866,11 +940,55 @@ class RPCWorker:
 
 
 # ---------------------------------------------------------------------------
+# macOS: work around Tk/AppKit menu assertion crash
+# ---------------------------------------------------------------------------
+# TkAqua's TKMenu subclass asserts that only TKMenuItemProxy items are inserted.
+# On recent macOS, AppKit's _addDebugMenuIfNeeded inserts a regular NSMenuItem
+# during Tk_CreateConsoleWindow, hitting a fatal NSAssert.  Installing a silent
+# NSAssertionHandler around tk.Tk() lets the assertion pass without throwing,
+# so the debug item is inserted normally and Tk initialisation completes.
+
+@contextmanager
+def _suppress_tk_menu_assertion():
+    """Temporarily install a no-op NSAssertionHandler for the current thread."""
+    try:
+        import objc
+        NSAssertionHandler = objc.lookUpClass("NSAssertionHandler")
+        NSThread = objc.lookUpClass("NSThread")
+
+        # Define the subclass only once; ObjC class registration is permanent.
+        if not hasattr(_suppress_tk_menu_assertion, "_handler_cls"):
+
+            class _SilentAssertionHandler(NSAssertionHandler):
+                def handleFailureInMethod_object_file_lineNumber_description_(
+                    self, sel, obj, fname, line, desc
+                ):
+                    pass
+
+                def handleFailureInFunction_file_lineNumber_description_(
+                    self, func, fname, line, desc
+                ):
+                    pass
+
+            _suppress_tk_menu_assertion._handler_cls = _SilentAssertionHandler
+
+        td = NSThread.currentThread().threadDictionary()
+        td["NSAssertionHandler"] = _suppress_tk_menu_assertion._handler_cls.alloc().init()
+        try:
+            yield
+        finally:
+            td.removeObjectForKey_("NSAssertionHandler")
+    except Exception:
+        yield
+
+
+# ---------------------------------------------------------------------------
 # System Tray (pystray)
 # ---------------------------------------------------------------------------
 class TrayApp:
     def __init__(self):
         self.icon = None
+        self._tk_root = None
         self.worker = RPCWorker(self._on_status)
         self.current_status = "disconnected"
         self.status_text = "Not running"
@@ -910,11 +1028,14 @@ class TrayApp:
         if self._settings_open:
             return
         self._settings_open = True
-        threading.Thread(target=self._show_settings_window, daemon=True).start()
+        if self._tk_root:
+            self._tk_root.after(0, self._show_settings_window)
+        else:
+            threading.Thread(target=self._show_settings_window, daemon=True).start()
 
     def _show_settings_window(self):
         try:
-            SettingsWindow(self.worker, on_close=self._on_settings_closed, on_quit=self.quit_app)
+            SettingsWindow(self.worker, on_close=self._on_settings_closed, on_quit=self.quit_app, tk_root=self._tk_root)
         except Exception:
             self._settings_open = False
 
@@ -925,6 +1046,11 @@ class TrayApp:
         self.worker.stop()
         if self.icon:
             self.icon.stop()
+        if self._tk_root:
+            try:
+                self._tk_root.after(0, self._tk_root.destroy)
+            except tk.TclError:
+                pass
 
     def _on_quit(self, icon, item):
         self.quit_app()
@@ -943,7 +1069,7 @@ class TrayApp:
             pystray.MenuItem(f"{APP_NAME} v{APP_VERSION}", None, enabled=False),
             pystray.MenuItem(lambda text: self._get_status_text(), None, enabled=False),
             pystray.Menu.SEPARATOR,
-            pystray.MenuItem("Settings", self._on_settings, default=(os.name == "nt")),
+            pystray.MenuItem("Settings", self._on_settings, default=True),
             pystray.MenuItem("Open RA Settings (Web)", self._on_get_api_key),
             pystray.Menu.SEPARATOR,
             pystray.MenuItem("Quit", self._on_quit),
@@ -961,6 +1087,25 @@ class TrayApp:
 
         self.icon.run()
 
+    def run_with_tk(self, show_settings=False):
+        """macOS: Tk owns the main thread, pystray runs in a background thread."""
+        with _suppress_tk_menu_assertion():
+            self._tk_root = tk.Tk()
+        self._tk_root.withdraw()
+
+        threading.Thread(target=self.run, daemon=True).start()
+
+        if show_settings:
+            self._tk_root.after(100, self._open_initial_settings)
+
+        self._tk_root.mainloop()
+
+    def _open_initial_settings(self):
+        if self._settings_open:
+            return
+        self._settings_open = True
+        self._show_settings_window()
+
 
 # ---------------------------------------------------------------------------
 # Settings GUI (tkinter)
@@ -975,28 +1120,39 @@ class SettingsWindow:
     ACCENT = "#f0b14a"
     GREEN = "#57f287"
     RED = "#ed4245"
-    FONT = "Segoe UI"
+    FONT = SYSTEM_FONT
 
-    def __init__(self, worker: RPCWorker, on_close=None, on_quit=None):
+    def __init__(self, worker: RPCWorker, on_close=None, on_quit=None, tk_root=None):
         self.worker = worker
         self.on_close = on_close
         self.on_quit = on_quit
         self._destroyed = False
         self._is_connecting = False
         self._toggle_lock = threading.Lock()
+        self._tk_root = tk_root
         self.cfg = load_config()
         self._tooltips = []
 
-        self.root = tk.Tk()
+        if tk_root:
+            self.root = tk.Toplevel(tk_root)
+        else:
+            self.root = tk.Tk()
         self.root.title(f"{APP_NAME}")
         self.root.resizable(False, False)
         self.root.configure(bg=self.BG)
         self.root.protocol("WM_DELETE_WINDOW", self._on_window_close)
-        if os.path.exists(APP_ICON_FILE):
-            try:
+        try:
+            if os.name == "nt":
                 self.root.iconbitmap(APP_ICON_FILE)
-            except Exception:
-                pass
+            else:
+                from PIL import ImageTk
+                _icon_img = load_icon_image(APP_ICON_FILE)
+                if _icon_img:
+                    _icon_photo = ImageTk.PhotoImage(_icon_img)
+                    self.root.iconphoto(True, _icon_photo)
+                    self._icon_photo_ref = _icon_photo  # prevent GC
+        except Exception:
+            pass
 
         style = ttk.Style(self.root)
         style.theme_use("clam")
@@ -1110,7 +1266,8 @@ class SettingsWindow:
         self.gamepage_check = ttk.Checkbutton(checks, text="Show game page button", variable=self.gamepage_btn_var, style="Panel.TCheckbutton")
         self.gamepage_check.pack(anchor="w")
         self.autostart_var = tk.BooleanVar(value=is_autostart_enabled())
-        self.autostart_check = ttk.Checkbutton(checks, text="Launch on Windows startup", variable=self.autostart_var, style="Panel.TCheckbutton")
+        _autostart_label = "Open at login" if sys.platform == "darwin" else "Launch on startup"
+        self.autostart_check = ttk.Checkbutton(checks, text=_autostart_label, variable=self.autostart_var, style="Panel.TCheckbutton")
         self.autostart_check.pack(anchor="w")
 
         # -- Buttons --
@@ -1155,7 +1312,8 @@ class SettingsWindow:
 
         self._refresh_connection_button()
         self._poll_status()
-        self.root.mainloop()
+        if not self._tk_root:
+            self.root.mainloop()
 
     def _card(self, parent):
         return tk.Frame(parent, bg=self.SURFACE, highlightbackground=self.BORDER, highlightthickness=1, bd=0, padx=14, pady=12)
@@ -1338,16 +1496,14 @@ def main():
 
     app = TrayApp()
 
-    if tray_mode:
-        # Silent tray start for Windows autostart
+    if sys.platform == "darwin":
+        # macOS: Tk must live on the main thread
+        app.run_with_tk(show_settings=not tray_mode)
+    elif tray_mode:
         app.run()
     else:
-        # Open settings window on launch
-        def open_initial_settings():
-            app._settings_open = True
-            SettingsWindow(app.worker, on_close=app._on_settings_closed, on_quit=app.quit_app)
-
-        threading.Thread(target=open_initial_settings, daemon=True).start()
+        # Windows/Linux: pystray on main thread, Tk in worker threads
+        threading.Thread(target=app._open_initial_settings, daemon=True).start()
         app.run()
 
 
