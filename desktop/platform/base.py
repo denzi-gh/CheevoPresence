@@ -27,6 +27,14 @@ class PlatformServices:
         """Tell the user that another instance is already running."""
         return None
 
+    def request_running_app_exit(self):
+        """Ask an already-running app instance to shut down."""
+        return False
+
+    def start_exit_listener(self, callback):
+        """Start listening for external shutdown requests."""
+        return None
+
     def set_autostart(self, enable):
         """Enable or disable launch at login for the current platform."""
         return None

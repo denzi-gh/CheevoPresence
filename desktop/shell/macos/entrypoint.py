@@ -6,6 +6,8 @@ from desktop.platform import get_platform_services
 from desktop.runtime.controller import AppController
 from desktop.shell.macos.menu_bar import MacOSMenuBarApp
 
+EXIT_APP_FLAG = "--exit"
+
 
 def main():
     """Boot the macOS menu-bar app and optionally open Settings on launch."""
@@ -13,6 +15,10 @@ def main():
     platform = get_platform_services()
 
     if platform.handle_special_args(sys.argv):
+        return
+
+    if EXIT_APP_FLAG in sys.argv:
+        platform.request_running_app_exit()
         return
 
     if not platform.acquire_single_instance():

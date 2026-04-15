@@ -8,6 +8,7 @@ import shutil
 import subprocess
 import sys
 import tempfile
+import threading
 import time
 from tkinter import messagebox
 
@@ -15,6 +16,7 @@ from desktop.core.constants import APP_NAME
 from desktop.platform.base import PlatformServices
 
 SINGLE_INSTANCE_MUTEX_NAME = f"Local\\{APP_NAME}Singleton"
+EXIT_EVENT_NAME = f"Local\\{APP_NAME}Exit"
 ERROR_ALREADY_EXISTS = 183
 STARTUP_REG_KEY = r"Software\Microsoft\Windows\CurrentVersion\Run"
 STARTUP_REG_NAME = "CheevoPresence"
@@ -25,6 +27,8 @@ UPDATE_PARENT_PID_FLAG = "--update-parent-pid"
 UPDATE_RELAUNCH_ARGS_FLAG = "--update-relaunch-args"
 
 _single_instance_mutex = None
+_exit_event_handle = None
+_exit_listener_thread = None
 
 
 class DataBlob(ctypes.Structure):
@@ -138,6 +142,66 @@ def notify_already_running():
         messagebox.showinfo(APP_NAME, message)
     except Exception:
         pass
+
+
+def request_running_app_exit():
+    """Signal the running tray instance to shut itself down."""
+    if os.name != "nt":
+        return False
+
+    try:
+        kernel32 = ctypes.windll.kernel32
+        kernel32.OpenEventW.restype = ctypes.c_void_p
+        kernel32.SetEvent.argtypes = [ctypes.c_void_p]
+        kernel32.CloseHandle.argtypes = [ctypes.c_void_p]
+        event_modify_state = 0x0002
+        event = kernel32.OpenEventW(event_modify_state, False, EXIT_EVENT_NAME)
+        if not event:
+            return False
+        try:
+            return bool(kernel32.SetEvent(event))
+        finally:
+            kernel32.CloseHandle(event)
+    except Exception:
+        return False
+
+
+def start_exit_listener(callback):
+    """Listen for a named Win32 event triggered by `--exit`."""
+    global _exit_event_handle, _exit_listener_thread
+
+    if os.name != "nt" or not callable(callback):
+        return None
+    if _exit_listener_thread is not None and _exit_listener_thread.is_alive():
+        return _exit_listener_thread
+
+    try:
+        kernel32 = ctypes.windll.kernel32
+        kernel32.CreateEventW.restype = ctypes.c_void_p
+        kernel32.WaitForSingleObject.argtypes = [ctypes.c_void_p, ctypes.c_uint]
+        manual_reset = False
+        initial_state = False
+        event = kernel32.CreateEventW(None, manual_reset, initial_state, EXIT_EVENT_NAME)
+        if not event:
+            return None
+    except Exception:
+        return None
+
+    _exit_event_handle = event
+
+    def listen_for_exit():
+        wait_object_0 = 0x00000000
+        infinite = 0xFFFFFFFF
+        try:
+            result = kernel32.WaitForSingleObject(event, infinite)
+            if result == wait_object_0:
+                callback()
+        except Exception:
+            pass
+
+    _exit_listener_thread = threading.Thread(target=listen_for_exit, daemon=True)
+    _exit_listener_thread.start()
+    return _exit_listener_thread
 
 
 def get_exe_path():
@@ -474,6 +538,14 @@ class WindowsPlatformServices(PlatformServices):
     def notify_already_running(self):
         """Show the standard duplicate-instance notice."""
         return notify_already_running()
+
+    def request_running_app_exit(self):
+        """Signal the running tray instance to exit."""
+        return request_running_app_exit()
+
+    def start_exit_listener(self, callback):
+        """Start listening for external shutdown requests."""
+        return start_exit_listener(callback)
 
     def set_autostart(self, enable):
         """Update the Windows Run registry entry."""

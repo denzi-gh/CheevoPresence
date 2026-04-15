@@ -83,6 +83,9 @@ class _MenuBarDelegate(NSObject):
     def openRASettings_(self, _sender):
         self.owner.open_ra_settings()
 
+    def toggleConnection_(self, _sender):
+        self.owner.toggle_connection()
+
     def openHelp_(self, _sender):
         self.owner.open_help()
 
@@ -105,12 +108,14 @@ class MacOSMenuBarApp:
         self.status_menu = None
         self.status_text_item = None
         self.version_item = None
+        self.connection_item = None
         self._status_badge_layer = None
         from .ipc import MacOSAppService
 
         self.settings_service = MacOSAppService(controller, on_quit=self.quit_app)
         self._settings_process = None
         self._delegate = None
+        self._exit_listener = None
         self._shutdown_started = False
         self._shutdown_lock = threading.Lock()
 
@@ -118,6 +123,7 @@ class MacOSMenuBarApp:
         """Build the status item and start the shared runtime controller."""
         self.settings_service.start()
         self._build_status_item()
+        self._exit_listener = self.controller.platform.start_exit_listener(self.quit_app)
         self._update_menu_status()
         self.controller.start_saved_session()
         if self.open_settings_on_launch:
@@ -152,6 +158,14 @@ class MacOSMenuBarApp:
         self.status_menu.addItem_(self.version_item)
         self.status_menu.addItem_(self.status_text_item)
         self.status_menu.addItem_(NSMenuItem.separatorItem())
+
+        self.connection_item = NSMenuItem.alloc().initWithTitle_action_keyEquivalent_(
+            "Connect",
+            "toggleConnection:",
+            "",
+        )
+        self.connection_item.setTarget_(self._delegate)
+        self.status_menu.addItem_(self.connection_item)
 
         settings_item = NSMenuItem.alloc().initWithTitle_action_keyEquivalent_(
             "Settings",
@@ -209,10 +223,48 @@ class MacOSMenuBarApp:
         title = self._truncate_status(self.status_text)
         if self.status_text_item is not None:
             self.status_text_item.setTitle_(title)
+        self._update_connection_item()
         button = self.status_item.button()
         if button is not None:
             button.setToolTip_(f"{APP_NAME} - {self.status_text}")
             self._update_status_badge(button)
+
+    def _get_connection_action_title(self):
+        """Return the menu action label for the current worker lifecycle."""
+        if self.worker.is_stopping():
+            return "Stopping..."
+        if self.worker.running:
+            return "Disconnect"
+        return "Connect"
+
+    def _update_connection_item(self):
+        """Refresh the dynamic Connect/Disconnect menu item."""
+        if self.connection_item is None:
+            return
+        self.connection_item.setTitle_(self._get_connection_action_title())
+        self.connection_item.setEnabled_(not self.worker.is_stopping())
+
+    def toggle_connection(self):
+        """Connect or disconnect directly from the menu-bar context menu."""
+        if self.worker.is_stopping():
+            return
+        threading.Thread(target=self._toggle_connection, daemon=True).start()
+
+    def _toggle_connection(self):
+        """Run the connect/disconnect action without blocking AppKit."""
+        if self.worker.running:
+            self.controller.disconnect()
+            return
+
+        config = self.controller.load_config()
+        if not config["username"] or not config["apikey"]:
+            self.worker.set_ra_status(False)
+            self.worker.status_callback("error", "Username or API Key missing")
+            callAfter(self.open_settings)
+            return
+
+        if not self.controller.start_saved_session():
+            callAfter(self._update_menu_status)
 
     def _badge_color_for_status(self):
         """Return the badge color for the current runtime state, if any."""

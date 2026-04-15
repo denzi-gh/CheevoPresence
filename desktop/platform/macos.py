@@ -5,10 +5,12 @@ from __future__ import annotations
 import os
 import plistlib
 import shlex
+import socket
 import subprocess
 import sys
 import tempfile
 import shutil
+import threading
 from pathlib import Path
 
 from desktop.core.constants import APP_NAME
@@ -25,8 +27,12 @@ KEYCHAIN_SERVICE = LAUNCH_AGENT_ID
 KEYCHAIN_ACCOUNT = "retroachievements-api-key"
 KEYCHAIN_TOKEN_PREFIX = f"keychain://{KEYCHAIN_SERVICE}/"
 UPDATE_HELPER_ARCHIVE_NAME = "CheevoPresence-macos.zip"
+EXIT_SOCKET_NAME = "exit.sock"
 
 _single_instance_handle = None
+_exit_listener_socket = None
+_exit_listener_thread = None
+_exit_listener_stop_event = None
 
 
 def get_exe_path():
@@ -49,6 +55,11 @@ def get_cache_dir(app_name=APP_NAME):
 def get_launch_agent_path():
     """Return the per-user launch agent plist path."""
     return os.path.join(os.path.expanduser("~/Library/LaunchAgents"), LAUNCH_AGENT_FILE)
+
+
+def get_exit_socket_path():
+    """Return the local socket path used for external shutdown requests."""
+    return os.path.join(get_cache_dir(), EXIT_SOCKET_NAME)
 
 
 def build_keychain_token(account=KEYCHAIN_ACCOUNT):
@@ -411,6 +422,93 @@ def notify_already_running():
         pass
 
 
+def request_running_app_exit():
+    """Ask the running menu-bar instance to shut itself down."""
+    if sys.platform != "darwin":
+        return False
+
+    try:
+        with socket.socket(socket.AF_UNIX, socket.SOCK_STREAM) as conn:
+            conn.settimeout(2)
+            conn.connect(get_exit_socket_path())
+            conn.sendall(b"exit\n")
+        return True
+    except OSError:
+        return False
+
+
+def start_exit_listener(callback):
+    """Listen on a local socket for `--exit` shutdown requests."""
+    global _exit_listener_socket, _exit_listener_thread, _exit_listener_stop_event
+
+    if sys.platform != "darwin" or not callable(callback):
+        return None
+    if _exit_listener_thread is not None and _exit_listener_thread.is_alive():
+        return _exit_listener_thread
+
+    socket_path = get_exit_socket_path()
+    listener = None
+    try:
+        os.makedirs(os.path.dirname(socket_path), mode=0o700, exist_ok=True)
+        try:
+            os.chmod(os.path.dirname(socket_path), 0o700)
+        except OSError:
+            pass
+        if os.path.exists(socket_path):
+            os.remove(socket_path)
+
+        listener = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
+        listener.bind(socket_path)
+        os.chmod(socket_path, 0o600)
+        listener.listen()
+        listener.settimeout(0.5)
+    except OSError:
+        try:
+            listener.close()
+        except Exception:
+            pass
+        return None
+
+    stop_event = threading.Event()
+    _exit_listener_socket = listener
+    _exit_listener_stop_event = stop_event
+
+    def listen_for_exit():
+        try:
+            while not stop_event.is_set():
+                try:
+                    conn, _addr = listener.accept()
+                except socket.timeout:
+                    continue
+                except OSError:
+                    break
+                try:
+                    conn.recv(64)
+                except OSError:
+                    pass
+                finally:
+                    try:
+                        conn.close()
+                    except OSError:
+                        pass
+                callback()
+                break
+        finally:
+            try:
+                listener.close()
+            except OSError:
+                pass
+            try:
+                if os.path.exists(socket_path):
+                    os.remove(socket_path)
+            except OSError:
+                pass
+
+    _exit_listener_thread = threading.Thread(target=listen_for_exit, daemon=True)
+    _exit_listener_thread.start()
+    return _exit_listener_thread
+
+
 def set_autostart(enable):
     """Enable or disable launch-at-login through a per-user LaunchAgent plist."""
     plist_path = get_launch_agent_path()
@@ -533,6 +631,14 @@ class MacOSPlatformServices(GenericPlatformServices):
     def notify_already_running(self):
         """Show the duplicate-launch notice."""
         return notify_already_running()
+
+    def request_running_app_exit(self):
+        """Ask the running menu-bar instance to exit."""
+        return request_running_app_exit()
+
+    def start_exit_listener(self, callback):
+        """Start listening for external shutdown requests."""
+        return start_exit_listener(callback)
 
     def set_autostart(self, enable):
         """Write or remove the per-user LaunchAgent."""

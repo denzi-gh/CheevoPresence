@@ -21,6 +21,11 @@ from desktop.core.constants import DISCORD_APP_ID
 from desktop.core.settings import normalize_config
 from desktop.runtime.storage import load_config, load_console_icons
 
+DEVELOPER_ACTIVITY_MESSAGES = {
+    "inspecting memory",
+    "developing achievements",
+}
+
 
 def is_discord_unavailable_error(exc):
     """Recognize Discord IPC errors that usually mean Discord is not running."""
@@ -153,6 +158,18 @@ class RPCWorker:
             return "\U0001F3C6 Softcore", achieved
         return "\U0001F3C6 Hardcore", achieved_hc
 
+    def _is_developer_activity(self, rich_presence_message):
+        """Return whether the RA rich presence text means achievement dev work."""
+        if not isinstance(rich_presence_message, str):
+            return False
+        return rich_presence_message.strip().casefold() in DEVELOPER_ACTIVITY_MESSAGES
+
+    def _build_display_game_title(self, game_title, is_developer_activity):
+        """Decorate the Discord game title when the user is developing achievements."""
+        if is_developer_activity:
+            return f"\U0001F6E0\ufe0f {game_title} \U0001F6E0\ufe0f"
+        return game_title
+
     def _unexpected_api_response(self):
         """Surface a standard unexpected-API-response error to the UI."""
         self._disconnect_rpc()
@@ -226,6 +243,9 @@ class RPCWorker:
                     self.set_ra_status(True)
                     last_game_id = self._coerce_progress_int(user_data.get("LastGameID", 0))
 
+
+                    # Test Dev Mode by forcing "Developing Achievements" activity
+                    # rp_msg = user_data.get("RichPresenceMsg", "")
                     rp_msg = user_data.get("RichPresenceMsg", "")
                     if not isinstance(rp_msg, str):
                         raise APIResponseError
@@ -275,6 +295,11 @@ class RPCWorker:
                     game_title = game_data.get("GameTitle", "Unknown")
                     if not isinstance(game_title, str):
                         raise APIResponseError
+                    is_developer_activity = self._is_developer_activity(rp_msg)
+                    display_game_title = self._build_display_game_title(
+                        game_title,
+                        is_developer_activity,
+                    )
 
                     console_name = game_data.get("ConsoleName", "Unknown")
                     if not isinstance(console_name, str):
@@ -333,7 +358,7 @@ class RPCWorker:
 
                     update_kwargs = dict(
                         activity_type=ActivityType.PLAYING,
-                        name=game_title,
+                        name=trimmer(display_game_title),
                         details=trimmer(rp_msg) if rp_msg else None,
                         state=state_str,
                         start=self.start_time,
@@ -348,7 +373,11 @@ class RPCWorker:
                         update_kwargs["party_size"] = party
 
                     self.rpc.update(**update_kwargs)
-                    self.status_callback("connected", f"Playing: {game_title} ({console_name})")
+                    activity_label = "Developing" if is_developer_activity else "Playing"
+                    self.status_callback(
+                        "connected",
+                        f"{activity_label}: {game_title} ({console_name})",
+                    )
                     consecutive_errors = 0
 
                 except requests.RequestException as exc:

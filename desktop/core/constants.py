@@ -3,7 +3,7 @@
 DISCORD_APP_ID = "1485964205713788958"
 RA_API_BASE = "https://retroachievements.org/API"
 APP_NAME = "CheevoPresence"
-APP_VERSION = "1.1.0"
+APP_VERSION = "1.1.1"
 RA_SETTINGS_URL = "https://retroachievements.org/settings"
 RELEASES_PAGE_URL = "https://github.com/denzi-gh/CheevoPresence/releases"
 RELEASES_LATEST_API_URL = "https://api.github.com/repos/denzi-gh/CheevoPresence/releases/latest"

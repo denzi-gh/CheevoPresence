@@ -17,6 +17,7 @@ config.json
 update-test.json
 .env
 .env.*
+.github/docs
 
 # Build artifacts
 build/

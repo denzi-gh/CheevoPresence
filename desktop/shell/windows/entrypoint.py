@@ -8,6 +8,8 @@ from desktop.runtime.controller import AppController
 from desktop.shell.windows.tray import TrayApp
 from desktop.shell.windows.ui import SettingsWindow
 
+EXIT_APP_FLAG = "--exit"
+
 
 def main():
     """Boot the tray app and optionally open the settings window on launch."""
@@ -15,6 +17,10 @@ def main():
     platform = get_platform_services()
 
     if platform.handle_special_args(sys.argv):
+        return
+
+    if EXIT_APP_FLAG in sys.argv:
+        platform.request_running_app_exit()
         return
 
     if not platform.acquire_single_instance():

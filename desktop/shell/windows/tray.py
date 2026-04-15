@@ -48,6 +48,7 @@ class TrayApp:
         self.current_status = "disconnected"
         self.status_text = "Not running"
         self._settings_open = False
+        self._exit_listener = None
         self._fallback_colors = {
             "connected": (0, 200, 0, 255),
             "connecting": (255, 165, 0, 255),
@@ -81,6 +82,50 @@ class TrayApp:
             return
         self.icon.icon = self._get_tray_image()
         self.icon.title = f"{APP_NAME} - {self.status_text}"
+        self._update_menu()
+
+    def _update_menu(self):
+        """Refresh dynamic tray menu labels such as Connect/Disconnect."""
+        if not self.icon:
+            return
+        try:
+            self.icon.update_menu()
+        except Exception:
+            pass
+
+    def _get_connection_action_text(self, _item=None):
+        """Return the tray action label for the current worker lifecycle."""
+        if self.worker.is_stopping():
+            return "Stopping..." 
+        if self.worker.running:
+            return "Disconnect"
+        return "Connect"
+
+    def _is_connection_action_enabled(self, _item=None):
+        """Disable the tray connect action while the worker is shutting down."""
+        return not self.worker.is_stopping()
+
+    def _on_toggle_connection(self, icon, item):
+        """Connect or disconnect directly from the tray context menu."""
+        if self.worker.is_stopping():
+            return
+        threading.Thread(target=self._toggle_connection, daemon=True).start()
+
+    def _toggle_connection(self):
+        """Run the connect/disconnect action without blocking the tray menu."""
+        if self.worker.running:
+            self.controller.disconnect()
+            return
+
+        config = self.controller.load_config()
+        if not config["username"] or not config["apikey"]:
+            self.worker.set_ra_status(False)
+            self.worker.status_callback("error", "Username or API Key missing")
+            self._on_settings(None, None)
+            return
+
+        if not self.controller.start_saved_session():
+            self._update_menu()
 
     def _on_settings(self, icon, item):
         """Open the settings window once, even if the menu is clicked repeatedly."""
@@ -132,6 +177,11 @@ class TrayApp:
             pystray.MenuItem(lambda text: self._get_status_text(), None, enabled=False),
             pystray.Menu.SEPARATOR,
             pystray.MenuItem(
+                self._get_connection_action_text,
+                self._on_toggle_connection,
+                enabled=self._is_connection_action_enabled,
+            ),
+            pystray.MenuItem(
                 "Settings",
                 self._on_settings,
                 default=self.platform.settings_menu_default,
@@ -144,6 +194,7 @@ class TrayApp:
         ico = load_icon_image(APP_ICON_FILE) or create_tray_icon((150, 150, 150, 255))
 
         self.icon = icon_class(APP_NAME, ico, APP_NAME, menu)
+        self._exit_listener = self.platform.start_exit_listener(self.quit_app)
         self._update_icon()
 
         self.controller.start_saved_session()
