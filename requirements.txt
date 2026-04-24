@@ -1,4 +1,5 @@
 -r requirements/base.txt
+-r requirements/linux.txt ; sys_platform == "linux"
 pyobjc-core>=11,<12 ; sys_platform == "darwin"
 pyobjc-framework-Cocoa>=11,<12 ; sys_platform == "darwin"
 pyobjc-framework-Quartz>=11,<12 ; sys_platform == "darwin"
