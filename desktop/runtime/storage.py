@@ -47,7 +47,7 @@ RUNTIME_ROOT_DIR = get_runtime_root_dir()
 LEGACY_CONFIG_FILE = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))), "config.json")
 CONSOLE_ICONS_FILE = os.path.join(RESOURCE_DIR, "console_icons.ini")
 APP_ICON_FILE = os.path.join(RESOURCE_DIR, "cheevoRP_icon.ico")
-APP_ICON_PNG_FILE = os.path.join(RESOURCE_DIR, ".github", "assets", "tray-default.png")
+APP_ICON_PNG_FILE = os.path.join(RESOURCE_DIR, "cheevoRP_icon.png")
 MENU_BAR_TEMPLATE_ICON_FILE = os.path.join(RESOURCE_DIR, "cheevoRP_menubar_template.png")
 GENERATED_MENU_BAR_TEMPLATE_ICON_FILE = os.path.join(
     RUNTIME_ROOT_DIR,
@@ -59,6 +59,9 @@ GENERATED_MENU_BAR_TEMPLATE_ICON_FILE = os.path.join(
 TRAY_INACTIVE_ICON_FILE = os.path.join(RESOURCE_DIR, "cheevoRP_inactive.ico")
 TRAY_ACTIVE_ICON_FILE = os.path.join(RESOURCE_DIR, "cheevoRP_active.ico")
 TRAY_ERROR_ICON_FILE = os.path.join(RESOURCE_DIR, "cheevoRP_error.ico")
+TRAY_INACTIVE_PNG_FILE = os.path.join(RESOURCE_DIR, "cheevoRP_inactive.png")
+TRAY_ACTIVE_PNG_FILE = os.path.join(RESOURCE_DIR, "cheevoRP_active.png")
+TRAY_ERROR_PNG_FILE = os.path.join(RESOURCE_DIR, "cheevoRP_error.png")
 UPDATE_OVERRIDE_FILE = os.path.join(RUNTIME_ROOT_DIR, UPDATE_TEST_FILE_NAME)
 
 
