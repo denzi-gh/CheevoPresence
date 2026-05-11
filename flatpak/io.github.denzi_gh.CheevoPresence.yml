@@ -1,0 +1,95 @@
+app-id: io.github.denzi_gh.CheevoPresence
+runtime: org.freedesktop.Platform
+runtime-version: '24.08'
+sdk: org.freedesktop.Sdk
+
+command: cheevopresence
+
+finish-args:
+  # Show the system tray icon (AppIndicator / StatusNotifierItem)
+  - --talk-name=org.kde.StatusNotifierWatcher
+  - --talk-name=com.canonical.AppMenu.Registrar
+  - --talk-name=com.canonical.indicator.application
+  - --talk-name=org.ayatana.indicator.application
+  # Notifications portal
+  - --talk-name=org.freedesktop.portal.Desktop
+  # Secret Service (keyring) for encrypted API key storage
+  - --talk-name=org.freedesktop.secrets
+  # Discord IPC socket lives in XDG_RUNTIME_DIR; grant -0 through -9
+  - --filesystem=xdg-run/discord-ipc-0
+  - --filesystem=xdg-run/discord-ipc-1
+  - --filesystem=xdg-run/discord-ipc-2
+  - --filesystem=xdg-run/discord-ipc-3
+  - --filesystem=xdg-run/discord-ipc-4
+  - --filesystem=xdg-run/discord-ipc-5
+  - --filesystem=xdg-run/discord-ipc-6
+  - --filesystem=xdg-run/discord-ipc-7
+  - --filesystem=xdg-run/discord-ipc-8
+  - --filesystem=xdg-run/discord-ipc-9
+  # Flatpak Discord puts its IPC socket under app/com.discordapp.Discord/
+  - --filesystem=xdg-run/app/com.discordapp.Discord:ro
+  # Network access for the RetroAchievements API
+  - --share=network
+  # Own D-Bus name for single-instance detection
+  - --own-name=io.github.denzi_gh.CheevoPresence
+  # Wayland and X11 support (for the Tk settings window)
+  - --socket=wayland
+  - --socket=fallback-x11
+  - --share=ipc
+  # Tk needs access to the host font configuration
+  - --filesystem=~/.config/fontconfig:ro
+  - --filesystem=host-etc:ro
+
+build-options:
+  env:
+    PIP_DISABLE_PIP_VERSION_CHECK: '1'
+
+modules:
+  # ------------------------------------------------------------------ #
+  # 1. Python dependencies (installed at build time with network access) #
+  #    Uses the SDK's built-in python3 (Python 3.12 in SDK 24.08).      #
+  # ------------------------------------------------------------------ #
+  - name: python-deps
+    buildsystem: simple
+    build-options:
+      build-args:
+        - --share=network
+    build-commands:
+      - pip3 install --prefix=/app -r requirements-flatpak-locked.txt
+    sources:
+      - type: file
+        path: requirements-flatpak-locked.txt
+
+  # ------------------------------------------------------------------ #
+  # 2. CheevoPresence application                                        #
+  # ------------------------------------------------------------------ #
+  - name: cheevopresence
+    buildsystem: simple
+    build-commands:
+      # Python package — install into the SDK's python3 site-packages
+      - |
+        PYVER=$(python3 -c "import sys; print(f'{sys.version_info.major}.{sys.version_info.minor}')")
+        SITEPKG="/app/lib/python${PYVER}/site-packages"
+        install -d "${SITEPKG}"
+        cp -r desktop "${SITEPKG}/desktop"
+      # Entry-point wrapper
+      - install -Dm755 flatpak/cheevopresence.sh /app/bin/cheevopresence
+      # HiColor icon (PNG produced by the Docker build script)
+      - install -Dm644 cheevoRP_icon.png
+          /app/share/icons/hicolor/256x256/apps/io.github.denzi_gh.CheevoPresence.png
+      # Desktop entry
+      - install -Dm644 flatpak/io.github.denzi_gh.CheevoPresence.desktop
+          /app/share/applications/io.github.denzi_gh.CheevoPresence.desktop
+      # AppStream metainfo
+      - install -Dm644 flatpak/io.github.denzi_gh.CheevoPresence.metainfo.xml
+          /app/share/metainfo/io.github.denzi_gh.CheevoPresence.metainfo.xml
+      # Bundled runtime data files
+      - install -Dm644 console_icons.ini /app/share/cheevopresence/console_icons.ini
+      - install -Dm644 cheevoRP_icon.ico /app/share/cheevopresence/cheevoRP_icon.ico
+      - install -Dm644 cheevoRP_inactive.ico /app/share/cheevopresence/cheevoRP_inactive.ico
+      - install -Dm644 cheevoRP_active.ico /app/share/cheevopresence/cheevoRP_active.ico
+      - install -Dm644 cheevoRP_error.ico /app/share/cheevopresence/cheevoRP_error.ico
+    sources:
+      - type: dir
+        path: ..
+

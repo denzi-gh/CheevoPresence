@@ -23,6 +23,13 @@ update-test.json
 build/
 dist/
 *.spec
+cheevoRP_icon.png
+
+# Flatpak build state and repo (large, auto-generated)
+.flatpak-builder/
+flatpak-repo/
+flatpak/pip-sources.json
+flatpak/requirements-flatpak-locked.txt
 
 # IDE / editor
 .idea/

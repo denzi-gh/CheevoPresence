@@ -1,0 +1,25 @@
+# Top-level packages required for the Linux/Flatpak build.
+# pip-compile resolves transitive dependencies from this file and pins them in
+# requirements-flatpak-locked.txt.  Do not add -r includes here.
+#
+# Regenerate the locked file and pip-sources.json by running:
+#   python3 flatpak/generate_pip_sources.py
+
+# --- from requirements/base.txt ---
+certifi==2026.1.4
+charset-normalizer==3.4.4
+idna==3.11
+pillow==11.3.0
+pypresence==4.6.1
+pystray==0.19.5
+requests==2.32.5
+six==1.17.0
+urllib3==2.6.3
+
+# --- linux extras ---
+keyring>=25.0,<27
+
+# --- keyring SecretService backend (Linux) ---
+secretstorage
+jeepney
+cryptography

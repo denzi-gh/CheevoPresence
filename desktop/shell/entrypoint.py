@@ -19,7 +19,7 @@ def main():
     elif sys.platform.startswith("win"):
         from desktop.shell.windows.entrypoint import main as platform_main
     else:
-        raise NotImplementedError("CheevoPresence currently supports Windows and macOS only.")
+        raise NotImplementedError("CheevoPresence currently supports Windows and macOS.")
     return platform_main()
 
 

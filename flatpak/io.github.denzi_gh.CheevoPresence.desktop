@@ -1,0 +1,11 @@
+[Desktop Entry]
+Type=Application
+Name=CheevoPresence
+GenericName=RetroAchievements Discord Presence
+Comment=Mirror your RetroAchievements activity to Discord Rich Presence
+Exec=cheevopresence
+Icon=io.github.denzi_gh.CheevoPresence
+Categories=Utility;Game;
+Keywords=retroachievements;discord;presence;gaming;
+Terminal=false
+StartupNotify=false

@@ -1,6 +1,6 @@
 # <img src=".github/assets/tray-default.png" width="30"/> CheevoPresence
 
-CheevoPresence is a desktop app for Windows and macOS that mirrors your RetroAchievements activity to Discord Rich Presence.
+CheevoPresence is a desktop app for Windows, macOS, and Linux that mirrors your RetroAchievements activity to Discord Rich Presence.
 
 It watches your current RetroAchievements session, detects whether you are actively playing, and updates Discord with your game, platform, achievement progress, and quick links to your RetroAchievements profile and game page.
 
@@ -12,6 +12,7 @@ It watches your current RetroAchievements session, detects whether you are activ
 - Detects when you are no longer actively playing and clears the Discord presence
 - Supports profile and game-page buttons in Discord
 - Runs quietly in the background
+- Linux support via Flatpak
 
 This app was made with the intent to be as easy and lightweight as possible. You start the app, put in your RetroAchievements Username and your Web API Key and it works. Close the Window and youre gucci.
 
@@ -30,6 +31,8 @@ To use CheevoPresence, you need:
 
 ### First-Time Setup
 
+#### Windows and macOS
+
 1. Launch `CheevoPresence.exe` on Windows or `CheevoPresence.app` on macOS
 2. Enter your RetroAchievement username
 3. Enter your Web API key
@@ -40,6 +43,10 @@ If everything is set up correctly, CheevoPresence will begin updating your Disco
 
 
 > Make sure to close the Settings Window normally, pressing the "Exit App" Button will end the process entirely.
+
+#### Linux
+
+On Linux, CheevoPresence runs as a CLI app inside a Flatpak. There is no settings window or tray icon. See the [Linux (Flatpak)](#linux-flatpak) section for installation and usage.
 
 
 ### Tray/Menu-Bar Status
@@ -70,10 +77,67 @@ CheevoPresence does not expect you to keep secrets inside the repository.
 - The repository-level `config.json` is ignored by Git
 - Runtime configuration is stored under `%APPDATA%\CheevoPresence\config.json` on Windows
 - Runtime configuration is stored under `~/Library/Application Support/CheevoPresence/config.json` on macOS
-- The API key is stored in a protected form on Windows and in the macOS Keychain on macOS rather than being written back as plain text in the repo
+- Runtime configuration is stored under `~/.config/CheevoPresence/config.json` on Linux
+- The API key is stored in a protected form on Windows and in the macOS Keychain on macOS rather than being written back as plain text in the repo. On Linux the API key is passed as a command-line argument.
 - `config.example.json` exists only as a clean template
 
 
+
+## Linux (Flatpak)
+
+On Linux, CheevoPresence is distributed as a Flatpak bundle. This gives it a consistent environment across distributions and handles sandboxing and portal integration automatically.
+
+### What to Expect
+
+- On Linux, CheevoPresence runs as a CLI app rather than a GUI. There is no settings window or tray icon. You pass your credentials as command-line arguments and the app runs in the foreground, printing status to the terminal.
+- Discord Rich Presence communicates over the Discord IPC socket. The Flatpak requests access to `/run/user/$UID/discord-ipc-*` sockets, which is how Discord exposes IPC on Linux.
+- Self-update checks are disabled inside the Flatpak; updates come through the Flatpak bundle itself.
+
+### Known Limitations
+
+- Both native Discord and Flatpak Discord are supported. CheevoPresence automatically detects the IPC socket at `$XDG_RUNTIME_DIR/discord-ipc-0` (native) or `$XDG_RUNTIME_DIR/app/com.discordapp.Discord/discord-ipc-0` (Flatpak Discord). The browser version of Discord is not supported.
+- The Flatpak uses the `org.freedesktop.Platform` runtime (version 24.08), so Python and all dependencies are bundled inside and do not rely on system packages.
+
+### Installing the Flatpak
+
+Download `io.github.denzi_gh.CheevoPresence.flatpak` from the releases page, then:
+
+```bash
+flatpak install --user io.github.denzi_gh.CheevoPresence.flatpak
+flatpak run io.github.denzi_gh.CheevoPresence --username YOUR_RA_USERNAME --apikey YOUR_WEB_API_KEY
+```
+
+Your Web API key is available from your [RetroAchievements settings page](https://retroachievements.org/controlpanel.php).
+
+To uninstall:
+
+```bash
+flatpak uninstall --user io.github.denzi_gh.CheevoPresence
+```
+
+### Building the Flatpak Yourself
+
+The Flatpak is built using Docker (Fedora 41 base image with `flatpak-builder`). You need Docker installed and running.
+
+From the repository root on Windows:
+
+```powershell
+powershell -ExecutionPolicy Bypass -File build_flatpak.ps1
+```
+
+On subsequent runs, skip the Docker image rebuild with:
+
+```powershell
+powershell -ExecutionPolicy Bypass -File build_flatpak.ps1 -SkipImageBuild
+```
+
+The finished bundle is written to `dist/io.github.denzi_gh.CheevoPresence.flatpak`.
+
+On Linux directly, run the inner build script after installing the prerequisites listed in `flatpak/Dockerfile.build`:
+
+```bash
+bash flatpak/build_inside_docker.sh
+```
 
 ## Building the App Yourself
 
@@ -81,6 +145,7 @@ If you want to modify or package CheevoPresence yourself, use the platform-speci
 
 - Windows: [`.github/buildWindows.md`](./.github/buildWindows.md)
 - macOS: [`.github/buildMacOS.md`](./.github/buildMacOS.md)
+- Linux: see the [Building the Flatpak Yourself](#building-the-flatpak-yourself) section above
 
 
 ## Support the Project

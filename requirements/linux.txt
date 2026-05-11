@@ -1,0 +1,6 @@
+-r base.txt
+keyring>=25.0,<27
+# PyGObject is used for XDG portal D-Bus calls (notifications, autostart).
+# It is typically installed as a system package rather than via pip.
+# On Flatpak it is provided by the org.freedesktop.Platform runtime.
+# PyGObject>=3.48

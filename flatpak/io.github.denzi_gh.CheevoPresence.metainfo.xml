@@ -1,0 +1,72 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<component type="desktop-application">
+  <id>io.github.denzi_gh.CheevoPresence</id>
+
+  <name>CheevoPresence</name>
+  <summary>Mirror RetroAchievements activity to Discord Rich Presence</summary>
+
+  <metadata_license>MIT</metadata_license>
+  <project_license>MIT</project_license>
+
+  <description>
+    <p>
+      CheevoPresence connects to the RetroAchievements API and publishes your
+      current game and achievement progress as Discord Rich Presence status.
+      It runs quietly in the system tray and updates automatically while you
+      play.
+    </p>
+    <p>Features:</p>
+    <ul>
+      <li>Live Discord Rich Presence showing your current game and progress</li>
+      <li>Optional profile and game-page buttons in the Discord status card</li>
+      <li>Achievement progress counter</li>
+      <li>Configurable polling interval</li>
+      <li>Launch at login support</li>
+    </ul>
+  </description>
+
+  <launchable type="desktop-id">io.github.denzi_gh.CheevoPresence.desktop</launchable>
+
+  <url type="homepage">https://github.com/denzi-gh/CheevoPresence</url>
+  <url type="bugtracker">https://github.com/denzi-gh/CheevoPresence/issues</url>
+  <url type="vcs-browser">https://github.com/denzi-gh/CheevoPresence</url>
+
+  <developer id="io.github.denzi_gh">
+    <name>denzi-gh</name>
+  </developer>
+
+  <provides>
+    <binary>cheevopresence</binary>
+  </provides>
+
+  <releases>
+    <release version="1.1.1" date="2026-05-09">
+      <description>
+        <p>Linux and Flatpak support added.</p>
+      </description>
+    </release>
+  </releases>
+
+  <content_rating type="oars-1.1" />
+
+  <categories>
+    <category>Utility</category>
+    <category>Game</category>
+  </categories>
+
+  <keywords>
+    <keyword>retroachievements</keyword>
+    <keyword>discord</keyword>
+    <keyword>presence</keyword>
+    <keyword>gaming</keyword>
+  </keywords>
+
+  <requires>
+    <internet>always</internet>
+  </requires>
+
+  <recommends>
+    <control>pointing</control>
+    <control>keyboard</control>
+  </recommends>
+</component>

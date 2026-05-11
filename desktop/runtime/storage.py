@@ -15,6 +15,10 @@ def get_resource_dir():
     """Return the directory that contains bundled runtime assets."""
     if getattr(sys, "frozen", False):
         return getattr(sys, "_MEIPASS", os.path.dirname(sys.executable))
+    # Inside a Flatpak sandbox the data files are installed to a fixed prefix.
+    flatpak_data = "/app/share/cheevopresence"
+    if os.getenv("FLATPAK_ID") and os.path.isdir(flatpak_data):
+        return flatpak_data
     return os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 

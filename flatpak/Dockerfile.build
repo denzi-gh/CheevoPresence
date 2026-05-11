@@ -1,0 +1,27 @@
+FROM fedora:41
+
+# Tools needed for the full build pipeline
+# --nodocs and --setopt=install_weak_deps=False dramatically cut package count
+RUN dnf install -y \
+    --nodocs \
+    --setopt=install_weak_deps=False \
+    flatpak \
+    flatpak-builder \
+    python3 \
+    python3-pip \
+    python3-devel \
+    ImageMagick \
+    git \
+    dbus-daemon \
+    dbus-tools \
+    ostree \
+    && dnf clean all
+
+# pip-tools for pip-compile (pins transitive deps to a lock file)
+RUN pip3 install --break-system-packages pip-tools
+
+# Add Flathub so flatpak-builder can resolve runtime dependencies
+RUN flatpak remote-add --system --if-not-exists flathub \
+    https://flathub.org/repo/flathub.flatpakrepo
+
+WORKDIR /src
