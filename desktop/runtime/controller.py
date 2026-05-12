@@ -193,14 +193,14 @@ class AppController:
                 warning_message=warning_message,
             )
 
-    def disconnect(self):
+    def disconnect(self, timeout=35):
         """Stop the active monitoring worker."""
         with self._action_lock:
-            return self.worker.stop()
+            return self.worker.stop(timeout=timeout)
 
-    def shutdown(self):
+    def shutdown(self, timeout=35):
         """Shut the controller down before the app exits."""
-        return self.disconnect()
+        return self.disconnect(timeout=timeout)
 
     def install_update(self):
         """Download and stage the latest release asset for automatic restart."""

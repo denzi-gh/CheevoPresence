@@ -16,6 +16,9 @@ from desktop.runtime.storage import (
 )
 from desktop.shell.windows.ui import SettingsWindow
 
+SHUTDOWN_GRACE_SECONDS = 8
+SHUTDOWN_WATCHDOG_SECONDS = 12
+
 
 def create_tray_icon(color):
     """Create a simple fallback tray icon as a colored circle."""
@@ -49,6 +52,10 @@ class TrayApp:
         self.status_text = "Not running"
         self._settings_open = False
         self._exit_listener = None
+        self._shutdown_lock = threading.Lock()
+        self._shutdown_started = False
+        self._shutdown_done = threading.Event()
+        self._shutdown_watchdog = None
         self._fallback_colors = {
             "connected": (0, 200, 0, 255),
             "connecting": (255, 165, 0, 255),
@@ -72,13 +79,15 @@ class TrayApp:
 
     def _on_status(self, status, text):
         """Mirror worker status changes into the tray presentation."""
+        if self._shutdown_started:
+            return
         self.current_status = status
         self.status_text = text
         self._update_icon()
 
     def _update_icon(self):
         """Refresh the live tray icon and title if the tray is running."""
-        if not self.icon:
+        if not self.icon or self._shutdown_started:
             return
         self.icon.icon = self._get_tray_image()
         self.icon.title = f"{APP_NAME} - {self.status_text}"
@@ -96,7 +105,7 @@ class TrayApp:
     def _get_connection_action_text(self, _item=None):
         """Return the tray action label for the current worker lifecycle."""
         if self.worker.is_stopping():
-            return "Stopping..." 
+            return "Stopping..."
         if self.worker.running:
             return "Disconnect"
         return "Connect"
@@ -107,7 +116,7 @@ class TrayApp:
 
     def _on_toggle_connection(self, icon, item):
         """Connect or disconnect directly from the tray context menu."""
-        if self.worker.is_stopping():
+        if self._shutdown_started or self.worker.is_stopping():
             return
         threading.Thread(target=self._toggle_connection, daemon=True).start()
 
@@ -129,7 +138,7 @@ class TrayApp:
 
     def _on_settings(self, icon, item):
         """Open the settings window once, even if the menu is clicked repeatedly."""
-        if self._settings_open:
+        if self._shutdown_started or self._settings_open:
             return
         self._settings_open = True
         threading.Thread(target=self._show_settings_window, daemon=True).start()
@@ -151,9 +160,43 @@ class TrayApp:
 
     def quit_app(self):
         """Stop monitoring and exit the tray host."""
-        self.controller.shutdown()
-        if self.icon:
-            self.icon.stop()
+        with self._shutdown_lock:
+            if self._shutdown_started:
+                return
+            self._shutdown_started = True
+
+        self.controller.set_status_callback(None)
+        self._shutdown_watchdog = threading.Timer(
+            SHUTDOWN_WATCHDOG_SECONDS,
+            self._force_exit,
+        )
+        self._shutdown_watchdog.daemon = True
+        self._shutdown_watchdog.start()
+
+        shutdown_thread = threading.Thread(
+            target=self._shutdown_and_exit,
+            daemon=False,
+        )
+        shutdown_thread.start()
+
+    def _shutdown_and_exit(self):
+        """Hide the tray promptly, then give background cleanup a short window."""
+        try:
+            if self.icon:
+                try:
+                    self.icon.stop()
+                except Exception:
+                    pass
+            self.controller.shutdown(timeout=SHUTDOWN_GRACE_SECONDS)
+        finally:
+            self._shutdown_done.set()
+            if self._shutdown_watchdog:
+                self._shutdown_watchdog.cancel()
+
+    def _force_exit(self):
+        """End a wedged Windows tray process after graceful shutdown times out."""
+        if not self._shutdown_done.is_set():
+            os._exit(0)
 
     def _on_quit(self, icon, item):
         """Handle the tray quit command."""

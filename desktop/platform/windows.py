@@ -112,19 +112,27 @@ def acquire_single_instance():
         return True
 
     try:
-        kernel32 = ctypes.windll.kernel32
+        kernel32 = ctypes.WinDLL("kernel32", use_last_error=True)
+        kernel32.CreateMutexW.argtypes = [
+            ctypes.c_void_p,
+            ctypes.c_int,
+            ctypes.c_wchar_p,
+        ]
+        kernel32.CreateMutexW.restype = ctypes.c_void_p
+        kernel32.CloseHandle.argtypes = [ctypes.c_void_p]
+        kernel32.CloseHandle.restype = ctypes.c_bool
         mutex = kernel32.CreateMutexW(None, False, SINGLE_INSTANCE_MUTEX_NAME)
         if not mutex:
-            return True
+            return False
 
-        if kernel32.GetLastError() == ERROR_ALREADY_EXISTS:
+        if ctypes.get_last_error() == ERROR_ALREADY_EXISTS:
             kernel32.CloseHandle(mutex)
             return False
 
         _single_instance_mutex = mutex
         return True
     except Exception:
-        return True
+        return False
 
 
 def notify_already_running():

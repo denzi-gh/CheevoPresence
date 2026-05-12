@@ -131,7 +131,7 @@ class RPCWorker:
             self.thread.start()
             return True
 
-    def stop(self):
+    def stop(self, timeout=35):
         """Request a clean worker shutdown and wait briefly for it to finish."""
         with self._state_lock:
             thread = self.thread
@@ -145,7 +145,7 @@ class RPCWorker:
             self._stop_event.set()
 
         if thread and thread is not threading.current_thread():
-            thread.join(timeout=35)
+            thread.join(timeout=timeout)
 
         stopped = not thread or not thread.is_alive()
         if stopped:
