@@ -73,7 +73,14 @@ CheevoPresence does not expect you to keep secrets inside the repository.
 - The API key is stored in a protected form on Windows and in the macOS Keychain on macOS rather than being written back as plain text in the repo
 - `config.example.json` exists only as a clean template
 
+### Diagnostic Logs
 
+CheevoPresence writes local diagnostic logs so problems can be diagnosed without exposing anything in the app UI. 
+
+- Windows logs: `%APPDATA%\CheevoPresence\logs`
+- macOS logs: `~/Library/Application Support/CheevoPresence/logs`
+
+If something is not working, zip that folder and send it to me via Discord or post it in the Issue. It contains no API Keys or full Paths :)
 
 ## Building the App Yourself
 

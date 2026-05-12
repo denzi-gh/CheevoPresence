@@ -3,6 +3,7 @@
 import base64
 import ctypes
 import json
+import logging
 import os
 import shutil
 import subprocess
@@ -29,6 +30,7 @@ UPDATE_RELAUNCH_ARGS_FLAG = "--update-relaunch-args"
 _single_instance_mutex = None
 _exit_event_handle = None
 _exit_listener_thread = None
+logger = logging.getLogger(__name__)
 
 
 class DataBlob(ctypes.Structure):
@@ -123,15 +125,19 @@ def acquire_single_instance():
         kernel32.CloseHandle.restype = ctypes.c_bool
         mutex = kernel32.CreateMutexW(None, False, SINGLE_INSTANCE_MUTEX_NAME)
         if not mutex:
+            logger.warning("Windows single-instance mutex creation failed")
             return False
 
         if ctypes.get_last_error() == ERROR_ALREADY_EXISTS:
             kernel32.CloseHandle(mutex)
+            logger.info("Windows single-instance mutex already exists")
             return False
 
         _single_instance_mutex = mutex
+        logger.info("Windows single-instance mutex acquired")
         return True
     except Exception:
+        logger.exception("Windows single-instance mutex acquisition failed")
         return False
 
 

@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import logging
 import os
 import subprocess
 import sys
@@ -35,6 +36,8 @@ from desktop.runtime.storage import (
     MENU_BAR_TEMPLATE_ICON_FILE,
 )
 from desktop.shell.entrypoint import MAC_SETTINGS_CLIENT_FLAG
+
+logger = logging.getLogger(__name__)
 
 
 def _load_template_status_image():
@@ -121,6 +124,7 @@ class MacOSMenuBarApp:
 
     def _application_did_finish_launching(self):
         """Build the status item and start the shared runtime controller."""
+        logger.info("macOS menu-bar app finished launching")
         self.settings_service.start()
         self._build_status_item()
         self._exit_listener = self.controller.platform.start_exit_listener(self.quit_app)
@@ -253,17 +257,28 @@ class MacOSMenuBarApp:
     def _toggle_connection(self):
         """Run the connect/disconnect action without blocking AppKit."""
         if self.worker.running:
+            logger.info("macOS menu-bar disconnect requested")
             self.controller.disconnect()
             return
 
         config = self.controller.load_config()
         if not config["username"] or not config["apikey"]:
+            logger.info(
+                (
+                    "macOS menu-bar connect blocked missing_credentials "
+                    "username_present=%s apikey_present=%s"
+                ),
+                bool(config["username"]),
+                bool(config["apikey"]),
+            )
             self.worker.set_ra_status(False)
             self.worker.status_callback("error", "Username or API Key missing")
             callAfter(self.open_settings)
             return
 
+        logger.info("macOS menu-bar connect requested")
         if not self.controller.start_saved_session():
+            logger.warning("macOS menu-bar connect request did not start worker")
             callAfter(self._update_menu_status)
 
     def _badge_color_for_status(self):
@@ -346,6 +361,7 @@ class MacOSMenuBarApp:
             stderr=subprocess.DEVNULL,
             env=env,
         )
+        logger.info("macOS settings process launched pid=%s", self._settings_process.pid)
         self._focus_settings_process()
 
     def _build_settings_command(self):
@@ -382,7 +398,9 @@ class MacOSMenuBarApp:
         try:
             self._settings_process.wait(timeout=2)
         except subprocess.TimeoutExpired:
+            logger.warning("macOS settings process did not terminate; killing")
             self._settings_process.kill()
+        logger.info("macOS settings process stopped")
         self._settings_process = None
 
     def open_ra_settings(self):
@@ -403,6 +421,7 @@ class MacOSMenuBarApp:
             if self._shutdown_started:
                 return
             self._shutdown_started = True
+        logger.info("macOS menu-bar shutdown requested")
         threading.Thread(target=self._shutdown_and_terminate, daemon=True).start()
 
     def _shutdown_and_terminate(self):
@@ -410,7 +429,8 @@ class MacOSMenuBarApp:
         try:
             self._stop_settings_process()
             self.settings_service.stop()
-            self.controller.shutdown()
+            stopped = self.controller.shutdown()
+            logger.info("macOS menu-bar shutdown cleanup completed stopped=%s", stopped)
         finally:
             callAfter(NSApplication.sharedApplication().terminate_, None)
 
@@ -420,4 +440,6 @@ class MacOSMenuBarApp:
         self.app.setActivationPolicy_(NSApplicationActivationPolicyAccessory)
         self._delegate = _MenuBarDelegate.alloc().initWithOwner_(self)
         self.app.setDelegate_(self._delegate)
+        logger.info("macOS menu-bar event loop starting")
         runEventLoop()
+        logger.info("macOS menu-bar event loop exited")

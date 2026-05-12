@@ -1,5 +1,6 @@
 """Tray host and icon helpers for the Windows desktop shell."""
 
+import logging
 import os
 import threading
 import webbrowser
@@ -18,6 +19,7 @@ from desktop.shell.windows.ui import SettingsWindow
 
 SHUTDOWN_GRACE_SECONDS = 8
 SHUTDOWN_WATCHDOG_SECONDS = 12
+logger = logging.getLogger(__name__)
 
 
 def create_tray_icon(color):
@@ -123,17 +125,28 @@ class TrayApp:
     def _toggle_connection(self):
         """Run the connect/disconnect action without blocking the tray menu."""
         if self.worker.running:
+            logger.info("Tray disconnect requested")
             self.controller.disconnect()
             return
 
         config = self.controller.load_config()
         if not config["username"] or not config["apikey"]:
+            logger.info(
+                (
+                    "Tray connect blocked missing_credentials "
+                    "username_present=%s apikey_present=%s"
+                ),
+                bool(config["username"]),
+                bool(config["apikey"]),
+            )
             self.worker.set_ra_status(False)
             self.worker.status_callback("error", "Username or API Key missing")
             self._on_settings(None, None)
             return
 
+        logger.info("Tray connect requested")
         if not self.controller.start_saved_session():
+            logger.warning("Tray connect request did not start worker")
             self._update_menu()
 
     def _on_settings(self, icon, item):
@@ -165,6 +178,7 @@ class TrayApp:
                 return
             self._shutdown_started = True
 
+        logger.info("Windows tray shutdown requested")
         self.controller.set_status_callback(None)
         self._shutdown_watchdog = threading.Timer(
             SHUTDOWN_WATCHDOG_SECONDS,
@@ -185,9 +199,12 @@ class TrayApp:
             if self.icon:
                 try:
                     self.icon.stop()
+                    logger.info("Windows tray icon stopped")
                 except Exception:
+                    logger.exception("Windows tray icon stop failed")
                     pass
-            self.controller.shutdown(timeout=SHUTDOWN_GRACE_SECONDS)
+            stopped = self.controller.shutdown(timeout=SHUTDOWN_GRACE_SECONDS)
+            logger.info("Windows tray shutdown cleanup completed stopped=%s", stopped)
         finally:
             self._shutdown_done.set()
             if self._shutdown_watchdog:
@@ -196,6 +213,7 @@ class TrayApp:
     def _force_exit(self):
         """End a wedged Windows tray process after graceful shutdown times out."""
         if not self._shutdown_done.is_set():
+            logger.critical("Windows tray shutdown watchdog forcing process exit")
             os._exit(0)
 
     def _on_quit(self, icon, item):
@@ -240,6 +258,8 @@ class TrayApp:
         self._exit_listener = self.platform.start_exit_listener(self.quit_app)
         self._update_icon()
 
+        logger.info("Windows tray run started")
         self.controller.start_saved_session()
 
         self.icon.run()
+        logger.info("Windows tray run exited")

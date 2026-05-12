@@ -42,6 +42,16 @@ def get_config_file(platform=None):
     return os.path.join(get_config_dir(platform), "config.json")
 
 
+def get_log_dir(platform=None):
+    """Return the per-user directory where runtime diagnostic logs should live."""
+    return os.path.join(get_config_dir(platform), "logs")
+
+
+def get_log_file(platform=None):
+    """Return the main runtime diagnostic log file path."""
+    return os.path.join(get_log_dir(platform), "cheevo.log")
+
+
 RESOURCE_DIR = get_resource_dir()
 RUNTIME_ROOT_DIR = get_runtime_root_dir()
 LEGACY_CONFIG_FILE = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))), "config.json")

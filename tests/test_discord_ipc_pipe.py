@@ -48,7 +48,8 @@ class DiscordIpcPipeTests(unittest.TestCase):
         }
         worker = self._make_worker()
 
-        self.assertTrue(worker._connect_rpc())
+        with self.assertLogs("desktop.runtime.worker", level="INFO") as logs:
+            self.assertTrue(worker._connect_rpc())
 
         self.assertEqual([0, 1], FakePresence.attempts)
         self.assertTrue(FakePresence.instances[0].closed)
@@ -56,6 +57,10 @@ class DiscordIpcPipeTests(unittest.TestCase):
         self.assertEqual(1, worker.rpc_pipe)
         self.assertTrue(worker.rpc_connected)
         self.assertEqual("connected", worker.current_status)
+        output = "\n".join(logs.output)
+        self.assertIn("Discord IPC connect attempt pipe=0", output)
+        self.assertIn("Discord IPC pipe unavailable pipe=0", output)
+        self.assertIn("Discord IPC connected pipe=1", output)
 
     def test_connect_prefers_last_working_pipe(self):
         worker = self._make_worker()

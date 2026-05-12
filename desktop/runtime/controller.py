@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import logging
 import os
 import shutil
 import sys
@@ -27,6 +28,8 @@ from desktop.runtime.storage import (
     save_config,
 )
 from desktop.runtime.worker import RPCWorker
+
+logger = logging.getLogger(__name__)
 
 
 @dataclass
@@ -68,6 +71,10 @@ class AppController:
 
     def __init__(self, platform=None):
         self.platform = platform or get_platform_services()
+        logger.info(
+            "Controller initializing platform=%s",
+            self.platform.__class__.__name__,
+        )
         self._action_lock = threading.Lock()
         self._update_lock = threading.Lock()
         self._update_thread = None
@@ -107,7 +114,9 @@ class AppController:
         """Kick off a one-shot background check for a newer app version."""
         with self._update_lock:
             if self._update_thread and self._update_thread.is_alive():
+                logger.info("Update check already running")
                 return
+            logger.info("Starting update check")
             self._update_thread = threading.Thread(target=self._check_for_updates, daemon=True)
             self._update_thread.start()
 
@@ -116,16 +125,33 @@ class AppController:
         with self._action_lock:
             config = self.load_config()
             if not config["username"] or not config["apikey"]:
+                logger.info(
+                    (
+                        "Saved session not started missing_credentials "
+                        "username_present=%s apikey_present=%s"
+                    ),
+                    bool(config["username"]),
+                    bool(config["apikey"]),
+                )
                 return False
+            logger.info("Starting saved session")
             return self.worker.start(config)
 
     def connect(self, config):
         """Persist settings, validate credentials, and start monitoring."""
         with self._action_lock:
             self.config = normalize_config(config)
+            logger.info(
+                "Connect requested username_present=%s apikey_present=%s start_on_boot=%s",
+                bool(self.config["username"]),
+                bool(self.config["apikey"]),
+                bool(self.config["start_on_boot"]),
+            )
             try:
                 save_config(self.config, self.platform)
+                logger.info("Configuration saved")
             except OSError:
+                logger.exception("Configuration save failed")
                 return ConnectResult(
                     success=False,
                     config=dict(self.config),
@@ -137,6 +163,7 @@ class AppController:
             warning_message = None
             autostart_error = self.platform.set_autostart(self.config["start_on_boot"])
             if autostart_error:
+                logger.warning("Autostart update failed error=%s", autostart_error)
                 self.config["start_on_boot"] = self.platform.is_autostart_enabled()
                 try:
                     save_config(self.config, self.platform)
@@ -147,7 +174,12 @@ class AppController:
 
             try:
                 ra_get_user_summary(self.config["username"], self.config["apikey"])
+                logger.info("RetroAchievements credential validation succeeded")
             except requests.RequestException as exc:
+                logger.warning(
+                    "RetroAchievements credential validation failed error=%s",
+                    format_api_error(exc),
+                )
                 return ConnectResult(
                     success=False,
                     config=dict(self.config),
@@ -157,6 +189,9 @@ class AppController:
                     error_message=format_api_error(exc),
                 )
             except APIResponseError:
+                logger.warning(
+                    "RetroAchievements credential validation returned unexpected payload"
+                )
                 return ConnectResult(
                     success=False,
                     config=dict(self.config),
@@ -166,6 +201,7 @@ class AppController:
                     error_message="API error: unexpected response",
                 )
             except Exception:
+                logger.exception("RetroAchievements credential validation failed unexpectedly")
                 return ConnectResult(
                     success=False,
                     config=dict(self.config),
@@ -177,6 +213,7 @@ class AppController:
 
             started = self.worker.start(self.config)
             if not started:
+                logger.warning("Worker did not start after successful credential validation")
                 return ConnectResult(
                     success=False,
                     config=dict(self.config),
@@ -186,6 +223,7 @@ class AppController:
                     error_message="Could not start the monitoring worker.",
                 )
 
+            logger.info("Connect completed worker_started=True")
             return ConnectResult(
                 success=True,
                 config=dict(self.config),
@@ -196,22 +234,31 @@ class AppController:
     def disconnect(self, timeout=35):
         """Stop the active monitoring worker."""
         with self._action_lock:
-            return self.worker.stop(timeout=timeout)
+            logger.info("Disconnect requested timeout=%s", timeout)
+            stopped = self.worker.stop(timeout=timeout)
+            logger.info("Disconnect completed stopped=%s", stopped)
+            return stopped
 
     def shutdown(self, timeout=35):
         """Shut the controller down before the app exits."""
+        logger.info("Controller shutdown requested timeout=%s", timeout)
         return self.disconnect(timeout=timeout)
 
     def install_update(self):
         """Download and stage the latest release asset for automatic restart."""
         status = self.get_update_status()
         if not status.available:
+            logger.info("Update install skipped no_update_available=True")
             return UpdateInstallResult(
                 success=False,
                 error_title="No Update Available",
                 error_message="No newer CheevoPresence version is currently available.",
             )
         if not self.platform.supports_self_update():
+            logger.info(
+                "Update install unsupported platform=%s",
+                self.platform.__class__.__name__,
+            )
             return UpdateInstallResult(
                 success=False,
                 error_title="Update Unsupported",
@@ -223,6 +270,7 @@ class AppController:
         if not asset_name or not asset_url:
             asset_name, asset_url = self._fetch_latest_update_asset()
         if not asset_name or not asset_url:
+            logger.warning("Update install unavailable no_asset=True")
             return UpdateInstallResult(
                 success=False,
                 error_title="Update Unavailable",
@@ -232,6 +280,7 @@ class AppController:
         download_dir = tempfile.mkdtemp(prefix="CheevoPresence-download-")
         download_path = os.path.join(download_dir, asset_name)
         try:
+            logger.info("Update install staging asset=%s", asset_name)
             self._download_release_asset(asset_url, download_path)
             install_error = self.platform.stage_update_install(
                 download_path,
@@ -239,6 +288,7 @@ class AppController:
                 source_pid=os.getpid(),
             )
         except requests.RequestException as exc:
+            logger.warning("Update download failed error=%s", format_api_error(exc))
             self._cleanup_update_download(download_dir)
             return UpdateInstallResult(
                 success=False,
@@ -246,6 +296,7 @@ class AppController:
                 error_message=format_api_error(exc),
             )
         except OSError:
+            logger.exception("Update download write failed")
             self._cleanup_update_download(download_dir)
             return UpdateInstallResult(
                 success=False,
@@ -253,6 +304,7 @@ class AppController:
                 error_message="Could not write the downloaded update to disk.",
             )
         except Exception:
+            logger.exception("Update install preparation failed unexpectedly")
             self._cleanup_update_download(download_dir)
             return UpdateInstallResult(
                 success=False,
@@ -261,12 +313,14 @@ class AppController:
             )
 
         if install_error:
+            logger.warning("Update install staging failed error=%s", install_error)
             self._cleanup_update_download(download_dir)
             return UpdateInstallResult(
                 success=False,
                 error_title="Update Failed",
                 error_message=install_error,
             )
+        logger.info("Update install staged successfully asset=%s", asset_name)
         return UpdateInstallResult(success=True)
 
     def _check_for_updates(self):
