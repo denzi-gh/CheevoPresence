@@ -25,6 +25,17 @@ DEVELOPER_ACTIVITY_MESSAGES = {
     "inspecting memory",
     "developing achievements",
 }
+DISCORD_IPC_PIPES = tuple(range(10))
+
+
+def _close_rpc_client(rpc):
+    """Best-effort cleanup for a Discord RPC client."""
+    if not rpc:
+        return
+    try:
+        rpc.close()
+    except Exception:
+        pass
 
 
 def is_discord_unavailable_error(exc):
@@ -35,8 +46,13 @@ def is_discord_unavailable_error(exc):
             pypresence_exceptions.DiscordNotFound,
             pypresence_exceptions.InvalidPipe,
             pypresence_exceptions.PipeClosed,
+            pypresence_exceptions.ConnectionTimeout,
+            pypresence_exceptions.ResponseTimeout,
             BrokenPipeError,
+            ConnectionRefusedError,
             ConnectionResetError,
+            FileNotFoundError,
+            TimeoutError,
         ),
     )
 
@@ -44,17 +60,25 @@ def is_discord_unavailable_error(exc):
 class RPCWorker:
     """Poll RetroAchievements and mirror the active session to Discord RPC."""
 
-    def __init__(self, status_callback=None, initial_config=None, console_icons=None):
+    def __init__(
+        self,
+        status_callback=None,
+        initial_config=None,
+        console_icons=None,
+        presence_factory=Presence,
+    ):
         self._lock = threading.Lock()
         self._state_lock = threading.Lock()
         self._stop_event = threading.Event()
         self._external_callback = status_callback
+        self._presence_factory = presence_factory
         self.config = normalize_config(initial_config if initial_config is not None else load_config())
         self.console_icons = console_icons if console_icons is not None else load_console_icons()
         self.running = False
         self.thread = None
         self.rpc = None
         self.rpc_connected = False
+        self.rpc_pipe = None
         self.start_time = None
         self._current_game_id = None
         self.current_status = "disconnected"
@@ -176,32 +200,56 @@ class RPCWorker:
         self.set_ra_status(False)
         self.status_callback("error", "API error: unexpected response")
 
+    def _discord_pipe_order(self):
+        """Return the Discord IPC pipe order, preferring the last working pipe."""
+        if self.rpc_pipe in DISCORD_IPC_PIPES:
+            return (self.rpc_pipe,) + tuple(
+                pipe for pipe in DISCORD_IPC_PIPES if pipe != self.rpc_pipe
+            )
+        return DISCORD_IPC_PIPES
+
+    def _connect_rpc_pipe(self, pipe):
+        """Create and connect a Discord RPC client for one IPC pipe index."""
+        rpc = self._presence_factory(DISCORD_APP_ID, pipe=pipe)
+        try:
+            rpc.connect()
+        except Exception:
+            _close_rpc_client(rpc)
+            raise
+        return rpc
+
     def _connect_rpc(self):
         """Open the Discord IPC connection if it is not already active."""
         with self._lock:
             if self.rpc_connected:
                 return True
-            try:
-                if self.rpc:
-                    try:
-                        self.rpc.close()
-                    except Exception:
-                        pass
+            _close_rpc_client(self.rpc)
+            self.rpc = None
+            self.rpc_connected = False
+            self.start_time = None
+
+            for pipe in self._discord_pipe_order():
+                try:
+                    self.rpc = self._connect_rpc_pipe(pipe)
+                    self.rpc_connected = True
+                    self.rpc_pipe = pipe
+                    self.start_time = int(time.time())
+                    self.status_callback("connected", "Connected to Discord")
+                    return True
+                except pypresence_exceptions.InvalidID:
                     self.rpc = None
-                self.rpc = Presence(DISCORD_APP_ID)
-                self.rpc.connect()
-                self.rpc_connected = True
-                self.start_time = int(time.time())
-                self.status_callback("connected", "Connected to Discord")
-                return True
-            except Exception as exc:
-                self.rpc = None
-                self.rpc_connected = False
-                if is_discord_unavailable_error(exc):
-                    self.status_callback("error", "Discord is not open")
-                else:
                     self.status_callback("error", "Discord connection failed")
-                return False
+                    return False
+                except Exception as exc:
+                    self.rpc = None
+                    if is_discord_unavailable_error(exc):
+                        continue
+                    self.status_callback("error", "Discord connection failed")
+                    return False
+
+            self.rpc_pipe = None
+            self.status_callback("error", "Discord is not open")
+            return False
 
     def _disconnect_rpc(self):
         """Clear Discord presence and close the current IPC client safely."""

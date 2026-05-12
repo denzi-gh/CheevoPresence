@@ -9,6 +9,7 @@ build_venv_dir="$project_root/build/macos/venv"
 build_python_marker="$build_venv_dir/.base_python"
 dependency_marker="$build_venv_dir/.dependencies.sha256"
 pyinstaller_version="6.19.0"
+codesign_identity="${CHEEVO_MACOS_CODESIGN_IDENTITY:--}"
 
 python_supports_tk() {
   local candidate="$1"
@@ -110,6 +111,25 @@ ensure_build_venv() {
   fi
 }
 
+sign_macos_bundle() {
+  local app_path="$1"
+  local -a codesign_args
+
+  if [[ ! -d "${app_path}" ]]; then
+    echo "Missing macOS app bundle to sign: ${app_path}" >&2
+    return 1
+  fi
+
+  codesign_args=(--force --deep --sign "${codesign_identity}")
+  if [[ "${codesign_identity}" != "-" ]]; then
+    codesign_args+=(--options runtime)
+  fi
+
+  echo "Signing ${app_path} with identity: ${codesign_identity}"
+  /usr/bin/codesign "${codesign_args[@]}" "${app_path}"
+  /usr/bin/codesign --verify --deep --strict --verbose=2 "${app_path}"
+}
+
 build_python="$(select_build_python || true)"
 if [[ -z "${build_python}" ]]; then
   echo "No Tk-capable Python runtime was found for the macOS build." >&2
@@ -163,6 +183,7 @@ PYTHONPATH="$project_root${PYTHONPATH:+:$PYTHONPATH}" "${build_python}" -m PyIns
   "launch_macos.py"
 
 "${build_python}" scripts/postprocess_macos_bundle.py "dist/CheevoPresence.app"
+sign_macos_bundle "dist/CheevoPresence.app"
 /usr/bin/ditto -c -k --keepParent "dist/CheevoPresence.app" "dist/CheevoPresence-macos.zip"
 
 echo "Built dist/CheevoPresence.app"
