@@ -72,6 +72,15 @@ def _write_message(conn, payload):
     conn.sendall(json.dumps(payload).encode("utf-8") + b"\n")
 
 
+def _format_ipc_error(exc):
+    """Return a client-safe IPC error string."""
+    if isinstance(exc, PermissionError):
+        return "Invalid IPC token."
+    if isinstance(exc, ValueError):
+        return str(exc) or "Invalid IPC request."
+    return "IPC request failed."
+
+
 class MacOSAppService:
     """Expose the main-app controller to the companion settings process."""
 
@@ -177,7 +186,7 @@ class MacOSAppService:
                 request = _read_message(conn)
                 response = {"ok": True, "result": self._dispatch(request)}
             except Exception as exc:
-                response = {"ok": False, "error": str(exc)}
+                response = {"ok": False, "error": _format_ipc_error(exc)}
             try:
                 _write_message(conn, response)
             except Exception:
