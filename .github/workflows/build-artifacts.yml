@@ -41,11 +41,18 @@ jobs:
             Out-File -FilePath "CheevoPresence.exe.sha256" -Encoding ascii
           Pop-Location
 
-      - name: upload artifact
-        uses: actions/upload-artifact@v4
+      - name: upload exe
+        uses: actions/upload-artifact@v7
         with:
-          name: CheevoPresence-windows
-          path: release-assets/windows/*
+          path: release-assets/windows/CheevoPresence.exe
+          archive: false
+          if-no-files-found: error
+
+      - name: upload checksum
+        uses: actions/upload-artifact@v7
+        with:
+          path: release-assets/windows/CheevoPresence.exe.sha256
+          archive: false
           if-no-files-found: error
 
   macos:
@@ -70,11 +77,18 @@ jobs:
           cd release-assets/macos
           shasum -a 256 CheevoPresence-macos.zip > CheevoPresence-macos.zip.sha256
 
-      - name: upload artifact
-        uses: actions/upload-artifact@v4
+      - name: upload zip
+        uses: actions/upload-artifact@v7
         with:
-          name: CheevoPresence-macos
-          path: release-assets/macos/*
+          path: release-assets/macos/CheevoPresence-macos.zip
+          archive: false
+          if-no-files-found: error
+
+      - name: upload checksum
+        uses: actions/upload-artifact@v7
+        with:
+          path: release-assets/macos/CheevoPresence-macos.zip.sha256
+          archive: false
           if-no-files-found: error
 
   linux:
@@ -111,9 +125,16 @@ jobs:
           cd release-assets/linux
           sha256sum CheevoPresence-linux-x86_64 > CheevoPresence-linux-x86_64.sha256
 
-      - name: upload artifact
-        uses: actions/upload-artifact@v4
+      - name: upload binary
+        uses: actions/upload-artifact@v7
         with:
-          name: CheevoPresence-linux-x86_64
-          path: release-assets/linux/*
+          path: release-assets/linux/CheevoPresence-linux-x86_64
+          archive: false
+          if-no-files-found: error
+
+      - name: upload checksum
+        uses: actions/upload-artifact@v7
+        with:
+          path: release-assets/linux/CheevoPresence-linux-x86_64.sha256
+          archive: false
           if-no-files-found: error
