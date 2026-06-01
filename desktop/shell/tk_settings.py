@@ -29,13 +29,14 @@ class TkSettingsWindow:
     RED = "#ed4245"
     FONT = "Segoe UI"
 
-    def __init__(self, controller, on_close=None, on_quit=None):
+    def __init__(self, controller, on_close=None, on_quit=None, on_ready=None):
         """Build the settings window and start its status refresh loop."""
         self.controller = controller
         self.worker = controller.worker
         self.platform = controller.platform
         self.on_close = on_close
         self.on_quit = on_quit
+        self.on_ready = on_ready
         self._destroyed = False
         self._is_connecting = False
         self._is_installing_update = False
@@ -58,6 +59,8 @@ class TkSettingsWindow:
         self._refresh_connection_button()
         self._refresh_update_notice()
         self._poll_status()
+        if self.on_ready:
+            self.on_ready(self)
         self.root.mainloop()
 
     def focus_window(self):
@@ -689,10 +692,22 @@ class TkSettingsWindow:
 
     def _on_window_close(self):
         """Dispose the window and notify the tray host that it closed."""
+        if self._destroyed:
+            return
         self._destroyed = True
         if self.on_close:
             self.on_close()
         self.root.destroy()
+
+    def request_close(self):
+        """Ask the Tk thread to close the window."""
+        if self._destroyed:
+            return False
+        try:
+            self.root.after(0, self._on_window_close)
+            return True
+        except tk.TclError:
+            return False
 
     def _queue_ui(self, callback):
         """Queue a callback on the Tk thread if the window still exists."""

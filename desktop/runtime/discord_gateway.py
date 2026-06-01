@@ -10,6 +10,8 @@ from pypresence import exceptions as pypresence_exceptions
 from desktop.core.constants import DISCORD_APP_ID
 
 DISCORD_IPC_PIPES = tuple(range(10))
+DISCORD_CONNECT_TIMEOUT_SECONDS = 1.5
+DISCORD_RESPONSE_TIMEOUT_SECONDS = 1.5
 logger = logging.getLogger(__name__)
 
 
@@ -55,10 +57,14 @@ class DiscordPresenceGateway:
         client_id=DISCORD_APP_ID,
         presence_factory=Presence,
         status_callback=None,
+        connect_timeout=DISCORD_CONNECT_TIMEOUT_SECONDS,
+        response_timeout=DISCORD_RESPONSE_TIMEOUT_SECONDS,
     ):
         self.client_id = client_id
         self.presence_factory = presence_factory
         self.status_callback = status_callback
+        self.connect_timeout = connect_timeout
+        self.response_timeout = response_timeout
         self._lock = threading.Lock()
         self.rpc = None
         self.rpc_connected = False
@@ -77,12 +83,45 @@ class DiscordPresenceGateway:
             )
         return DISCORD_IPC_PIPES
 
+    def _create_presence(self, pipe):
+        """Create a pypresence client with short IPC timeouts when supported."""
+        try:
+            return self.presence_factory(
+                self.client_id,
+                pipe=pipe,
+                connection_timeout=self.connect_timeout,
+                response_timeout=self.response_timeout,
+            )
+        except TypeError:
+            return self.presence_factory(self.client_id, pipe=pipe)
+
     def connect_pipe(self, pipe):
         """Create and connect a Discord RPC client for one IPC pipe index."""
         logger.info("Discord IPC connect attempt pipe=%s", pipe)
-        rpc = self.presence_factory(self.client_id, pipe=pipe)
+        rpc = self._create_presence(pipe)
+        done = threading.Event()
+        errors = []
+
+        def do_connect():
+            try:
+                rpc.connect()
+            except Exception as exc:
+                errors.append(exc)
+            finally:
+                done.set()
+
+        thread = threading.Thread(
+            target=do_connect,
+            daemon=True,
+            name=f"DiscordIPCConnect-{pipe}",
+        )
+        thread.start()
         try:
-            rpc.connect()
+            if not done.wait(self.connect_timeout):
+                close_rpc_client(rpc)
+                raise pypresence_exceptions.ConnectionTimeout
+            if errors:
+                raise errors[0]
         except Exception:
             logger.info("Discord IPC connect failed pipe=%s", pipe)
             close_rpc_client(rpc)

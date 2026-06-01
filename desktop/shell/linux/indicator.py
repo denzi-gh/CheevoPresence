@@ -4,6 +4,8 @@ from __future__ import annotations
 
 import logging
 import os
+import subprocess
+import sys
 import threading
 import webbrowser
 
@@ -20,7 +22,7 @@ from desktop.runtime.storage import (
     GENERATED_MENU_BAR_TEMPLATE_ICON_FILE,
     MENU_BAR_TEMPLATE_ICON_FILE,
 )
-from desktop.shell.tk_settings import TkSettingsWindow as SettingsWindow
+from desktop.shell.macos.ipc import MacOSAppService
 
 SHUTDOWN_GRACE_SECONDS = 8
 logger = logging.getLogger(__name__)
@@ -225,6 +227,8 @@ class LinuxIndicatorApp:
         self.status_item = None
         self.connection_item = None
         self._settings_open = False
+        self._settings_process = None
+        self._settings_service = MacOSAppService(controller, on_quit=self.quit_app)
         self._exit_listener = None
         self._shutdown_lock = threading.Lock()
         self._shutdown_started = False
@@ -416,28 +420,51 @@ class LinuxIndicatorApp:
         self.open_settings()
 
     def open_settings(self):
-        """Launch the shared Tk settings window on a dedicated thread."""
-        if self._shutdown_started or self._settings_open:
+        """Launch the shared Tk settings window as a companion process."""
+        if self._shutdown_started:
+            return False
+        if self._settings_process is not None and self._settings_process.poll() is None:
+            return False
+        command = self._settings_command()
+        env = os.environ.copy()
+        env.update(self._settings_service.get_launch_env())
+        try:
+            self._settings_process = subprocess.Popen(command, env=env)
+        except Exception:
+            logger.exception("Linux settings client launch failed")
+            self._settings_process = None
             return False
         self._settings_open = True
-        threading.Thread(target=self._show_settings_window, daemon=True).start()
         return False
 
-    def _show_settings_window(self):
-        """Run the shared settings UI."""
-        try:
-            SettingsWindow(
-                self.controller,
-                on_close=self._on_settings_closed,
-                on_quit=self.quit_app,
-            )
-        except Exception:
-            logger.exception("Linux settings window failed")
-            self._settings_open = False
+    def _settings_command(self):
+        """Return the command for the companion settings client."""
+        args = [
+            "--linux-settings-client",
+            self._settings_service.address,
+            self._settings_service.auth_token,
+        ]
+        if getattr(sys, "frozen", False):
+            return [sys.executable, *args]
+        return [sys.executable, os.path.abspath(sys.argv[0]), *args]
 
     def _on_settings_closed(self):
         """Allow the settings window to be reopened after it closes."""
         self._settings_open = False
+
+    def _stop_settings_client(self, timeout=2):
+        """Stop the companion settings process if it is still open."""
+        process = self._settings_process
+        self._settings_process = None
+        self._settings_open = False
+        if process is None or process.poll() is not None:
+            return
+        process.terminate()
+        try:
+            process.wait(timeout=timeout)
+        except subprocess.TimeoutExpired:
+            process.kill()
+            process.wait(timeout=1)
 
     def _on_get_api_key(self, *_args):
         """Open the RetroAchievements web settings page."""
@@ -472,6 +499,7 @@ class LinuxIndicatorApp:
     def _shutdown_and_exit(self):
         """Finish shutdown off the GTK thread before quitting the main loop."""
         try:
+            self._stop_settings_client()
             stopped = self.controller.shutdown(timeout=SHUTDOWN_GRACE_SECONDS)
             logger.info("Linux indicator shutdown cleanup completed stopped=%s", stopped)
         finally:
@@ -488,6 +516,7 @@ class LinuxIndicatorApp:
 
     def run(self):
         """Start the native indicator loop and auto-connect if config exists."""
+        self._settings_service.start()
         self._create_tray()
         self._exit_listener = self.controller.platform.start_exit_listener(self.quit_app)
         logger.info("Linux indicator run started")
@@ -495,4 +524,6 @@ class LinuxIndicatorApp:
         if self.open_settings_on_launch:
             self.GLib.idle_add(self.open_settings)
         self.Gtk.main()
+        self._settings_service.stop()
+        self._stop_settings_client()
         logger.info("Linux indicator run exited")

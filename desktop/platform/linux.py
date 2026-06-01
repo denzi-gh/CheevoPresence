@@ -1,4 +1,4 @@
-"""Linux-specific adapters for XDG paths, startup, secrets, and IPC."""
+"""Linux-specific adapters for XDG paths, startup, local config, and IPC."""
 
 from __future__ import annotations
 
@@ -331,11 +331,11 @@ class LinuxPlatformServices(GenericPlatformServices):
         return get_log_dir(app_name)
 
     def protect_api_key(self, value):
-        """Store the API key in Secret Service when available."""
+        """Store the API key with the Linux local config encoding."""
         return protect_api_key(value)
 
     def unprotect_api_key(self, value):
-        """Resolve a Secret Service token or generic fallback."""
+        """Resolve an API key stored with the Linux local config encoding."""
         return unprotect_api_key(value)
 
     def acquire_single_instance(self):

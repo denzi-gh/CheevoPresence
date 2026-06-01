@@ -192,6 +192,8 @@ PYTHONPATH="$project_root${PYTHONPATH:+:$PYTHONPATH}" "${build_python}" -m PyIns
   --hidden-import "desktop.platform.linux" \
   --hidden-import "desktop.shell.linux.entrypoint" \
   --hidden-import "desktop.shell.linux.indicator" \
+  --hidden-import "desktop.shell.macos.ipc" \
+  --hidden-import "desktop.shell.macos.settings" \
   --hidden-import "desktop.shell.tk_settings" \
   --hidden-import "gi" \
   --hidden-import "gi.repository.GLib" \
@@ -204,9 +206,7 @@ PYTHONPATH="$project_root${PYTHONPATH:+:$PYTHONPATH}" "${build_python}" -m PyIns
   --exclude-module "desktop.shell.windows.ui" \
   --exclude-module "desktop.platform.macos" \
   --exclude-module "desktop.shell.macos.entrypoint" \
-  --exclude-module "desktop.shell.macos.ipc" \
   --exclude-module "desktop.shell.macos.menu_bar" \
-  --exclude-module "desktop.shell.macos.settings" \
   --exclude-module "objc" \
   --exclude-module "Foundation" \
   --exclude-module "AppKit" \
