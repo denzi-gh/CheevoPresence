@@ -32,6 +32,12 @@ def _load_indicator_modules():
     try:
         import gi
 
+        try:
+            gi.require_version("GLibUnix", "2.0")
+            from gi.repository import GLibUnix as _GLibUnix  # noqa: F401
+        except (ImportError, ValueError):
+            pass
+
         gi.require_version("Gtk", "3.0")
         from gi.repository import GLib, Gtk
 
