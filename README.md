@@ -1,6 +1,6 @@
 # <img src=".github/assets/tray-default.png" width="30"/> CheevoPresence
 
-CheevoPresence is a desktop app for Windows and macOS that mirrors your RetroAchievements activity to Discord Rich Presence.
+CheevoPresence is a desktop app for Windows, macOS, and Linux that mirrors your RetroAchievements activity to Discord Rich Presence.
 
 It watches your current RetroAchievements session, detects whether you are actively playing, and updates Discord with your game, platform, achievement progress, and quick links to your RetroAchievements profile and game page.
 
@@ -30,7 +30,7 @@ To use CheevoPresence, you need:
 
 ### First-Time Setup
 
-1. Launch `CheevoPresence.exe` on Windows or `CheevoPresence.app` on macOS
+1. Launch CheevoPresence
 2. Enter your RetroAchievement username
 3. Enter your Web API key
 4. Choose your preferred behavior settings
@@ -44,7 +44,7 @@ If everything is set up correctly, CheevoPresence will begin updating your Disco
 
 ### Tray/Menu-Bar Status
 
-#### Windows
+#### Windows / Linux
 CheevoPresence uses different tray icons to show its current state:
 
 | Icon | Tray icon state | Meaning |
@@ -63,6 +63,7 @@ CheevoPresence uses a monochrome menu-bar icon that stays template-styled to mat
 | <img src="./.github/assets/macOS_inactive.png" alt="macOS inactive menu-bar state" width="42" /> | Inactive | Idle, stopped, not playing, or not currently active |
 | <img src="./.github/assets/macOS_error.png" alt="macOS error menu-bar state" width="42" /> | Error | Something needs attention, such as Discord not being open, a network issue, or an API/config problem |
 
+
 ## Configuration and Privacy
 
 CheevoPresence does not expect you to keep secrets inside the repository.
@@ -70,7 +71,8 @@ CheevoPresence does not expect you to keep secrets inside the repository.
 - The repository-level `config.json` is ignored by Git
 - Runtime configuration is stored under `%APPDATA%\CheevoPresence\config.json` on Windows
 - Runtime configuration is stored under `~/Library/Application Support/CheevoPresence/config.json` on macOS
-- The API key is stored in a protected form on Windows and in the macOS Keychain on macOS rather than being written back as plain text in the repo
+- Runtime configuration is stored under `${XDG_CONFIG_HOME:-~/.config}/CheevoPresence/config.json` on Linux
+- The API key is stored in a protected form on Windows, in the macOS Keychain on macOS, and in the Linux local config encoding on Linux rather than being written back as plain text in the repo
 - `config.example.json` exists only as a clean template
 
 ### Diagnostic Logs
@@ -79,6 +81,7 @@ CheevoPresence writes local diagnostic logs so problems can be diagnosed without
 
 - Windows logs: `%APPDATA%\CheevoPresence\logs`
 - macOS logs: `~/Library/Application Support/CheevoPresence/logs`
+- Linux logs: `${XDG_STATE_HOME:-~/.local/state}/CheevoPresence/logs`
 
 If something is not working, zip that folder and send it to me via Discord or post it in the Issue. It contains no API Keys or full Paths :)
 
@@ -88,6 +91,7 @@ If you want to modify or package CheevoPresence yourself, use the platform-speci
 
 - Windows: [`.github/buildWindows.md`](./.github/buildWindows.md)
 - macOS: [`.github/buildMacOS.md`](./.github/buildMacOS.md)
+- Linux: [`.github/buildLinux.md`](./.github/buildLinux.md)
 
 
 ## Support the Project
