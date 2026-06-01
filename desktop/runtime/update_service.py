@@ -10,6 +10,7 @@ import shutil
 import sys
 import tempfile
 import threading
+import time
 from dataclasses import dataclass
 
 import requests
@@ -21,6 +22,7 @@ from desktop.core.update import (
     load_update_override,
     normalize_version_label,
 )
+from desktop.runtime.log_events import AREA_UPDATE, log_event
 from desktop.runtime.storage import UPDATE_OVERRIDE_FILE
 
 logger = logging.getLogger(__name__)
@@ -98,9 +100,9 @@ class UpdateService:
         """Kick off a one-shot background check for a newer app version."""
         with self._lock:
             if self._thread and self._thread.is_alive():
-                logger.info("Update check already running")
+                log_event(logger, AREA_UPDATE, "check_skipped", reason="already_running")
                 return
-            logger.info("Starting update check")
+            log_event(logger, AREA_UPDATE, "check_start", current_version=self.current_version)
             self._thread = threading.Thread(target=self.check_for_updates, daemon=True)
             self._thread.start()
 
@@ -109,22 +111,33 @@ class UpdateService:
         status = self._build_update_status()
         with self._lock:
             self._status = status
+        log_event(
+            logger,
+            AREA_UPDATE,
+            "check_success",
+            latest_version=status.latest_version,
+            update_available=status.available,
+            installable=status.can_self_install,
+        )
         return copy_update_status(status)
 
     def install_update(self, relaunch_args=None, source_pid=None):
         """Download and stage the latest release asset for automatic restart."""
         status = self.get_status()
         if not status.available:
-            logger.info("Update install skipped no_update_available=True")
+            log_event(logger, AREA_UPDATE, "install_skipped", reason="no_update_available")
             return UpdateInstallResult(
                 success=False,
                 error_title="No Update Available",
                 error_message="No newer CheevoPresence version is currently available.",
             )
         if not self.platform.supports_self_update():
-            logger.info(
-                "Update install unsupported platform=%s",
-                self.platform.__class__.__name__,
+            log_event(
+                logger,
+                AREA_UPDATE,
+                "unsupported",
+                reason="not_supported",
+                platform=self.platform.__class__.__name__,
             )
             return UpdateInstallResult(
                 success=False,
@@ -139,33 +152,66 @@ class UpdateService:
         if not asset_name or not asset_url:
             asset_name, asset_url, asset_sha256, checksum_url = self._fetch_latest_update_asset()
         if not asset_name or not asset_url:
-            logger.warning("Update install unavailable no_asset=True")
+            log_event(
+                logger,
+                AREA_UPDATE,
+                "install_unavailable",
+                level=logging.WARNING,
+                reason="no_asset",
+            )
             return UpdateInstallResult(
                 success=False,
                 error_title="Update Unavailable",
                 error_message="Could not find a downloadable update for this operating system in the latest release.",
             )
+        log_event(
+            logger,
+            AREA_UPDATE,
+            "asset_selected",
+            platform=self.platform.__class__.__name__,
+            asset=asset_name,
+        )
         try:
             expected_sha256 = asset_sha256 or self._fetch_asset_checksum(
                 checksum_url,
                 asset_name,
             )
         except requests.RequestException as exc:
-            logger.warning("Update checksum fetch failed error=%s", format_api_error(exc))
+            log_event(
+                logger,
+                AREA_UPDATE,
+                "checksum_fetch_failed",
+                level=logging.WARNING,
+                error_type=exc.__class__.__name__,
+                detail=format_api_error(exc),
+            )
             return UpdateInstallResult(
                 success=False,
                 error_title="Download Failed",
                 error_message=format_api_error(exc),
             )
-        except OSError:
-            logger.exception("Update checksum read failed")
+        except OSError as exc:
+            log_event(
+                logger,
+                AREA_UPDATE,
+                "checksum_read_failed",
+                level=logging.ERROR,
+                exc_info=True,
+                error_type=exc.__class__.__name__,
+            )
             return UpdateInstallResult(
                 success=False,
                 error_title="Update Failed",
                 error_message="Could not read the update checksum.",
             )
         if not expected_sha256:
-            logger.warning("Update install unavailable verification_missing=True")
+            log_event(
+                logger,
+                AREA_UPDATE,
+                "install_unavailable",
+                level=logging.WARNING,
+                reason="verification_missing",
+            )
             return UpdateInstallResult(
                 success=False,
                 error_title="Update Verification Unavailable",
@@ -175,8 +221,17 @@ class UpdateService:
         download_dir = tempfile.mkdtemp(prefix="CheevoPresence-download-")
         download_path = os.path.join(download_dir, asset_name)
         try:
-            logger.info("Update install staging asset=%s", asset_name)
+            log_event(logger, AREA_UPDATE, "download_start", asset=asset_name)
+            download_start = time.monotonic()
             self._download_release_asset(asset_url, download_path)
+            log_event(
+                logger,
+                AREA_UPDATE,
+                "download_complete",
+                asset=asset_name,
+                bytes=os.path.getsize(download_path),
+                elapsed_ms=round((time.monotonic() - download_start) * 1000),
+            )
             if not self._verify_download_sha256(download_path, expected_sha256):
                 self._cleanup_update_download(download_dir)
                 return UpdateInstallResult(
@@ -184,29 +239,57 @@ class UpdateService:
                     error_title="Update Verification Failed",
                     error_message="The downloaded update did not match its SHA-256 checksum.",
                 )
+            log_event(
+                logger,
+                AREA_UPDATE,
+                "install_start",
+                platform=self.platform.__class__.__name__,
+            )
             install_error = self.platform.stage_update_install(
                 download_path,
                 relaunch_args=list(relaunch_args or []),
                 source_pid=source_pid if source_pid is not None else os.getpid(),
             )
         except requests.RequestException as exc:
-            logger.warning("Update download failed error=%s", format_api_error(exc))
+            log_event(
+                logger,
+                AREA_UPDATE,
+                "download_failed",
+                level=logging.WARNING,
+                error_type=exc.__class__.__name__,
+                detail=format_api_error(exc),
+            )
             self._cleanup_update_download(download_dir)
             return UpdateInstallResult(
                 success=False,
                 error_title="Download Failed",
                 error_message=format_api_error(exc),
             )
-        except OSError:
-            logger.exception("Update download write failed")
+        except OSError as exc:
+            log_event(
+                logger,
+                AREA_UPDATE,
+                "download_write_failed",
+                level=logging.ERROR,
+                exc_info=True,
+                error_type=exc.__class__.__name__,
+            )
             self._cleanup_update_download(download_dir)
             return UpdateInstallResult(
                 success=False,
                 error_title="Update Failed",
                 error_message="Could not write the downloaded update to disk.",
             )
-        except Exception:
-            logger.exception("Update install preparation failed unexpectedly")
+        except Exception as exc:
+            log_event(
+                logger,
+                AREA_UPDATE,
+                "install_failed",
+                level=logging.ERROR,
+                exc_info=True,
+                reason="unexpected",
+                error_type=exc.__class__.__name__,
+            )
             self._cleanup_update_download(download_dir)
             return UpdateInstallResult(
                 success=False,
@@ -215,14 +298,20 @@ class UpdateService:
             )
 
         if install_error:
-            logger.warning("Update install staging failed error=%s", install_error)
+            log_event(
+                logger,
+                AREA_UPDATE,
+                "install_failed",
+                level=logging.WARNING,
+                detail=install_error,
+            )
             self._cleanup_update_download(download_dir)
             return UpdateInstallResult(
                 success=False,
                 error_title="Update Failed",
                 error_message=install_error,
             )
-        logger.info("Update install staged successfully asset=%s", asset_name)
+        log_event(logger, AREA_UPDATE, "install_staged", asset=asset_name)
         return UpdateInstallResult(success=True)
 
     def _build_update_status(self):
