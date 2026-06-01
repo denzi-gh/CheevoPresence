@@ -820,18 +820,21 @@ class TkSettingsWindow:
             return
         update_status = self.controller.get_update_status()
         if update_status.available:
+            can_self_install = update_status.can_self_install
+            handler = self._on_update_click if can_self_install else self._on_manual_update_click
+            notice_text = " Update available" if can_self_install else " New version available"
             self.version_label.configure(
                 text=f"v{APP_VERSION}",
                 fg=self.LINK,
                 cursor="arrow",
             )
-            self.version_label.bind("<Button-1>", self._on_update_click)
+            self.version_label.bind("<Button-1>", handler)
             self.version_label.bind("<Enter>", lambda e: self.version_label.configure(fg="#7ab9ff"))
             self.version_label.bind("<Leave>", lambda e: self.version_label.configure(fg=self.LINK))
             if not self.update_label.winfo_ismapped():
                 self.update_label.pack(side="left")
-            self.update_label.configure(text=" Update available", cursor="arrow")
-            self.update_label.bind("<Button-1>", self._on_update_click)
+            self.update_label.configure(text=notice_text, cursor="arrow")
+            self.update_label.bind("<Button-1>", handler)
             self.update_label.bind("<Enter>", lambda e: self.update_label.configure(fg="#7ab9ff"))
             self.update_label.bind("<Leave>", lambda e: self.update_label.configure(fg=self.LINK))
         else:
@@ -846,9 +849,16 @@ class TkSettingsWindow:
             if self.update_label.winfo_ismapped():
                 self.update_label.pack_forget()
 
+    def _on_manual_update_click(self, _event=None):
+        """Open the GitHub releases page for updates that cannot self-install."""
+        webbrowser.open(self.controller.get_update_status().release_url)
+
     def _on_update_click(self, _event=None):
         """Download and stage the latest packaged release for automatic restart."""
         if self._is_installing_update:
+            return
+        if not self.controller.get_update_status().can_self_install:
+            self._on_manual_update_click()
             return
         self._is_installing_update = True
         self.version_label.configure(fg=self.LINK, cursor="")

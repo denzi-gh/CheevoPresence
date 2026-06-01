@@ -39,6 +39,7 @@ class UpdateStatus:
     asset_url: str | None = None
     asset_sha256: str | None = None
     checksum_url: str | None = None
+    can_self_install: bool = False
 
 
 @dataclass
@@ -62,6 +63,7 @@ def copy_update_status(status):
         asset_url=status.asset_url,
         asset_sha256=status.asset_sha256,
         checksum_url=status.checksum_url,
+        can_self_install=status.can_self_install,
     )
 
 
@@ -237,6 +239,7 @@ class UpdateService:
                 asset_url=override["asset_url"],
                 asset_sha256=override["asset_sha256"],
                 checksum_url=override["checksum_url"],
+                can_self_install=self.platform.supports_self_update(),
             )
 
         latest_version = None
@@ -273,6 +276,7 @@ class UpdateService:
             asset_url=asset_url,
             asset_sha256=asset_sha256,
             checksum_url=checksum_url,
+            can_self_install=self.platform.supports_self_update(),
         )
 
     def _fetch_latest_release(self):
