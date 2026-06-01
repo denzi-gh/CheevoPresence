@@ -1,5 +1,6 @@
 """Shared Tk settings window used by desktop shell variants."""
 
+import logging
 import os
 import sys
 import threading
@@ -9,9 +10,13 @@ from types import SimpleNamespace
 from tkinter import messagebox, ttk
 
 from desktop.core.constants import APP_NAME, APP_VERSION, RA_SETTINGS_URL
-from desktop.runtime.storage import APP_ICON_FILE, APP_ICON_PNG_FILE
+from desktop.platform import get_platform_services
+from desktop.runtime.log_events import AREA_SETTINGS, log_event
+from desktop.runtime.storage import APP_ICON_FILE, APP_ICON_PNG_FILE, get_log_dir
 from desktop.shell.settings_presenter import truncate_status_text
 from desktop.shell.tk_widgets import Tooltip
+
+logger = logging.getLogger(__name__)
 
 
 class TkSettingsWindow:
@@ -573,12 +578,13 @@ class TkSettingsWindow:
         )
 
         footer_links = [
-            ("Get API Key", RA_SETTINGS_URL),
-            ("RetroAchievements", "https://retroachievements.org"),
-            ("GitHub", "https://github.com/denzi-gh/CheevoPresence"),
-            ("Ko-fi", "https://ko-fi.com/denzi"),
+            ("Get API Key", lambda: webbrowser.open(RA_SETTINGS_URL)),
+            ("RetroAchievements", lambda: webbrowser.open("https://retroachievements.org")),
+            ("GitHub", lambda: webbrowser.open("https://github.com/denzi-gh/CheevoPresence")),
+            ("Ko-fi", lambda: webbrowser.open("https://ko-fi.com/denzi")),
+            ("Open Logs", self._open_log_folder),
         ]
-        for text, url in footer_links:
+        for text, action in footer_links:
             tk.Label(
                 footer,
                 text=" \u00b7 ",
@@ -595,9 +601,27 @@ class TkSettingsWindow:
                 cursor="arrow",
             )
             label.pack(side="left")
-            label.bind("<Button-1>", lambda e, u=url: webbrowser.open(u))
+            label.bind("<Button-1>", lambda e, a=action: a())
             label.bind("<Enter>", lambda e, l=label: l.configure(fg=self.ACCENT))
             label.bind("<Leave>", lambda e, l=label: l.configure(fg=self.MUTED))
+
+    def _open_log_folder(self):
+        """Open the runtime log folder in the OS file manager."""
+        # The settings window always runs on the local machine, so resolve the
+        # real platform services here rather than the IPC platform proxy.
+        platform = get_platform_services()
+        log_dir = get_log_dir(platform)
+        os.makedirs(log_dir, exist_ok=True)
+        success = platform.open_path(log_dir)
+        log_event(
+            logger,
+            AREA_SETTINGS,
+            "open_log_folder",
+            success=success,
+            path=log_dir,
+        )
+        if not success:
+            messagebox.showinfo("Logs", f"Log folder:\n{log_dir}")
 
     def _center_window(self):
         """Center the finished window and lock in its minimum size."""
