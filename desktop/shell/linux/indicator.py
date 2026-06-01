@@ -14,7 +14,7 @@ from PIL import Image, ImageDraw
 from desktop.core.constants import APP_NAME, APP_VERSION, RA_SETTINGS_URL
 from desktop.platform.linux import get_runtime_dir
 from desktop.runtime.controller import AppController
-from desktop.runtime.log_events import AREA_SHUTDOWN, AREA_TRAY, log_event
+from desktop.runtime.log_events import AREA_SETTINGS, AREA_SHUTDOWN, AREA_TRAY, log_event
 from desktop.runtime.storage import (
     APP_ICON_PNG_FILE,
     TRAY_ACTIVE_ICON_FILE,
@@ -502,10 +502,18 @@ class LinuxIndicatorApp:
         env.update(self._settings_service.get_launch_env())
         try:
             self._settings_process = subprocess.Popen(command, env=env)
-        except Exception:
-            logger.exception("Linux settings client launch failed")
+        except Exception as exc:
+            log_event(
+                logger,
+                AREA_SETTINGS,
+                "client_launch_failed",
+                level=logging.ERROR,
+                exc_info=True,
+                error_type=exc.__class__.__name__,
+            )
             self._settings_process = None
             return False
+        log_event(logger, AREA_SETTINGS, "client_launch", pid=self._settings_process.pid)
         self._settings_open = True
         return False
 
@@ -531,12 +539,20 @@ class LinuxIndicatorApp:
         self._settings_open = False
         if process is None or process.poll() is not None:
             return
+        pid = process.pid
         process.terminate()
         try:
             process.wait(timeout=timeout)
         except subprocess.TimeoutExpired:
             process.kill()
             process.wait(timeout=1)
+        log_event(
+            logger,
+            AREA_SETTINGS,
+            "client_exit",
+            pid=pid,
+            returncode=process.returncode,
+        )
 
     def _on_get_api_key(self, *_args):
         """Open the RetroAchievements web settings page."""

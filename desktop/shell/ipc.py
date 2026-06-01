@@ -3,14 +3,19 @@
 from __future__ import annotations
 
 import json
+import logging
 import os
 import socket
 import threading
+import time
 import uuid
 from dataclasses import asdict
 
 from desktop.runtime.controller import ConnectResult, UpdateInstallResult, UpdateStatus
+from desktop.runtime.log_events import AREA_IPC, log_event
 from desktop.runtime.state import WorkerState
+
+logger = logging.getLogger(__name__)
 
 SETTINGS_ADDRESS_ENV = "CHEEVO_SETTINGS_SOCKET"
 SETTINGS_AUTH_ENV = "CHEEVO_SETTINGS_TOKEN"
@@ -105,6 +110,7 @@ class SettingsHostService:
         self.listener.settimeout(0.5)
         self.thread = threading.Thread(target=self._serve, daemon=True)
         self.thread.start()
+        log_event(logger, AREA_IPC, "host_service_start", socket=self.address)
 
     def stop(self):
         """Stop serving requests and remove the socket path."""
@@ -126,6 +132,7 @@ class SettingsHostService:
                 os.remove(self.address)
             except OSError:
                 pass
+        log_event(logger, AREA_IPC, "host_service_stop")
 
     def get_launch_env(self):
         """Return the environment variables required by the settings client."""
@@ -181,12 +188,33 @@ class SettingsHostService:
                 continue
             except OSError:
                 break
+            start = time.monotonic()
+            method = None
             try:
                 conn.settimeout(5)
                 request = _read_message(conn)
+                method = request.get("method")
                 response = {"ok": True, "result": self._dispatch(request)}
+                log_event(
+                    logger,
+                    AREA_IPC,
+                    "request",
+                    method=method,
+                    success=True,
+                    elapsed_ms=round((time.monotonic() - start) * 1000),
+                )
             except Exception as exc:
                 response = {"ok": False, "error": _format_ipc_error(exc)}
+                log_event(
+                    logger,
+                    AREA_IPC,
+                    "request",
+                    level=logging.WARNING,
+                    method=method,
+                    success=False,
+                    error_type=exc.__class__.__name__,
+                    elapsed_ms=round((time.monotonic() - start) * 1000),
+                )
             try:
                 _write_message(conn, response)
             except Exception:
