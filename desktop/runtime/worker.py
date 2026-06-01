@@ -4,10 +4,9 @@ import logging
 import threading
 import time
 from datetime import datetime, timezone
-from urllib.parse import quote
 
 import requests
-from pypresence import ActivityType, Presence
+from pypresence import Presence
 from pypresence import exceptions as pypresence_exceptions
 
 from desktop.core.api import (
@@ -16,17 +15,13 @@ from desktop.core.api import (
     ra_get_game,
     ra_get_user_progress,
     ra_get_user_summary,
-    trimmer,
 )
 from desktop.core.constants import DISCORD_APP_ID
 from desktop.core.settings import normalize_config
 from desktop.runtime.backoff import BackoffPolicy
+from desktop.runtime.presence_builder import PresenceBuilder, coerce_progress_int
 from desktop.runtime.storage import load_config, load_console_icons
 
-DEVELOPER_ACTIVITY_MESSAGES = {
-    "inspecting memory",
-    "developing achievements",
-}
 DISCORD_IPC_PIPES = tuple(range(10))
 logger = logging.getLogger(__name__)
 
@@ -206,35 +201,6 @@ class RPCWorker:
             if threading.current_thread() is self.thread:
                 self.thread = None
 
-    def _coerce_progress_int(self, value):
-        """Coerce loose API progress values into non-negative integers."""
-        try:
-            return max(0, int(value))
-        except (TypeError, ValueError):
-            return 0
-
-    def _build_achievement_state(self, total, achieved, achieved_hc):
-        """Translate raw progress counts into the Discord state label."""
-        if total <= 0:
-            return "No achievements available", 0
-        if achieved <= 0:
-            return "No achievements yet", 0
-        if achieved_hc < achieved:
-            return "\U0001F3C6 Softcore", achieved
-        return "\U0001F3C6 Hardcore", achieved_hc
-
-    def _is_developer_activity(self, rich_presence_message):
-        """Return whether the RA rich presence text means achievement dev work."""
-        if not isinstance(rich_presence_message, str):
-            return False
-        return rich_presence_message.strip().casefold() in DEVELOPER_ACTIVITY_MESSAGES
-
-    def _build_display_game_title(self, game_title, is_developer_activity):
-        """Decorate the Discord game title when the user is developing achievements."""
-        if is_developer_activity:
-            return f"\U0001F6E0\ufe0f {game_title} \U0001F6E0\ufe0f"
-        return game_title
-
     def _unexpected_api_response(self):
         """Surface a standard unexpected-API-response error to the UI."""
         logger.warning("RetroAchievements returned unexpected payload")
@@ -347,6 +313,7 @@ class RPCWorker:
             interval = self.config["interval"]
             timeout_sec = self.config["timeout"]
             backoff = BackoffPolicy(interval)
+            presence_builder = PresenceBuilder(self.config, self.console_icons)
             consecutive_errors = 0
 
             while not self._should_stop():
@@ -359,7 +326,7 @@ class RPCWorker:
                     self.set_ra_status(True)
                     if not was_ra_connected:
                         logger.info("RetroAchievements connection succeeded")
-                    last_game_id = self._coerce_progress_int(user_data.get("LastGameID", 0))
+                    last_game_id = coerce_progress_int(user_data.get("LastGameID", 0))
 
 
                     # Test Dev Mode by forcing "Developing Achievements" activity
@@ -420,71 +387,19 @@ class RPCWorker:
                     if self._should_stop():
                         break
 
-                    game_title = game_data.get("GameTitle", "Unknown")
-                    if not isinstance(game_title, str):
-                        raise APIResponseError
-                    is_developer_activity = self._is_developer_activity(rp_msg)
-                    display_game_title = self._build_display_game_title(
-                        game_title,
-                        is_developer_activity,
-                    )
-
-                    console_name = game_data.get("ConsoleName", "Unknown")
-                    if not isinstance(console_name, str):
-                        raise APIResponseError
-
-                    console_id = str(game_data.get("ConsoleID", "0"))
-                    image_icon = game_data.get("ImageIcon", "")
-                    if image_icon is None:
-                        image_icon = ""
-                    if not isinstance(image_icon, str):
-                        raise APIResponseError
-
                     if last_game_id != self._current_game_id:
                         self._current_game_id = last_game_id
                         if self.rpc_connected:
                             self.start_time = int(time.time())
 
-                    gid_str = str(last_game_id)
-                    prog = progress_data.get(gid_str, {})
-                    if prog is None:
-                        prog = {}
-                    if not isinstance(prog, dict):
-                        raise APIResponseError
-
-                    total = self._coerce_progress_int(prog.get("NumPossibleAchievements", 0))
-                    achieved = self._coerce_progress_int(prog.get("NumAchieved", 0))
-                    achieved_hc = self._coerce_progress_int(prog.get("NumAchievedHardcore", 0))
-                    state_str, achi_count = self._build_achievement_state(
-                        total,
-                        achieved,
-                        achieved_hc,
+                    presence = presence_builder.build(
+                        username=username,
+                        last_game_id=last_game_id,
+                        rich_presence_message=rp_msg,
+                        game_data=game_data,
+                        progress_data=progress_data,
+                        start_time=self.start_time,
                     )
-
-                    show_achievement_progress = self.config.get("show_achievement_progress", True)
-                    party = [achi_count, total] if show_achievement_progress and total > 0 else None
-                    if show_achievement_progress and total > 0:
-                        large_tooltip = f"{achi_count}/{total} achievements"
-                    else:
-                        large_tooltip = game_title
-
-                    game_url = f"https://retroachievements.org/game/{last_game_id}"
-                    profile_url = f"https://retroachievements.org/user/{quote(username)}"
-
-                    buttons = []
-                    if self.config.get("show_gamepage_button", True):
-                        buttons.append({"label": "View on RetroAchievements", "url": game_url})
-                    if self.config.get("show_profile_button", True):
-                        buttons.append({"label": f"{username}'s RA Page", "url": profile_url})
-                    if not buttons:
-                        buttons = None
-
-                    large_img = (
-                        f"https://media.retroachievements.org{image_icon}"
-                        if image_icon
-                        else None
-                    )
-                    small_img = self.console_icons.get(console_id)
 
                     if not self._connect_rpc():
                         self._sleep(interval)
@@ -492,23 +407,6 @@ class RPCWorker:
                     if self._should_stop():
                         break
 
-                    update_kwargs = dict(
-                        activity_type=ActivityType.PLAYING,
-                        name=trimmer(display_game_title),
-                        details=trimmer(rp_msg) if rp_msg else None,
-                        state=state_str,
-                        start=self.start_time,
-                        large_image=large_img,
-                        large_text=large_tooltip,
-                        small_image=small_img,
-                        small_text=console_name,
-                        buttons=buttons,
-                    )
-                    if party:
-                        update_kwargs["party_id"] = f"ra_{last_game_id}"
-                        update_kwargs["party_size"] = party
-
-                    button_count = len(buttons or [])
                     logger.info(
                         (
                             "Discord rich presence update attempt game_id=%s "
@@ -516,16 +414,16 @@ class RPCWorker:
                             "achievements=%s/%s buttons=%s developer_activity=%s"
                         ),
                         last_game_id,
-                        console_id,
-                        console_name,
+                        presence.console_id,
+                        presence.console_name,
                         self.rpc_pipe,
-                        achi_count,
-                        total,
-                        button_count,
-                        is_developer_activity,
+                        presence.achievement_count,
+                        presence.achievement_total,
+                        presence.button_count,
+                        presence.developer_activity,
                     )
                     try:
-                        self.rpc.update(**update_kwargs)
+                        self.rpc.update(**presence.update_kwargs)
                     except Exception as exc:
                         logger.warning(
                             "Discord rich presence update failed game_id=%s pipe=%s error_type=%s",
@@ -541,14 +439,14 @@ class RPCWorker:
                         ),
                         last_game_id,
                         self.rpc_pipe,
-                        achi_count,
-                        total,
-                        button_count,
+                        presence.achievement_count,
+                        presence.achievement_total,
+                        presence.button_count,
                     )
-                    activity_label = "Developing" if is_developer_activity else "Playing"
+                    activity_label = "Developing" if presence.developer_activity else "Playing"
                     self.status_callback(
                         "connected",
-                        f"{activity_label}: {game_title} ({console_name})",
+                        f"{activity_label}: {presence.game_title} ({presence.console_name})",
                     )
                     consecutive_errors = 0
 
