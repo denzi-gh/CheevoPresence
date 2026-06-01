@@ -14,6 +14,7 @@ from PIL import Image, ImageDraw
 from desktop.core.constants import APP_NAME, APP_VERSION, RA_SETTINGS_URL
 from desktop.platform.linux import get_runtime_dir
 from desktop.runtime.controller import AppController
+from desktop.runtime.log_events import AREA_SHUTDOWN, AREA_TRAY, log_event
 from desktop.runtime.storage import (
     APP_ICON_PNG_FILE,
     TRAY_ACTIVE_ICON_FILE,
@@ -59,9 +60,13 @@ def _load_indicator_modules():
                 gi.overrides.deprecated_attr = original_deprecated_attr
 
         app_indicator = None
+        ayatana_loaded = False
+        appindicator_loaded = False
         try:
             gi.require_version("AyatanaAppIndicator3", "0.1")
             from gi.repository import AyatanaAppIndicator3 as app_indicator
+
+            ayatana_loaded = True
         except (ImportError, ValueError):
             pass
 
@@ -69,11 +74,22 @@ def _load_indicator_modules():
             try:
                 gi.require_version("AppIndicator3", "0.1")
                 from gi.repository import AppIndicator3 as app_indicator
+
+                appindicator_loaded = True
             except (ImportError, ValueError):
                 pass
     except Exception as exc:
         raise LinuxTrayUnavailable(str(exc) or "Linux tray backend unavailable.") from exc
 
+    log_event(
+        logger,
+        AREA_TRAY,
+        "modules_loaded",
+        gtk=True,
+        ayatana=ayatana_loaded,
+        appindicator=appindicator_loaded,
+        statusicon=hasattr(Gtk, "StatusIcon"),
+    )
     return Gtk, GLib, app_indicator
 
 
@@ -142,7 +158,13 @@ def get_linux_tray_icon_path():
     try:
         return _generate_linux_template_icon()
     except Exception:
-        logger.warning("Linux template tray icon generation failed", exc_info=True)
+        log_event(
+            logger,
+            AREA_TRAY,
+            "template_icon_generation_failed",
+            level=logging.WARNING,
+            exc_info=True,
+        )
     return APP_ICON_PNG_FILE
 
 
@@ -199,7 +221,13 @@ def get_linux_status_icon_path(status):
         try:
             return _png_copy_for_icon(source_path, f"linux-tray-{status}")
         except Exception:
-            logger.warning("Linux colored tray icon conversion failed", exc_info=True)
+            log_event(
+                logger,
+                AREA_TRAY,
+                "colored_icon_conversion_failed",
+                level=logging.WARNING,
+                exc_info=True,
+            )
     return get_linux_tray_icon_path()
 
 
@@ -295,9 +323,21 @@ class LinuxIndicatorApp:
         else:
             indicator.set_icon(icon_name)
 
+    def _log_icon_resolved(self, icon_path):
+        """Log which tray icon file was resolved for the current status."""
+        log_event(
+            logger,
+            AREA_TRAY,
+            "icon_resolved",
+            status=self.current_status,
+            icon_path=icon_path,
+            exists=os.path.exists(icon_path),
+        )
+
     def _create_status_icon(self):
         """Create a GTK StatusIcon tray item for classic Linux panels."""
         icon_path = get_linux_status_icon_path(self.current_status)
+        self._log_icon_resolved(icon_path)
         status_icon = self.Gtk.StatusIcon.new_from_file(icon_path)
         status_icon.set_title(APP_NAME)
         status_icon.set_tooltip_text(f"{APP_NAME} - {self.status_text}")
@@ -305,13 +345,34 @@ class LinuxIndicatorApp:
         status_icon.connect("popup-menu", self._on_status_icon_popup)
         status_icon.connect("activate", lambda *_args: self.open_settings())
         self._build_menu()
+        self.GLib.timeout_add(1500, self._check_status_icon_embedded, status_icon)
         return status_icon
+
+    def _check_status_icon_embedded(self, status_icon):
+        """Warn when the desktop never embedded the GTK StatusIcon tray item."""
+        try:
+            embedded = bool(status_icon.is_embedded())
+        except Exception:
+            return False
+        if embedded:
+            log_event(logger, AREA_TRAY, "statusicon_embedded", embedded=True)
+        else:
+            log_event(
+                logger,
+                AREA_TRAY,
+                "statusicon_not_embedded",
+                level=logging.WARNING,
+                reason="desktop_did_not_show_icon",
+            )
+        return False
 
     def _create_tray(self):
         """Create the selected native Linux tray backend."""
         if self.backend == "appindicator":
             try:
-                logger.info("Linux tray backend selected backend=appindicator")
+                log_event(logger, AREA_TRAY, "backend_selected", backend="appindicator")
+                icon_dir, _icon_name, icon_path = get_linux_indicator_icon(self.current_status)
+                self._log_icon_resolved(icon_path)
                 self.indicator = self._create_indicator()
                 return
             except Exception as exc:
@@ -319,13 +380,19 @@ class LinuxIndicatorApp:
                     raise LinuxTrayUnavailable(
                         str(exc) or "AppIndicator tray backend failed."
                     ) from exc
-                logger.warning(
-                    "Linux AppIndicator backend failed; using GTK StatusIcon fallback",
+                log_event(
+                    logger,
+                    AREA_TRAY,
+                    "fallback",
+                    level=logging.WARNING,
                     exc_info=True,
+                    to="statusicon",
+                    error_type=exc.__class__.__name__,
+                    **{"from": "appindicator"},
                 )
 
         if hasattr(self.Gtk, "StatusIcon"):
-            logger.info("Linux tray backend selected backend=statusicon")
+            log_event(logger, AREA_TRAY, "backend_selected", backend="statusicon")
             self.status_icon = self._create_status_icon()
             return
         raise LinuxTrayUnavailable("No AppIndicator or GTK StatusIcon tray backend is available.")
@@ -390,29 +457,34 @@ class LinuxIndicatorApp:
     def _toggle_connection(self):
         """Run the connect/disconnect action without blocking GTK."""
         if self.worker.get_state().running:
-            logger.info("Linux indicator disconnect requested")
+            log_event(logger, AREA_TRAY, "disconnect_requested")
             self.controller.disconnect()
             self.GLib.idle_add(self._update_menu_status)
             return
 
         config = self.controller.load_config()
         if not config["username"] or not config["apikey"]:
-            logger.info(
-                (
-                    "Linux indicator connect blocked missing_credentials "
-                    "username_present=%s apikey_present=%s"
-                ),
-                bool(config["username"]),
-                bool(config["apikey"]),
+            log_event(
+                logger,
+                AREA_TRAY,
+                "connect_blocked",
+                reason="missing_credentials",
+                username_present=bool(config["username"]),
+                apikey_present=bool(config["apikey"]),
             )
             self.worker.set_ra_status(False)
             self.worker.status_callback("error", "Username or API Key missing")
             self.GLib.idle_add(self.open_settings)
             return
 
-        logger.info("Linux indicator connect requested")
+        log_event(logger, AREA_TRAY, "connect_requested")
         if not self.controller.start_saved_session():
-            logger.warning("Linux indicator connect request did not start worker")
+            log_event(
+                logger,
+                AREA_TRAY,
+                "connect_no_worker",
+                level=logging.WARNING,
+            )
             self.GLib.idle_add(self._update_menu_status)
 
     def _on_settings(self, *_args):
@@ -492,7 +564,7 @@ class LinuxIndicatorApp:
             if self._shutdown_started:
                 return
             self._shutdown_started = True
-        logger.info("Linux indicator shutdown requested")
+        log_event(logger, AREA_SHUTDOWN, "indicator_shutdown_requested")
         self.controller.set_status_callback(None)
         threading.Thread(target=self._shutdown_and_exit, daemon=False).start()
 
@@ -501,7 +573,7 @@ class LinuxIndicatorApp:
         try:
             self._stop_settings_client()
             stopped = self.controller.shutdown(timeout=SHUTDOWN_GRACE_SECONDS)
-            logger.info("Linux indicator shutdown cleanup completed stopped=%s", stopped)
+            log_event(logger, AREA_SHUTDOWN, "indicator_cleanup_completed", stopped=stopped)
         finally:
             self.GLib.idle_add(self._finish_quit)
 
@@ -519,11 +591,11 @@ class LinuxIndicatorApp:
         self._settings_service.start()
         self._create_tray()
         self._exit_listener = self.controller.platform.start_exit_listener(self.quit_app)
-        logger.info("Linux indicator run started")
+        log_event(logger, AREA_TRAY, "run_started", backend=self.backend)
         self.controller.start_saved_session()
         if self.open_settings_on_launch:
             self.GLib.idle_add(self.open_settings)
         self.Gtk.main()
         self._settings_service.stop()
         self._stop_settings_client()
-        logger.info("Linux indicator run exited")
+        log_event(logger, AREA_TRAY, "run_exited")
