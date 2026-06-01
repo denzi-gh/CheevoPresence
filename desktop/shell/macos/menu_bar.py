@@ -113,9 +113,9 @@ class MacOSMenuBarApp:
         self.version_item = None
         self.connection_item = None
         self._status_badge_layer = None
-        from .ipc import MacOSAppService
+        from desktop.shell.ipc import SettingsHostService
 
-        self.settings_service = MacOSAppService(controller, on_quit=self.quit_app)
+        self.settings_service = SettingsHostService(controller, on_quit=self.quit_app)
         self._settings_process = None
         self._delegate = None
         self._exit_listener = None

@@ -22,7 +22,7 @@ from desktop.runtime.storage import (
     GENERATED_MENU_BAR_TEMPLATE_ICON_FILE,
     MENU_BAR_TEMPLATE_ICON_FILE,
 )
-from desktop.shell.macos.ipc import MacOSAppService
+from desktop.shell.ipc import SettingsHostService
 
 SHUTDOWN_GRACE_SECONDS = 8
 logger = logging.getLogger(__name__)
@@ -228,7 +228,7 @@ class LinuxIndicatorApp:
         self.connection_item = None
         self._settings_open = False
         self._settings_process = None
-        self._settings_service = MacOSAppService(controller, on_quit=self.quit_app)
+        self._settings_service = SettingsHostService(controller, on_quit=self.quit_app)
         self._exit_listener = None
         self._shutdown_lock = threading.Lock()
         self._shutdown_started = False

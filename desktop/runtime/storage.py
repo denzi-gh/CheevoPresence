@@ -135,6 +135,14 @@ def save_config(cfg, platform=None):
         with open(config_file, "w", encoding="utf-8") as handle:
             json.dump(stored_cfg, handle, indent=2)
 
+    # The config can hold the API key as plain base64 (no OS keyring), so keep
+    # it owner-only. mkstemp already yields 0600, but the fallback open() path
+    # inherits the umask; set it explicitly on every POSIX platform.
+    try:
+        os.chmod(config_file, 0o600)
+    except OSError:
+        pass
+
 
 def load_console_icons():
     """Load RetroAchievements console image mappings from the INI file."""

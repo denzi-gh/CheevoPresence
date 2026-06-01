@@ -1,15 +1,15 @@
 import unittest
 
-from desktop.shell.macos.ipc import MacOSAppService, _format_ipc_error
+from desktop.shell.ipc import SettingsHostService, _format_ipc_error
 
 
 class FakeController:
     pass
 
 
-class MacOSIpcSecurityTests(unittest.TestCase):
+class IpcSecurityTests(unittest.TestCase):
     def _service(self):
-        service = object.__new__(MacOSAppService)
+        service = object.__new__(SettingsHostService)
         service.controller = FakeController()
         service.auth_token = "correct-token"
         return service

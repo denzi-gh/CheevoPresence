@@ -9,7 +9,7 @@ from types import SimpleNamespace
 from tkinter import messagebox, ttk
 
 from desktop.core.constants import APP_NAME, APP_VERSION, RA_SETTINGS_URL
-from desktop.runtime.storage import APP_ICON_FILE
+from desktop.runtime.storage import APP_ICON_FILE, APP_ICON_PNG_FILE
 from desktop.shell.settings_presenter import truncate_status_text
 from desktop.shell.tk_widgets import Tooltip
 
@@ -84,9 +84,25 @@ class TkSettingsWindow:
             self.root.bind("<Map>", self._on_mac_window_map)
             self.root.configure(menu=tk.Menu(self.root))
         self.root.protocol("WM_DELETE_WINDOW", self._on_window_close)
-        if os.path.exists(APP_ICON_FILE):
+        self._set_window_icon()
+
+    def _set_window_icon(self):
+        """Set the window/taskbar icon using the format each platform supports."""
+        # Windows renders the multi-resolution .ico via iconbitmap. On X11/Tk,
+        # iconbitmap expects an XBM bitmap and silently rejects .ico, so the
+        # window keeps the default Tk icon; iconphoto with a PNG is required.
+        if sys.platform.startswith("win") and os.path.exists(APP_ICON_FILE):
             try:
                 self.root.iconbitmap(APP_ICON_FILE)
+                return
+            except Exception:
+                pass
+        if os.path.exists(APP_ICON_PNG_FILE):
+            try:
+                # Keep a reference so the image is not garbage-collected, which
+                # would blank the icon.
+                self._window_icon = tk.PhotoImage(file=APP_ICON_PNG_FILE)
+                self.root.iconphoto(True, self._window_icon)
             except Exception:
                 pass
 

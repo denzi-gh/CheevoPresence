@@ -164,9 +164,9 @@ PYTHONPATH="$project_root${PYTHONPATH:+:$PYTHONPATH}" "${build_python}" -m PyIns
   --osx-bundle-identifier "org.denzi.cheevopresence" \
   --hidden-import "desktop.platform.macos" \
   --hidden-import "desktop.shell.macos.entrypoint" \
-  --hidden-import "desktop.shell.macos.ipc" \
+  --hidden-import "desktop.shell.ipc" \
   --hidden-import "desktop.shell.macos.menu_bar" \
-  --hidden-import "desktop.shell.macos.settings" \
+  --hidden-import "desktop.shell.settings_client" \
   --hidden-import "desktop.shell.tk_settings" \
   --hidden-import "objc" \
   --hidden-import "Foundation" \

@@ -1,4 +1,4 @@
-"""Companion settings client for the macOS native host."""
+"""Companion settings client for the native host app."""
 
 from __future__ import annotations
 
@@ -23,17 +23,17 @@ def _show_startup_error(message):
 
 
 def main(address=None, auth_token=None):
-    """Start the shared Tk settings window against the macOS host bridge."""
-    from .ipc import (
-        MACOS_SETTINGS_ADDRESS_ENV,
-        MACOS_SETTINGS_AUTH_ENV,
-        MacOSRemoteController,
+    """Start the shared Tk settings window against the host app bridge."""
+    from desktop.shell.ipc import (
+        SETTINGS_ADDRESS_ENV,
+        SETTINGS_AUTH_ENV,
+        RemoteAppController,
     )
 
-    address = address or os.environ.get(MACOS_SETTINGS_ADDRESS_ENV)
-    auth_token = auth_token or os.environ.get(MACOS_SETTINGS_AUTH_ENV)
+    address = address or os.environ.get(SETTINGS_ADDRESS_ENV)
+    auth_token = auth_token or os.environ.get(SETTINGS_AUTH_ENV)
     try:
-        controller = MacOSRemoteController(address, auth_token)
+        controller = RemoteAppController(address, auth_token)
         TkSettingsWindow(controller, on_quit=controller.quit_app)
     except Exception as exc:
         _show_startup_error(str(exc) or "The settings client could not connect to the host app.")

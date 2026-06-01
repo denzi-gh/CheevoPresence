@@ -1,7 +1,7 @@
 import unittest
 
 from desktop.runtime.state import WorkerState
-from desktop.shell.macos.ipc import MacOSAppService, RemoteWorkerProxy
+from desktop.shell.ipc import SettingsHostService, RemoteWorkerProxy
 
 
 class FakeWorker:
@@ -36,9 +36,9 @@ class FakeController:
         return UpdateStatus(checked=True)
 
 
-class MacOSIpcStateTests(unittest.TestCase):
+class IpcStateTests(unittest.TestCase):
     def test_service_state_uses_worker_snapshot(self):
-        service = object.__new__(MacOSAppService)
+        service = object.__new__(SettingsHostService)
         service.controller = FakeController()
 
         state = service._build_state()

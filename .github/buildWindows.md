@@ -81,9 +81,9 @@ python -m PyInstaller `
   --hidden-import "pystray._win32" `
   --exclude-module "desktop.platform.macos" `
   --exclude-module "desktop.shell.macos.entrypoint" `
-  --exclude-module "desktop.shell.macos.ipc" `
+  --exclude-module "desktop.shell.ipc" `
   --exclude-module "desktop.shell.macos.menu_bar" `
-  --exclude-module "desktop.shell.macos.settings" `
+  --exclude-module "desktop.shell.settings_client" `
   --exclude-module "objc" `
   --exclude-module "Foundation" `
   --exclude-module "AppKit" `

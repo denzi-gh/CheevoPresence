@@ -192,8 +192,8 @@ PYTHONPATH="$project_root${PYTHONPATH:+:$PYTHONPATH}" "${build_python}" -m PyIns
   --hidden-import "desktop.platform.linux" \
   --hidden-import "desktop.shell.linux.entrypoint" \
   --hidden-import "desktop.shell.linux.indicator" \
-  --hidden-import "desktop.shell.macos.ipc" \
-  --hidden-import "desktop.shell.macos.settings" \
+  --hidden-import "desktop.shell.ipc" \
+  --hidden-import "desktop.shell.settings_client" \
   --hidden-import "desktop.shell.tk_settings" \
   --hidden-import "gi" \
   --hidden-import "gi.repository.GLib" \

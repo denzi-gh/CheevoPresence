@@ -1,4 +1,4 @@
-"""Local IPC bridge between the native macOS host and the shared settings UI."""
+"""Local IPC bridge between the native host app and the shared settings UI."""
 
 from __future__ import annotations
 
@@ -12,8 +12,8 @@ from dataclasses import asdict
 from desktop.runtime.controller import ConnectResult, UpdateInstallResult, UpdateStatus
 from desktop.runtime.state import WorkerState
 
-MACOS_SETTINGS_ADDRESS_ENV = "CHEEVO_MACOS_SETTINGS_SOCKET"
-MACOS_SETTINGS_AUTH_ENV = "CHEEVO_MACOS_SETTINGS_TOKEN"
+SETTINGS_ADDRESS_ENV = "CHEEVO_SETTINGS_SOCKET"
+SETTINGS_AUTH_ENV = "CHEEVO_SETTINGS_TOKEN"
 _MAX_MESSAGE_BYTES = 1024 * 1024
 
 
@@ -29,7 +29,7 @@ def _socket_dir():
 
 
 def _make_socket_path():
-    """Return a short AF_UNIX socket path that fits macOS length limits."""
+    """Return a short AF_UNIX socket path that fits platform length limits."""
     return os.path.join(_socket_dir(), f"settings-{uuid.uuid4().hex[:8]}.sock")
 
 
@@ -81,7 +81,7 @@ def _format_ipc_error(exc):
     return "IPC request failed."
 
 
-class MacOSAppService:
+class SettingsHostService:
     """Expose the main-app controller to the companion settings process."""
 
     def __init__(self, controller, on_quit=None):
@@ -130,8 +130,8 @@ class MacOSAppService:
     def get_launch_env(self):
         """Return the environment variables required by the settings client."""
         return {
-            MACOS_SETTINGS_ADDRESS_ENV: self.address,
-            MACOS_SETTINGS_AUTH_ENV: self.auth_token,
+            SETTINGS_ADDRESS_ENV: self.address,
+            SETTINGS_AUTH_ENV: self.auth_token,
         }
 
     def _build_state(self):
@@ -258,14 +258,14 @@ class RemotePlatformProxy:
         return self._autostart_enabled
 
 
-class MacOSRemoteController:
+class RemoteAppController:
     """Controller adapter used by the shared Tk UI in the settings client."""
 
     def __init__(self, address=None, auth_token=None):
-        self.address = address or os.environ.get(MACOS_SETTINGS_ADDRESS_ENV, "").strip()
-        self.auth_token = auth_token or os.environ.get(MACOS_SETTINGS_AUTH_ENV, "").strip()
+        self.address = address or os.environ.get(SETTINGS_ADDRESS_ENV, "").strip()
+        self.auth_token = auth_token or os.environ.get(SETTINGS_AUTH_ENV, "").strip()
         if not self.address or not self.auth_token:
-            raise RuntimeError("Missing macOS settings bootstrap environment.")
+            raise RuntimeError("Missing settings bootstrap environment.")
         self.worker = RemoteWorkerProxy()
         self.platform = RemotePlatformProxy()
         self.config = {}
