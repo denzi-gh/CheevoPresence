@@ -5,11 +5,12 @@ import os
 import sys
 from logging.handlers import RotatingFileHandler
 
+from desktop.runtime.log_events import AREA_STARTUP, log_event
 from desktop.runtime.storage import get_log_file
 
 LOGGER_NAME = "desktop"
-LOG_FORMAT = "%(asctime)s %(levelname)s [%(threadName)s] %(name)s: %(message)s"
-MAX_LOG_BYTES = 1024 * 1024
+LOG_FORMAT = "%(asctime)s %(levelname)s %(name)s: %(message)s"
+MAX_LOG_BYTES = 2 * 1024 * 1024
 BACKUP_COUNT = 5
 HANDLER_MARKER = "_cheevo_runtime_log_handler"
 
@@ -59,5 +60,5 @@ def setup_logging(platform=None, level=logging.INFO):
     handler.setLevel(level)
     handler.setFormatter(logging.Formatter(LOG_FORMAT))
     logger.addHandler(handler)
-    logger.info("Logging initialized")
+    log_event(logger, AREA_STARTUP, "logging_initialized", log_file=log_file)
     return log_file
