@@ -1,0 +1,98 @@
+name: release build
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+
+jobs:
+  preflight:
+    name: check version marker
+    runs-on: ubuntu-latest
+    outputs:
+      should_build: ${{ steps.version.outputs.should_build }}
+      version: ${{ steps.version.outputs.version }}
+
+    steps:
+      - name: checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 1
+
+      - name: read head commit message
+        id: version
+        shell: bash
+        run: |
+          message="$(git log -1 --pretty=%B)"
+          version="$(printf '%s\n' "$message" | grep -Eo '(^|[^[:alnum:]])v[0-9]+\.[0-9]+\.[0-9]+([^[:alnum:]]|$)' | head -n 1 | grep -Eo 'v[0-9]+\.[0-9]+\.[0-9]+' || true)"
+          if [[ -n "$version" ]]; then
+            echo "should_build=true" >> "$GITHUB_OUTPUT"
+            echo "version=$version" >> "$GITHUB_OUTPUT"
+          else
+            echo "should_build=false" >> "$GITHUB_OUTPUT"
+            echo "version=" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: explain skipped build
+        if: steps.version.outputs.should_build != 'true'
+        run: echo "release artifacts are only built when the head commit message contains a version like v1.2.3"
+
+  windows:
+    name: windows artifact
+    runs-on: windows-latest
+    needs: preflight
+    if: needs.preflight.outputs.should_build == 'true'
+
+    steps:
+      - name: checkout
+        uses: actions/checkout@v4
+
+      - name: setup python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+          cache-dependency-path: |
+            requirements/base.txt
+            requirements/windows.txt
+
+      - name: install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install -r requirements/windows.txt pyinstaller==6.19.0
+
+      - name: build exe
+        shell: pwsh
+        run: ./build_exe.ps1
+
+      - name: upload exe
+        uses: actions/upload-artifact@v4
+        with:
+          name: CheevoPresence-${{ needs.preflight.outputs.version }}-windows
+          path: dist/CheevoPresence.exe
+          if-no-files-found: error
+
+  macos:
+    name: macos artifact
+    runs-on: macos-latest
+    needs: preflight
+    if: needs.preflight.outputs.should_build == 'true'
+
+    steps:
+      - name: checkout
+        uses: actions/checkout@v4
+
+      - name: install build python
+        run: brew install python@3.12 python-tk@3.12 tcl-tk
+
+      - name: build app
+        run: ./build_macos.sh
+
+      - name: upload app zip
+        uses: actions/upload-artifact@v4
+        with:
+          name: CheevoPresence-${{ needs.preflight.outputs.version }}-macos
+          path: |
+            dist/CheevoPresence.app
+            dist/CheevoPresence-macos.zip
+          if-no-files-found: error

@@ -22,13 +22,16 @@ class FakePlatform:
 
 
 class RuntimeLoggingTests(unittest.TestCase):
-    def tearDown(self):
+    def _close_runtime_handlers(self):
         logger = logging.getLogger("desktop")
         for handler in list(logger.handlers):
             if getattr(handler, HANDLER_MARKER, False):
                 logger.removeHandler(handler)
                 handler.close()
         logger.propagate = True
+
+    def tearDown(self):
+        self._close_runtime_handlers()
 
     def test_log_paths_live_under_platform_config_dir(self):
         with tempfile.TemporaryDirectory() as tmpdir:
@@ -63,6 +66,7 @@ class RuntimeLoggingTests(unittest.TestCase):
             self.assertEqual(BACKUP_COUNT, handlers[0].backupCount)
             self.assertTrue(os.path.isdir(os.path.dirname(log_file)))
             self.assertTrue(os.path.exists(log_file))
+            self._close_runtime_handlers()
 
 
 if __name__ == "__main__":
