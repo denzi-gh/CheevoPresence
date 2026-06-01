@@ -10,47 +10,8 @@ from tkinter import messagebox, ttk
 
 from desktop.core.constants import APP_NAME, APP_VERSION, RA_SETTINGS_URL
 from desktop.runtime.storage import APP_ICON_FILE
-
-
-class Tooltip:
-    """Show a compact hover tooltip for a Tk widget."""
-
-    def __init__(self, widget, text):
-        self.widget = widget
-        self.text = text
-        self.tip_window = None
-        widget.bind("<Enter>", self.show)
-        widget.bind("<Leave>", self.hide)
-        widget.bind("<ButtonPress>", self.hide)
-
-    def show(self, _event=None):
-        """Render the tooltip next to the owning widget."""
-        if self.tip_window or not self.text:
-            return
-        x = self.widget.winfo_rootx() + self.widget.winfo_width() + 10
-        y = self.widget.winfo_rooty() - 2
-        self.tip_window = tw = tk.Toplevel(self.widget)
-        tw.wm_overrideredirect(True)
-        tw.wm_geometry(f"+{x}+{y}")
-        tk.Label(
-            tw,
-            text=self.text,
-            justify="left",
-            bg="#1a1e26",
-            fg="#e0e4ec",
-            relief="solid",
-            borderwidth=1,
-            padx=8,
-            pady=6,
-            font=("Segoe UI", 9),
-            wraplength=280,
-        ).pack()
-
-    def hide(self, _event=None):
-        """Close the tooltip if it is currently visible."""
-        if self.tip_window:
-            self.tip_window.destroy()
-            self.tip_window = None
+from desktop.shell.settings_presenter import truncate_status_text
+from desktop.shell.tk_widgets import Tooltip
 
 
 class TkSettingsWindow:
@@ -806,15 +767,11 @@ class TkSettingsWindow:
             }
             color = colors.get(worker_state.current_status, self.MUTED)
             ra_color = self.GREEN if worker_state.ra_connected else self.RED
-            discord_text = worker_state.status_text
-            if len(discord_text) > 45:
-                discord_text = discord_text[:42] + "..."
+            discord_text = truncate_status_text(worker_state.status_text)
             self.status_var.set(discord_text)
             self.status_dot.configure(fg=color)
             self.status_label.configure(fg=color)
-            ra_text = worker_state.ra_status_text
-            if len(ra_text) > 45:
-                ra_text = ra_text[:42] + "..."
+            ra_text = truncate_status_text(worker_state.ra_status_text)
             self.ra_status_var.set(ra_text)
             self.ra_status_dot.configure(fg=ra_color)
             self.ra_status_label.configure(fg=ra_color)
