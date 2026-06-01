@@ -3,7 +3,6 @@
 import logging
 import sys
 
-from desktop.core.constants import APP_NAME
 from desktop.platform import get_platform_services
 from desktop.runtime.controller import AppController
 from desktop.runtime.logging_setup import setup_logging
@@ -14,32 +13,10 @@ EXIT_APP_FLAG = "--exit"
 logger = logging.getLogger(__name__)
 
 
-def _show_tray_unavailable_warning(reason):
-    """Show a best-effort warning before falling back to the settings window."""
-    try:
-        import tkinter as tk
-        from tkinter import messagebox
-
-        root = tk.Tk()
-        root.withdraw()
-        messagebox.showwarning(
-            APP_NAME,
-            (
-                "The native Linux tray backend is not available. "
-                "CheevoPresence will open the settings window instead.\n\n"
-                f"{reason}"
-            ),
-        )
-        root.destroy()
-    except Exception:
-        logger.warning("Linux tray fallback warning could not be shown", exc_info=True)
-
-
 def _run_settings_fallback(controller, reason):
     """Run a visible settings window when no indicator backend is available."""
     logger.warning("Linux indicator unavailable; using settings fallback: %s", reason)
     controller.start_saved_session()
-    _show_tray_unavailable_warning(reason)
     try:
         SettingsWindow(controller)
     finally:
