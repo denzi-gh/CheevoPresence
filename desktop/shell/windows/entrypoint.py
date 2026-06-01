@@ -6,6 +6,8 @@ import threading
 
 from desktop.platform import get_platform_services
 from desktop.runtime.controller import AppController
+from desktop.runtime.diagnostics import log_startup_diagnostics
+from desktop.runtime.log_events import AREA_STARTUP, log_event
 from desktop.runtime.logging_setup import setup_logging
 from desktop.shell.windows.tray import TrayApp
 from desktop.shell.windows.ui import SettingsWindow
@@ -17,36 +19,28 @@ logger = logging.getLogger(__name__)
 def main():
     """Boot the tray app and optionally open the settings window on launch."""
     tray_mode = "--tray" in sys.argv
+    mode = "tray" if tray_mode else "settings"
     platform = get_platform_services()
     setup_logging(platform)
-    logger.info(
-        "Windows entrypoint started mode=%s frozen=%s",
-        "tray" if tray_mode else "settings",
-        bool(getattr(sys, "frozen", False)),
-    )
+    log_startup_diagnostics(platform)
+    log_event(logger, AREA_STARTUP, "entrypoint_started", platform="windows", mode=mode)
 
     if platform.handle_special_args(sys.argv):
-        logger.info("Windows platform helper mode handled")
+        log_event(logger, AREA_STARTUP, "platform_helper_handled", platform="windows")
         return
 
     if EXIT_APP_FLAG in sys.argv:
         requested = platform.request_running_app_exit()
-        logger.info("Windows external exit requested success=%s", requested)
+        log_event(logger, AREA_STARTUP, "external_exit_requested", success=requested)
         return
 
     if not platform.acquire_single_instance():
-        logger.info(
-            "Windows duplicate instance blocked mode=%s",
-            "tray" if tray_mode else "settings",
-        )
+        log_event(logger, AREA_STARTUP, "duplicate_instance_blocked", mode=mode)
         if not tray_mode:
             platform.notify_already_running()
         return
 
-    logger.info(
-        "Windows single instance acquired mode=%s",
-        "tray" if tray_mode else "settings",
-    )
+    log_event(logger, AREA_STARTUP, "single_instance_acquired", mode=mode)
     controller = AppController(platform=platform)
     app = TrayApp(controller)
 

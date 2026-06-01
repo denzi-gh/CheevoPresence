@@ -1,20 +1,29 @@
-"""Local IPC bridge between the native macOS host and the shared settings UI."""
+"""Local IPC bridge between the native host app and the shared settings UI."""
 
 from __future__ import annotations
 
 import json
+import logging
 import os
 import socket
 import threading
+import time
 import uuid
 from dataclasses import asdict
 
 from desktop.runtime.controller import ConnectResult, UpdateInstallResult, UpdateStatus
+from desktop.runtime.log_events import AREA_IPC, log_event
 from desktop.runtime.state import WorkerState
 
-MACOS_SETTINGS_ADDRESS_ENV = "CHEEVO_MACOS_SETTINGS_SOCKET"
-MACOS_SETTINGS_AUTH_ENV = "CHEEVO_MACOS_SETTINGS_TOKEN"
+logger = logging.getLogger(__name__)
+
+SETTINGS_ADDRESS_ENV = "CHEEVO_SETTINGS_SOCKET"
+SETTINGS_AUTH_ENV = "CHEEVO_SETTINGS_TOKEN"
 _MAX_MESSAGE_BYTES = 1024 * 1024
+# The settings UI polls these methods ~once per second; log them at most this
+# often so cheevo.log stays readable. Failures and other methods always log.
+IPC_THROTTLED_METHODS = frozenset({"get_state"})
+IPC_LOG_THROTTLE_SECONDS = 60
 
 
 def _socket_dir():
@@ -29,7 +38,7 @@ def _socket_dir():
 
 
 def _make_socket_path():
-    """Return a short AF_UNIX socket path that fits macOS length limits."""
+    """Return a short AF_UNIX socket path that fits platform length limits."""
     return os.path.join(_socket_dir(), f"settings-{uuid.uuid4().hex[:8]}.sock")
 
 
@@ -81,7 +90,7 @@ def _format_ipc_error(exc):
     return "IPC request failed."
 
 
-class MacOSAppService:
+class SettingsHostService:
     """Expose the main-app controller to the companion settings process."""
 
     def __init__(self, controller, on_quit=None):
@@ -92,6 +101,7 @@ class MacOSAppService:
         self.listener = None
         self.thread = None
         self._stop_event = threading.Event()
+        self._last_request_log = {}
 
     def start(self):
         """Start the background request loop."""
@@ -105,6 +115,7 @@ class MacOSAppService:
         self.listener.settimeout(0.5)
         self.thread = threading.Thread(target=self._serve, daemon=True)
         self.thread.start()
+        log_event(logger, AREA_IPC, "host_service_start", socket=self.address)
 
     def stop(self):
         """Stop serving requests and remove the socket path."""
@@ -126,12 +137,13 @@ class MacOSAppService:
                 os.remove(self.address)
             except OSError:
                 pass
+        log_event(logger, AREA_IPC, "host_service_stop")
 
     def get_launch_env(self):
         """Return the environment variables required by the settings client."""
         return {
-            MACOS_SETTINGS_ADDRESS_ENV: self.address,
-            MACOS_SETTINGS_AUTH_ENV: self.auth_token,
+            SETTINGS_ADDRESS_ENV: self.address,
+            SETTINGS_AUTH_ENV: self.auth_token,
         }
 
     def _build_state(self):
@@ -172,6 +184,16 @@ class MacOSAppService:
             return {"success": True}
         raise ValueError(f"Unknown IPC method: {method}")
 
+    def _should_log_request(self, method, now):
+        """Return whether a successful request should be logged, throttling polls."""
+        if method not in IPC_THROTTLED_METHODS:
+            return True
+        last = self._last_request_log.get(method, 0)
+        if now - last >= IPC_LOG_THROTTLE_SECONDS:
+            self._last_request_log[method] = now
+            return True
+        return False
+
     def _serve(self):
         """Serve one-request connections until the host shuts down."""
         while not self._stop_event.is_set():
@@ -181,12 +203,34 @@ class MacOSAppService:
                 continue
             except OSError:
                 break
+            start = time.monotonic()
+            method = None
             try:
                 conn.settimeout(5)
                 request = _read_message(conn)
+                method = request.get("method")
                 response = {"ok": True, "result": self._dispatch(request)}
+                if self._should_log_request(method, start):
+                    log_event(
+                        logger,
+                        AREA_IPC,
+                        "request",
+                        method=method,
+                        success=True,
+                        elapsed_ms=round((time.monotonic() - start) * 1000),
+                    )
             except Exception as exc:
                 response = {"ok": False, "error": _format_ipc_error(exc)}
+                log_event(
+                    logger,
+                    AREA_IPC,
+                    "request",
+                    level=logging.WARNING,
+                    method=method,
+                    success=False,
+                    error_type=exc.__class__.__name__,
+                    elapsed_ms=round((time.monotonic() - start) * 1000),
+                )
             try:
                 _write_message(conn, response)
             except Exception:
@@ -258,14 +302,14 @@ class RemotePlatformProxy:
         return self._autostart_enabled
 
 
-class MacOSRemoteController:
+class RemoteAppController:
     """Controller adapter used by the shared Tk UI in the settings client."""
 
     def __init__(self, address=None, auth_token=None):
-        self.address = address or os.environ.get(MACOS_SETTINGS_ADDRESS_ENV, "").strip()
-        self.auth_token = auth_token or os.environ.get(MACOS_SETTINGS_AUTH_ENV, "").strip()
+        self.address = address or os.environ.get(SETTINGS_ADDRESS_ENV, "").strip()
+        self.auth_token = auth_token or os.environ.get(SETTINGS_AUTH_ENV, "").strip()
         if not self.address or not self.auth_token:
-            raise RuntimeError("Missing macOS settings bootstrap environment.")
+            raise RuntimeError("Missing settings bootstrap environment.")
         self.worker = RemoteWorkerProxy()
         self.platform = RemotePlatformProxy()
         self.config = {}

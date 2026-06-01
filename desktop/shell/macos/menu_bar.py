@@ -30,6 +30,7 @@ from Quartz import CALayer
 from desktop.core.constants import APP_NAME, APP_VERSION, RA_SETTINGS_URL
 from desktop.platform.macos import get_exe_path
 from desktop.runtime.controller import AppController
+from desktop.runtime.log_events import AREA_SETTINGS, log_event
 from desktop.runtime.storage import (
     APP_ICON_PNG_FILE,
     GENERATED_MENU_BAR_TEMPLATE_ICON_FILE,
@@ -113,9 +114,9 @@ class MacOSMenuBarApp:
         self.version_item = None
         self.connection_item = None
         self._status_badge_layer = None
-        from .ipc import MacOSAppService
+        from desktop.shell.ipc import SettingsHostService
 
-        self.settings_service = MacOSAppService(controller, on_quit=self.quit_app)
+        self.settings_service = SettingsHostService(controller, on_quit=self.quit_app)
         self._settings_process = None
         self._delegate = None
         self._exit_listener = None
@@ -356,14 +357,26 @@ class MacOSMenuBarApp:
             self._focus_settings_process()
             return
         command, env = self._build_settings_command()
-        self._settings_process = subprocess.Popen(
-            command,
-            start_new_session=True,
-            stdout=subprocess.DEVNULL,
-            stderr=subprocess.DEVNULL,
-            env=env,
-        )
-        logger.info("macOS settings process launched pid=%s", self._settings_process.pid)
+        try:
+            self._settings_process = subprocess.Popen(
+                command,
+                start_new_session=True,
+                stdout=subprocess.DEVNULL,
+                stderr=subprocess.DEVNULL,
+                env=env,
+            )
+        except Exception as exc:
+            log_event(
+                logger,
+                AREA_SETTINGS,
+                "client_launch_failed",
+                level=logging.ERROR,
+                exc_info=True,
+                error_type=exc.__class__.__name__,
+            )
+            self._settings_process = None
+            return
+        log_event(logger, AREA_SETTINGS, "client_launch", pid=self._settings_process.pid)
         self._focus_settings_process()
 
     def _build_settings_command(self):

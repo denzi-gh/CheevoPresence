@@ -1,5 +1,6 @@
 """Shared Tk settings window used by desktop shell variants."""
 
+import logging
 import os
 import sys
 import threading
@@ -9,9 +10,13 @@ from types import SimpleNamespace
 from tkinter import messagebox, ttk
 
 from desktop.core.constants import APP_NAME, APP_VERSION, RA_SETTINGS_URL
-from desktop.runtime.storage import APP_ICON_FILE
+from desktop.platform import get_platform_services
+from desktop.runtime.log_events import AREA_SETTINGS, log_event
+from desktop.runtime.storage import APP_ICON_FILE, APP_ICON_PNG_FILE, get_log_dir
 from desktop.shell.settings_presenter import truncate_status_text
 from desktop.shell.tk_widgets import Tooltip
+
+logger = logging.getLogger(__name__)
 
 
 class TkSettingsWindow:
@@ -29,13 +34,14 @@ class TkSettingsWindow:
     RED = "#ed4245"
     FONT = "Segoe UI"
 
-    def __init__(self, controller, on_close=None, on_quit=None):
+    def __init__(self, controller, on_close=None, on_quit=None, on_ready=None):
         """Build the settings window and start its status refresh loop."""
         self.controller = controller
         self.worker = controller.worker
         self.platform = controller.platform
         self.on_close = on_close
         self.on_quit = on_quit
+        self.on_ready = on_ready
         self._destroyed = False
         self._is_connecting = False
         self._is_installing_update = False
@@ -58,6 +64,8 @@ class TkSettingsWindow:
         self._refresh_connection_button()
         self._refresh_update_notice()
         self._poll_status()
+        if self.on_ready:
+            self.on_ready(self)
         self.root.mainloop()
 
     def focus_window(self):
@@ -81,9 +89,25 @@ class TkSettingsWindow:
             self.root.bind("<Map>", self._on_mac_window_map)
             self.root.configure(menu=tk.Menu(self.root))
         self.root.protocol("WM_DELETE_WINDOW", self._on_window_close)
-        if os.path.exists(APP_ICON_FILE):
+        self._set_window_icon()
+
+    def _set_window_icon(self):
+        """Set the window/taskbar icon using the format each platform supports."""
+        # Windows renders the multi-resolution .ico via iconbitmap. On X11/Tk,
+        # iconbitmap expects an XBM bitmap and silently rejects .ico, so the
+        # window keeps the default Tk icon; iconphoto with a PNG is required.
+        if sys.platform.startswith("win") and os.path.exists(APP_ICON_FILE):
             try:
                 self.root.iconbitmap(APP_ICON_FILE)
+                return
+            except Exception:
+                pass
+        if os.path.exists(APP_ICON_PNG_FILE):
+            try:
+                # Keep a reference so the image is not garbage-collected, which
+                # would blank the icon.
+                self._window_icon = tk.PhotoImage(file=APP_ICON_PNG_FILE)
+                self.root.iconphoto(True, self._window_icon)
             except Exception:
                 pass
 
@@ -554,12 +578,13 @@ class TkSettingsWindow:
         )
 
         footer_links = [
-            ("Get API Key", RA_SETTINGS_URL),
-            ("RetroAchievements", "https://retroachievements.org"),
-            ("GitHub", "https://github.com/denzi-gh/CheevoPresence"),
-            ("Ko-fi", "https://ko-fi.com/denzi"),
+            ("Get API Key", lambda: webbrowser.open(RA_SETTINGS_URL)),
+            ("RetroAchievements", lambda: webbrowser.open("https://retroachievements.org")),
+            ("GitHub", lambda: webbrowser.open("https://github.com/denzi-gh/CheevoPresence")),
+            ("Ko-fi", lambda: webbrowser.open("https://ko-fi.com/denzi")),
+            ("Open Logs", self._open_log_folder),
         ]
-        for text, url in footer_links:
+        for text, action in footer_links:
             tk.Label(
                 footer,
                 text=" \u00b7 ",
@@ -576,9 +601,27 @@ class TkSettingsWindow:
                 cursor="arrow",
             )
             label.pack(side="left")
-            label.bind("<Button-1>", lambda e, u=url: webbrowser.open(u))
+            label.bind("<Button-1>", lambda e, a=action: a())
             label.bind("<Enter>", lambda e, l=label: l.configure(fg=self.ACCENT))
             label.bind("<Leave>", lambda e, l=label: l.configure(fg=self.MUTED))
+
+    def _open_log_folder(self):
+        """Open the runtime log folder in the OS file manager."""
+        # The settings window always runs on the local machine, so resolve the
+        # real platform services here rather than the IPC platform proxy.
+        platform = get_platform_services()
+        log_dir = get_log_dir(platform)
+        os.makedirs(log_dir, exist_ok=True)
+        success = platform.open_path(log_dir)
+        log_event(
+            logger,
+            AREA_SETTINGS,
+            "open_log_folder",
+            success=success,
+            path=log_dir,
+        )
+        if not success:
+            messagebox.showinfo("Logs", f"Log folder:\n{log_dir}")
 
     def _center_window(self):
         """Center the finished window and lock in its minimum size."""
@@ -689,10 +732,22 @@ class TkSettingsWindow:
 
     def _on_window_close(self):
         """Dispose the window and notify the tray host that it closed."""
+        if self._destroyed:
+            return
         self._destroyed = True
         if self.on_close:
             self.on_close()
         self.root.destroy()
+
+    def request_close(self):
+        """Ask the Tk thread to close the window."""
+        if self._destroyed:
+            return False
+        try:
+            self.root.after(0, self._on_window_close)
+            return True
+        except tk.TclError:
+            return False
 
     def _queue_ui(self, callback):
         """Queue a callback on the Tk thread if the window still exists."""
@@ -789,18 +844,21 @@ class TkSettingsWindow:
             return
         update_status = self.controller.get_update_status()
         if update_status.available:
+            can_self_install = update_status.can_self_install
+            handler = self._on_update_click if can_self_install else self._on_manual_update_click
+            notice_text = " Update available" if can_self_install else " New version available"
             self.version_label.configure(
                 text=f"v{APP_VERSION}",
                 fg=self.LINK,
                 cursor="arrow",
             )
-            self.version_label.bind("<Button-1>", self._on_update_click)
+            self.version_label.bind("<Button-1>", handler)
             self.version_label.bind("<Enter>", lambda e: self.version_label.configure(fg="#7ab9ff"))
             self.version_label.bind("<Leave>", lambda e: self.version_label.configure(fg=self.LINK))
             if not self.update_label.winfo_ismapped():
                 self.update_label.pack(side="left")
-            self.update_label.configure(text=" Update available", cursor="arrow")
-            self.update_label.bind("<Button-1>", self._on_update_click)
+            self.update_label.configure(text=notice_text, cursor="arrow")
+            self.update_label.bind("<Button-1>", handler)
             self.update_label.bind("<Enter>", lambda e: self.update_label.configure(fg="#7ab9ff"))
             self.update_label.bind("<Leave>", lambda e: self.update_label.configure(fg=self.LINK))
         else:
@@ -815,9 +873,16 @@ class TkSettingsWindow:
             if self.update_label.winfo_ismapped():
                 self.update_label.pack_forget()
 
+    def _on_manual_update_click(self, _event=None):
+        """Open the GitHub releases page for updates that cannot self-install."""
+        webbrowser.open(self.controller.get_update_status().release_url)
+
     def _on_update_click(self, _event=None):
         """Download and stage the latest packaged release for automatic restart."""
         if self._is_installing_update:
+            return
+        if not self.controller.get_update_status().can_self_install:
+            self._on_manual_update_click()
             return
         self._is_installing_update = True
         self.version_label.configure(fg=self.LINK, cursor="")

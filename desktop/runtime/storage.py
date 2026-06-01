@@ -2,6 +2,7 @@
 
 import configparser
 import json
+import logging
 import os
 import sys
 import tempfile
@@ -9,6 +10,9 @@ import tempfile
 from desktop.core.constants import APP_NAME, UPDATE_TEST_FILE_NAME
 from desktop.core.settings import DEFAULT_CONFIG, normalize_config
 from desktop.platform import get_platform_services
+from desktop.runtime.log_events import AREA_CONFIG, log_event
+
+logger = logging.getLogger(__name__)
 
 
 def get_resource_dir():
@@ -44,7 +48,18 @@ def get_config_file(platform=None):
 
 def get_log_dir(platform=None):
     """Return the per-user directory where runtime diagnostic logs should live."""
-    return os.path.join(get_config_dir(platform), "logs")
+    platform = platform or get_platform_services()
+    config_dir = get_config_dir(platform)
+    get_platform_log_dir = getattr(platform, "get_log_dir", None)
+    if callable(get_platform_log_dir):
+        preferred_dir = get_platform_log_dir(
+            APP_NAME,
+            get_runtime_root_dir(),
+            config_dir,
+        )
+        if preferred_dir:
+            return preferred_dir
+    return os.path.join(config_dir, "logs")
 
 
 def get_log_file(platform=None):
@@ -87,13 +102,49 @@ def load_config(platform=None):
             cfg = normalize_config(saved, decode_api_key=platform.unprotect_api_key)
             if source != config_file:
                 save_config(cfg, platform)
+                migrated = True
                 try:
                     os.remove(source)
                 except OSError:
-                    pass
+                    migrated = False
+                log_event(
+                    logger,
+                    AREA_CONFIG,
+                    "migrate",
+                    legacy_path=source,
+                    success=migrated,
+                )
+            log_event(
+                logger,
+                AREA_CONFIG,
+                "load",
+                path=config_file,
+                exists=True,
+                success=True,
+                username_present=bool(cfg.get("username")),
+                apikey_present=bool(cfg.get("apikey")),
+            )
             return cfg
-        except (json.JSONDecodeError, OSError):
+        except (json.JSONDecodeError, OSError) as exc:
+            log_event(
+                logger,
+                AREA_CONFIG,
+                "load_failed",
+                level=logging.WARNING,
+                path=source,
+                error_type=exc.__class__.__name__,
+            )
             return dict(DEFAULT_CONFIG)
+    log_event(
+        logger,
+        AREA_CONFIG,
+        "load",
+        path=config_file,
+        exists=False,
+        success=True,
+        username_present=False,
+        apikey_present=False,
+    )
     return dict(DEFAULT_CONFIG)
 
 
@@ -103,6 +154,7 @@ def save_config(cfg, platform=None):
     config_dir = get_config_dir(platform)
     config_file = get_config_file(platform)
     cfg = normalize_config(cfg, decode_api_key=platform.unprotect_api_key)
+    apikey_present = bool(cfg.get("apikey"))
     stored_cfg = {key: value for key, value in cfg.items() if key != "apikey"}
     protected_apikey = platform.protect_api_key(cfg["apikey"])
     if protected_apikey:
@@ -111,18 +163,47 @@ def save_config(cfg, platform=None):
     os.makedirs(config_dir, exist_ok=True)
     tmp_path = None
     try:
-        fd, tmp_path = tempfile.mkstemp(dir=config_dir, suffix=".tmp")
-        with os.fdopen(fd, "w", encoding="utf-8") as handle:
-            json.dump(stored_cfg, handle, indent=2)
-        os.replace(tmp_path, config_file)
+        try:
+            fd, tmp_path = tempfile.mkstemp(dir=config_dir, suffix=".tmp")
+            with os.fdopen(fd, "w", encoding="utf-8") as handle:
+                json.dump(stored_cfg, handle, indent=2)
+            os.replace(tmp_path, config_file)
+        except OSError:
+            if tmp_path:
+                try:
+                    os.remove(tmp_path)
+                except OSError:
+                    pass
+            with open(config_file, "w", encoding="utf-8") as handle:
+                json.dump(stored_cfg, handle, indent=2)
+    except OSError as exc:
+        log_event(
+            logger,
+            AREA_CONFIG,
+            "save_failed",
+            level=logging.WARNING,
+            path=config_file,
+            error_type=exc.__class__.__name__,
+        )
+        raise
+
+    # The config can hold the API key as plain base64 (no OS keyring), so keep
+    # it owner-only. mkstemp already yields 0600, but the fallback open() path
+    # inherits the umask; set it explicitly on every POSIX platform.
+    try:
+        os.chmod(config_file, 0o600)
     except OSError:
-        if tmp_path:
-            try:
-                os.remove(tmp_path)
-            except OSError:
-                pass
-        with open(config_file, "w", encoding="utf-8") as handle:
-            json.dump(stored_cfg, handle, indent=2)
+        pass
+
+    log_event(
+        logger,
+        AREA_CONFIG,
+        "save",
+        path=config_file,
+        success=True,
+        mode="0o600",
+        apikey_present=apikey_present,
+    )
 
 
 def load_console_icons():

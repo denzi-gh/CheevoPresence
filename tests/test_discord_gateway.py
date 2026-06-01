@@ -1,4 +1,5 @@
 import unittest
+import threading
 
 from pypresence import exceptions as pypresence_exceptions
 
@@ -8,14 +9,16 @@ from desktop.runtime.discord_gateway import DiscordPresenceGateway
 class FakePresence:
     attempts = []
     failures = {}
+    init_kwargs = []
 
-    def __init__(self, client_id, pipe=None):
+    def __init__(self, client_id, pipe=None, **kwargs):
         self.client_id = client_id
         self.pipe = pipe
         self.closed = False
         self.cleared = False
         self.updated = None
         self.attempts.append(pipe)
+        self.init_kwargs.append(kwargs)
 
     def connect(self):
         failure = self.failures.get(self.pipe)
@@ -36,12 +39,14 @@ class DiscordPresenceGatewayTests(unittest.TestCase):
     def setUp(self):
         FakePresence.attempts = []
         FakePresence.failures = {}
+        FakePresence.init_kwargs = []
         self.statuses = []
 
-    def _gateway(self):
+    def _gateway(self, **kwargs):
         return DiscordPresenceGateway(
             presence_factory=FakePresence,
             status_callback=lambda status, text: self.statuses.append((status, text)),
+            **kwargs,
         )
 
     def test_connect_falls_back_to_next_pipe(self):
@@ -51,6 +56,8 @@ class DiscordPresenceGatewayTests(unittest.TestCase):
         self.assertTrue(gateway.connect())
 
         self.assertEqual([0, 1], FakePresence.attempts)
+        self.assertEqual(1.5, FakePresence.init_kwargs[0]["connection_timeout"])
+        self.assertEqual(1.5, FakePresence.init_kwargs[0]["response_timeout"])
         self.assertEqual(1, gateway.rpc_pipe)
         self.assertTrue(gateway.rpc_connected)
         self.assertEqual(("connected", "Connected to Discord"), self.statuses[-1])
@@ -78,6 +85,29 @@ class DiscordPresenceGatewayTests(unittest.TestCase):
         self.assertTrue(presence.cleared)
         self.assertTrue(presence.closed)
         self.assertIsNone(gateway.rpc)
+        self.assertFalse(gateway.rpc_connected)
+
+    def test_connect_pipe_times_out_hung_handshake(self):
+        class HangingPresence:
+            closed = False
+
+            def __init__(self, _client_id, pipe=None, **_kwargs):
+                self.pipe = pipe
+
+            def connect(self):
+                threading.Event().wait()
+
+            def close(self):
+                HangingPresence.closed = True
+
+        gateway = DiscordPresenceGateway(
+            presence_factory=HangingPresence,
+            connect_timeout=0.01,
+            response_timeout=0.01,
+        )
+
+        self.assertFalse(gateway.connect())
+        self.assertTrue(HangingPresence.closed)
         self.assertFalse(gateway.rpc_connected)
 
 

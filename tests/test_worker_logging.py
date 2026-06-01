@@ -97,9 +97,9 @@ class WorkerLoggingTests(unittest.TestCase):
     def test_presence_update_success_logs_safe_metadata(self):
         output = self._run_one_loop_with_logs(self._make_worker())
 
-        self.assertIn("RetroAchievements connection succeeded", output)
-        self.assertIn("Discord rich presence update attempt game_id=123", output)
-        self.assertIn("Discord rich presence update succeeded game_id=123", output)
+        self.assertIn("[RA] connection_succeeded", output)
+        self.assertIn("[DISCORD] presence_update_attempt game_id=123", output)
+        self.assertIn("[DISCORD] presence_update_succeeded game_id=123", output)
         self.assertIn("achievements=4/10", output)
         self.assertNotIn(SECRET_USERNAME, output)
         self.assertNotIn(SECRET_API_KEY, output)
@@ -109,7 +109,7 @@ class WorkerLoggingTests(unittest.TestCase):
     def test_presence_update_failure_logs_safe_metadata(self):
         output = self._run_one_loop_with_logs(self._make_worker(fail_update=True))
 
-        self.assertIn("Discord rich presence update failed game_id=123", output)
+        self.assertIn("[DISCORD] presence_update_failed game_id=123", output)
         self.assertIn("error_type=RuntimeError", output)
         self.assertNotIn(SECRET_USERNAME, output)
         self.assertNotIn(SECRET_API_KEY, output)

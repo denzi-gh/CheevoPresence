@@ -16,6 +16,7 @@ from tkinter import messagebox
 from desktop.core.constants import APP_NAME
 from desktop.platform.base import PlatformServices
 from desktop.platform.windows_secrets import protect_api_key, unprotect_api_key
+from desktop.runtime.log_events import AREA_AUTOSTART, log_event
 
 SINGLE_INSTANCE_MUTEX_NAME = f"Local\\{APP_NAME}Singleton"
 EXIT_EVENT_NAME = f"Local\\{APP_NAME}Exit"
@@ -375,8 +376,24 @@ def set_autostart(enable):
                     pass
         finally:
             winreg.CloseKey(key)
+        log_event(
+            logger,
+            AREA_AUTOSTART,
+            "set",
+            enabled=bool(enable),
+            success=True,
+            path=f"HKCU\\{STARTUP_REG_KEY}\\{STARTUP_REG_NAME}",
+        )
         return None
-    except Exception:
+    except Exception as exc:
+        log_event(
+            logger,
+            AREA_AUTOSTART,
+            "set_failed",
+            level=logging.WARNING,
+            enabled=bool(enable),
+            error_type=exc.__class__.__name__,
+        )
         return "Could not update the Windows startup setting."
 
 
@@ -388,13 +405,16 @@ def is_autostart_enabled():
         key = winreg.OpenKey(winreg.HKEY_CURRENT_USER, STARTUP_REG_KEY, 0, winreg.KEY_READ)
         try:
             winreg.QueryValueEx(key, STARTUP_REG_NAME)
-            return True
+            enabled = True
         except FileNotFoundError:
-            return False
+            enabled = False
         finally:
             winreg.CloseKey(key)
     except Exception:
-        return False
+        enabled = False
+    # Polled every second by the settings UI, so keep this off the INFO log.
+    log_event(logger, AREA_AUTOSTART, "read", level=logging.DEBUG, enabled=enabled)
+    return enabled
 
 
 def get_tray_icon_class(pystray):

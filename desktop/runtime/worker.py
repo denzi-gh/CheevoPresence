@@ -22,6 +22,12 @@ from desktop.runtime.discord_gateway import (
     is_discord_unavailable_error,
     safe_exception_name,
 )
+from desktop.runtime.log_events import (
+    AREA_DISCORD,
+    AREA_RA,
+    AREA_WORKER,
+    log_event,
+)
 from desktop.runtime.presence_builder import PresenceBuilder, coerce_progress_int
 from desktop.runtime.state import WorkerState
 from desktop.runtime.storage import load_config, load_console_icons
@@ -113,18 +119,18 @@ class RPCWorker:
         """Start the polling thread if credentials are available."""
         with self._state_lock:
             if self.running or (self.thread is not None and self.thread.is_alive()):
-                logger.info("Worker start skipped already_running=True")
+                log_event(logger, AREA_WORKER, "start_skipped", reason="already_running")
                 return False
 
             cfg = normalize_config(config if config is not None else load_config())
             if not cfg["username"] or not cfg["apikey"]:
-                logger.info(
-                    (
-                        "Worker start skipped missing_credentials "
-                        "username_present=%s apikey_present=%s"
-                    ),
-                    bool(cfg["username"]),
-                    bool(cfg["apikey"]),
+                log_event(
+                    logger,
+                    AREA_WORKER,
+                    "start_skipped",
+                    reason="missing_credentials",
+                    username_present=bool(cfg["username"]),
+                    apikey_present=bool(cfg["apikey"]),
                 )
                 self.set_ra_status(False)
                 self.status_callback("error", "Username or API Key missing")
@@ -133,11 +139,13 @@ class RPCWorker:
             self.config = cfg
             self._stop_event.clear()
             self.running = True
-            logger.info(
-                "Worker starting interval=%s timeout=%s achievement_progress=%s",
-                cfg["interval"],
-                cfg["timeout"],
-                bool(cfg.get("show_achievement_progress", True)),
+            log_event(
+                logger,
+                AREA_WORKER,
+                "started",
+                interval_sec=cfg["interval"],
+                timeout_sec=cfg["timeout"],
+                achievement_progress=bool(cfg.get("show_achievement_progress", True)),
             )
             self.thread = threading.Thread(
                 target=self._loop,
@@ -152,7 +160,7 @@ class RPCWorker:
         with self._state_lock:
             thread = self.thread
             if not self.running and not (thread and thread.is_alive()):
-                logger.info("Worker stop requested already_stopped=True")
+                log_event(logger, AREA_WORKER, "stop_skipped", reason="already_stopped")
                 self._disconnect_rpc()
                 self._current_game_id = None
                 self.set_ra_status(False)
@@ -160,10 +168,12 @@ class RPCWorker:
                 return True
             self.running = False
             self._stop_event.set()
-            logger.info(
-                "Worker stop requested timeout=%s thread_alive=%s",
-                timeout,
-                bool(thread and thread.is_alive()),
+            log_event(
+                logger,
+                AREA_WORKER,
+                "stop_requested",
+                timeout_sec=timeout,
+                thread_alive=bool(thread and thread.is_alive()),
             )
 
         if thread and thread is not threading.current_thread():
@@ -171,10 +181,16 @@ class RPCWorker:
 
         stopped = not thread or not thread.is_alive()
         if stopped:
-            logger.info("Worker stopped cleanly")
+            log_event(logger, AREA_WORKER, "stopped")
             self.status_callback("disconnected", "Stopped")
         else:
-            logger.warning("Worker did not stop within timeout=%s", timeout)
+            log_event(
+                logger,
+                AREA_WORKER,
+                "stop_timeout",
+                level=logging.WARNING,
+                timeout_sec=timeout,
+            )
             self.status_callback("connecting", "Stopping...")
         return stopped
 
@@ -191,7 +207,13 @@ class RPCWorker:
 
     def _unexpected_api_response(self):
         """Surface a standard unexpected-API-response error to the UI."""
-        logger.warning("RetroAchievements returned unexpected payload")
+        log_event(
+            logger,
+            AREA_RA,
+            "invalid_response",
+            level=logging.WARNING,
+            reason="unexpected_payload",
+        )
         self._disconnect_rpc()
         self.set_ra_status(False)
         self.status_callback("error", "API error: unexpected response")
@@ -228,7 +250,7 @@ class RPCWorker:
     def _loop(self):
         """Continuously poll RA, build presence data, and update Discord."""
         try:
-            logger.info("Worker loop started")
+            log_event(logger, AREA_WORKER, "loop_started")
             self.set_ra_status(False)
             self.status_callback("connecting", "Starting...")
             self.config = normalize_config(self.config)
@@ -249,7 +271,7 @@ class RPCWorker:
                     was_ra_connected = self.ra_connected
                     self.set_ra_status(True)
                     if not was_ra_connected:
-                        logger.info("RetroAchievements connection succeeded")
+                        log_event(logger, AREA_RA, "connection_succeeded")
                     last_game_id = coerce_progress_int(user_data.get("LastGameID", 0))
 
 
@@ -267,7 +289,7 @@ class RPCWorker:
 
                     if not last_game_id:
                         if self.status_text != "Not playing":
-                            logger.info("User marked not playing reason=no_last_game_id")
+                            log_event(logger, AREA_RA, "no_game_detected")
                         self._disconnect_rpc()
                         self._current_game_id = None
                         self.status_callback("disconnected", "Not playing")
@@ -292,9 +314,12 @@ class RPCWorker:
 
                     if not is_active:
                         if self.status_text != "Not actively playing":
-                            logger.info(
-                                "User marked not actively playing reason=rich_presence_stale timeout=%s",
-                                timeout_sec,
+                            log_event(
+                                logger,
+                                AREA_RA,
+                                "session_inactive",
+                                reason="rich_presence_stale",
+                                timeout_sec=timeout_sec,
                             )
                         self._disconnect_rpc()
                         self._current_game_id = None
@@ -311,7 +336,8 @@ class RPCWorker:
                     if self._should_stop():
                         break
 
-                    if last_game_id != self._current_game_id:
+                    game_changed = last_game_id != self._current_game_id
+                    if game_changed:
                         self._current_game_id = last_game_id
                         if self.rpc_connected:
                             self.start_time = int(time.time())
@@ -331,41 +357,53 @@ class RPCWorker:
                     if self._should_stop():
                         break
 
-                    logger.info(
-                        (
-                            "Discord rich presence update attempt game_id=%s "
-                            "console_id=%s console_name=%s pipe=%s "
-                            "achievements=%s/%s buttons=%s developer_activity=%s"
-                        ),
-                        last_game_id,
-                        presence.console_id,
-                        presence.console_name,
-                        self.rpc_pipe,
-                        presence.achievement_count,
-                        presence.achievement_total,
-                        presence.button_count,
-                        presence.developer_activity,
+                    # Status changes (new game) are logged at INFO; steady-state
+                    # refreshes every few seconds stay at DEBUG to keep the log small.
+                    presence_level = logging.INFO if game_changed else logging.DEBUG
+                    if game_changed:
+                        log_event(
+                            logger,
+                            AREA_RA,
+                            "session_active",
+                            game_id=last_game_id,
+                            console=presence.console_name,
+                            rich_presence_present=bool(rp_msg),
+                        )
+                    log_event(
+                        logger,
+                        AREA_DISCORD,
+                        "presence_update_attempt",
+                        level=presence_level,
+                        game_id=last_game_id,
+                        console_id=presence.console_id,
+                        console_name=presence.console_name,
+                        pipe=self.rpc_pipe,
+                        achievements=f"{presence.achievement_count}/{presence.achievement_total}",
+                        buttons=presence.button_count,
+                        developer_activity=presence.developer_activity,
                     )
                     try:
                         self.discord_gateway.update(**presence.update_kwargs)
                     except Exception as exc:
-                        logger.warning(
-                            "Discord rich presence update failed game_id=%s pipe=%s error_type=%s",
-                            last_game_id,
-                            self.rpc_pipe,
-                            safe_exception_name(exc),
+                        log_event(
+                            logger,
+                            AREA_DISCORD,
+                            "presence_update_failed",
+                            level=logging.WARNING,
+                            game_id=last_game_id,
+                            pipe=self.rpc_pipe,
+                            error_type=safe_exception_name(exc),
                         )
                         raise
-                    logger.info(
-                        (
-                            "Discord rich presence update succeeded game_id=%s "
-                            "pipe=%s achievements=%s/%s buttons=%s"
-                        ),
-                        last_game_id,
-                        self.rpc_pipe,
-                        presence.achievement_count,
-                        presence.achievement_total,
-                        presence.button_count,
+                    log_event(
+                        logger,
+                        AREA_DISCORD,
+                        "presence_update_succeeded",
+                        level=presence_level,
+                        game_id=last_game_id,
+                        pipe=self.rpc_pipe,
+                        achievements=f"{presence.achievement_count}/{presence.achievement_total}",
+                        buttons=presence.button_count,
                     )
                     activity_label = "Developing" if presence.developer_activity else "Playing"
                     self.status_callback(
@@ -378,10 +416,14 @@ class RPCWorker:
                     consecutive_errors += 1
                     self._disconnect_rpc()
                     self.set_ra_status(False)
-                    logger.warning(
-                        "RetroAchievements request failed error=%s consecutive_errors=%s",
-                        format_api_error(exc),
-                        consecutive_errors,
+                    log_event(
+                        logger,
+                        AREA_RA,
+                        "request_failed",
+                        level=logging.WARNING,
+                        error_type=exc.__class__.__name__,
+                        detail=format_api_error(exc),
+                        consecutive_errors=consecutive_errors,
                     )
                     self.status_callback("error", format_api_error(exc))
                 except APIResponseError:
@@ -391,26 +433,30 @@ class RPCWorker:
                     consecutive_errors += 1
                     self._disconnect_rpc()
                     if is_discord_unavailable_error(exc):
-                        logger.warning(
-                            (
-                                "Discord unavailable during worker loop "
-                                "error_type=%s consecutive_errors=%s"
-                            ),
-                            safe_exception_name(exc),
-                            consecutive_errors,
+                        log_event(
+                            logger,
+                            AREA_DISCORD,
+                            "unavailable_during_loop",
+                            level=logging.WARNING,
+                            error_type=safe_exception_name(exc),
+                            consecutive_errors=consecutive_errors,
                         )
                         self.status_callback("error", "Discord is not open")
                     else:
                         self.set_ra_status(False)
-                        logger.exception(
-                            "Unexpected worker failure consecutive_errors=%s",
-                            consecutive_errors,
+                        log_event(
+                            logger,
+                            AREA_WORKER,
+                            "unexpected_failure",
+                            level=logging.ERROR,
+                            exc_info=True,
+                            consecutive_errors=consecutive_errors,
                         )
                         self.status_callback("error", "Error: unexpected failure")
 
                 wait = backoff.delay_for(consecutive_errors)
                 if consecutive_errors > 0:
-                    logger.info("Worker backing off wait_seconds=%s", wait)
+                    log_event(logger, AREA_WORKER, "backing_off", wait_sec=wait)
                 self._sleep(wait)
         finally:
             self._disconnect_rpc()
@@ -419,9 +465,11 @@ class RPCWorker:
             self._current_thread_done()
             if self._stop_event.is_set():
                 self.status_callback("disconnected", "Stopped")
-            logger.info(
-                "Worker loop finished stop_requested=%s",
-                self._stop_event.is_set(),
+            log_event(
+                logger,
+                AREA_WORKER,
+                "loop_finished",
+                stop_requested=self._stop_event.is_set(),
             )
 
     def _sleep(self, seconds):

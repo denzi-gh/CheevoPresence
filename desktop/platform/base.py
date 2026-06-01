@@ -1,5 +1,9 @@
 """Base contracts for desktop platform adapters."""
 
+import os
+import subprocess
+import sys
+
 
 class PlatformServices:
     """Describe the OS-specific hooks the desktop runtime depends on."""
@@ -18,6 +22,10 @@ class PlatformServices:
     def get_config_dir(self, app_name, runtime_root_dir):
         """Return the preferred config directory for this platform."""
         return None
+
+    def get_log_dir(self, app_name, runtime_root_dir, config_dir):
+        """Return the preferred log directory for this platform."""
+        return os.path.join(config_dir, "logs")
 
     def acquire_single_instance(self):
         """Claim the single-instance lock for the running app."""
@@ -62,3 +70,18 @@ class PlatformServices:
     def handle_special_args(self, argv):
         """Handle any platform-specific helper mode before normal app startup."""
         return False
+
+    def open_path(self, path):
+        """Open a folder or file in the OS file manager. Return True on success."""
+        if not path:
+            return False
+        try:
+            if sys.platform.startswith("win"):
+                os.startfile(path)  # noqa: S606 - documented Windows file-manager open
+            elif sys.platform == "darwin":
+                subprocess.Popen(["open", path])
+            else:
+                subprocess.Popen(["xdg-open", path])
+            return True
+        except Exception:
+            return False

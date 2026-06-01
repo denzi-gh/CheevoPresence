@@ -1,4 +1,4 @@
-"""Application entrypoint for the macOS menu-bar shell."""
+"""Application entrypoint for the Linux native tray shell."""
 
 import logging
 import sys
@@ -8,23 +8,40 @@ from desktop.runtime.controller import AppController
 from desktop.runtime.diagnostics import log_startup_diagnostics
 from desktop.runtime.log_events import AREA_STARTUP, log_event
 from desktop.runtime.logging_setup import setup_logging
-from desktop.shell.macos.menu_bar import MacOSMenuBarApp
+from desktop.shell.linux.indicator import LinuxIndicatorApp, LinuxTrayUnavailable
+from desktop.shell.tk_settings import TkSettingsWindow as SettingsWindow
 
 EXIT_APP_FLAG = "--exit"
 logger = logging.getLogger(__name__)
 
 
+def _run_settings_fallback(controller, reason):
+    """Run a visible settings window when no indicator backend is available."""
+    log_event(
+        logger,
+        AREA_STARTUP,
+        "indicator_unavailable_fallback",
+        level=logging.WARNING,
+        reason=reason,
+    )
+    controller.start_saved_session()
+    try:
+        SettingsWindow(controller)
+    finally:
+        controller.shutdown()
+
+
 def main():
-    """Boot the macOS menu-bar app and optionally open Settings on launch."""
+    """Boot the Linux native tray app and optionally open Settings on launch."""
     tray_mode = "--tray" in sys.argv
     mode = "tray" if tray_mode else "settings"
     platform = get_platform_services()
     setup_logging(platform)
     log_startup_diagnostics(platform)
-    log_event(logger, AREA_STARTUP, "entrypoint_started", platform="macos", mode=mode)
+    log_event(logger, AREA_STARTUP, "entrypoint_started", platform="linux", mode=mode)
 
     if platform.handle_special_args(sys.argv):
-        log_event(logger, AREA_STARTUP, "platform_helper_handled", platform="macos")
+        log_event(logger, AREA_STARTUP, "platform_helper_handled", platform="linux")
         return
 
     if EXIT_APP_FLAG in sys.argv:
@@ -40,8 +57,13 @@ def main():
 
     log_event(logger, AREA_STARTUP, "single_instance_acquired", mode=mode)
     controller = AppController(platform=platform)
-    app = MacOSMenuBarApp(
-        controller,
-        open_settings_on_launch=not tray_mode,
-    )
+    try:
+        app = LinuxIndicatorApp(
+            controller,
+            open_settings_on_launch=not tray_mode,
+        )
+    except LinuxTrayUnavailable as exc:
+        _run_settings_fallback(controller, str(exc))
+        return
+
     app.run()
