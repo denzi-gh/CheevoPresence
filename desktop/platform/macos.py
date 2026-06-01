@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import logging
 import os
 import plistlib
 import shlex
@@ -21,11 +22,14 @@ from desktop.platform.macos_keychain import (
     protect_api_key,
     unprotect_api_key,
 )
+from desktop.runtime.log_events import AREA_AUTOSTART, log_event
 
 try:
     import fcntl
 except ImportError:  # pragma: no cover - only relevant on non-POSIX platforms
     fcntl = None
+
+logger = logging.getLogger(__name__)
 
 LAUNCH_AGENT_ID = "org.denzi.cheevopresence"
 LAUNCH_AGENT_FILE = f"{LAUNCH_AGENT_ID}.plist"
@@ -416,6 +420,15 @@ def set_autostart(enable):
     try:
         if enable:
             if not _has_stable_install_path(_find_app_bundle(get_exe_path())):
+                log_event(
+                    logger,
+                    AREA_AUTOSTART,
+                    "set_failed",
+                    level=logging.WARNING,
+                    enabled=True,
+                    path=plist_path,
+                    reason="not_stable_install_path",
+                )
                 return "Launch at login is only available from a stable writable app install location."
             payload = _build_launch_agent_payload(_get_launch_command())
             _write_launch_agent(plist_path, payload)
@@ -425,6 +438,15 @@ def set_autostart(enable):
                     os.remove(plist_path)
                 except OSError:
                     pass
+                log_event(
+                    logger,
+                    AREA_AUTOSTART,
+                    "set_failed",
+                    level=logging.WARNING,
+                    enabled=True,
+                    path=plist_path,
+                    reason="launchctl_reload_failed",
+                )
                 return error
         else:
             try:
@@ -433,14 +455,34 @@ def set_autostart(enable):
                 pass
             if os.path.exists(plist_path):
                 os.remove(plist_path)
+        log_event(
+            logger,
+            AREA_AUTOSTART,
+            "set",
+            enabled=bool(enable),
+            success=True,
+            path=plist_path,
+        )
         return None
-    except OSError:
+    except OSError as exc:
+        log_event(
+            logger,
+            AREA_AUTOSTART,
+            "set_failed",
+            level=logging.WARNING,
+            enabled=bool(enable),
+            path=plist_path,
+            error_type=exc.__class__.__name__,
+        )
         return "Could not update the macOS launch-at-login setting."
 
 
 def is_autostart_enabled():
     """Return whether launchd currently reports the agent as loaded."""
-    return _launchctl_job_is_loaded()
+    enabled = _launchctl_job_is_loaded()
+    # Polled every second by the settings UI, so keep this off the INFO log.
+    log_event(logger, AREA_AUTOSTART, "read", level=logging.DEBUG, enabled=enabled)
+    return enabled
 
 
 def supports_self_update():

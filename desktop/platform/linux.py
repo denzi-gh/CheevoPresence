@@ -14,6 +14,7 @@ import threading
 from desktop.core.constants import APP_NAME
 from desktop.platform.generic import GenericPlatformServices
 from desktop.platform.linux_secrets import protect_api_key, unprotect_api_key
+from desktop.runtime.log_events import AREA_AUTOSTART, log_event
 
 try:
     import fcntl
@@ -301,14 +302,42 @@ def set_autostart(enable):
                 os.remove(autostart_path)
             except FileNotFoundError:
                 pass
+        log_event(
+            logger,
+            AREA_AUTOSTART,
+            "set",
+            enabled=bool(enable),
+            success=True,
+            path=autostart_path,
+        )
         return None
-    except OSError:
+    except OSError as exc:
+        log_event(
+            logger,
+            AREA_AUTOSTART,
+            "set_failed",
+            level=logging.WARNING,
+            enabled=bool(enable),
+            path=autostart_path,
+            error_type=exc.__class__.__name__,
+        )
         return "Could not update the Linux startup setting."
 
 
 def is_autostart_enabled():
     """Return whether the XDG autostart desktop entry exists."""
-    return os.path.exists(get_autostart_path())
+    autostart_path = get_autostart_path()
+    enabled = os.path.exists(autostart_path)
+    # Polled every second by the settings UI, so keep this off the INFO log.
+    log_event(
+        logger,
+        AREA_AUTOSTART,
+        "read",
+        level=logging.DEBUG,
+        enabled=enabled,
+        path=autostart_path,
+    )
+    return enabled
 
 
 def supports_self_update():
