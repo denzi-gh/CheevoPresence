@@ -20,6 +20,10 @@ logger = logging.getLogger(__name__)
 SETTINGS_ADDRESS_ENV = "CHEEVO_SETTINGS_SOCKET"
 SETTINGS_AUTH_ENV = "CHEEVO_SETTINGS_TOKEN"
 _MAX_MESSAGE_BYTES = 1024 * 1024
+# The settings UI polls these methods ~once per second; log them at most this
+# often so cheevo.log stays readable. Failures and other methods always log.
+IPC_THROTTLED_METHODS = frozenset({"get_state"})
+IPC_LOG_THROTTLE_SECONDS = 60
 
 
 def _socket_dir():
@@ -97,6 +101,7 @@ class SettingsHostService:
         self.listener = None
         self.thread = None
         self._stop_event = threading.Event()
+        self._last_request_log = {}
 
     def start(self):
         """Start the background request loop."""
@@ -179,6 +184,16 @@ class SettingsHostService:
             return {"success": True}
         raise ValueError(f"Unknown IPC method: {method}")
 
+    def _should_log_request(self, method, now):
+        """Return whether a successful request should be logged, throttling polls."""
+        if method not in IPC_THROTTLED_METHODS:
+            return True
+        last = self._last_request_log.get(method, 0)
+        if now - last >= IPC_LOG_THROTTLE_SECONDS:
+            self._last_request_log[method] = now
+            return True
+        return False
+
     def _serve(self):
         """Serve one-request connections until the host shuts down."""
         while not self._stop_event.is_set():
@@ -195,14 +210,15 @@ class SettingsHostService:
                 request = _read_message(conn)
                 method = request.get("method")
                 response = {"ok": True, "result": self._dispatch(request)}
-                log_event(
-                    logger,
-                    AREA_IPC,
-                    "request",
-                    method=method,
-                    success=True,
-                    elapsed_ms=round((time.monotonic() - start) * 1000),
-                )
+                if self._should_log_request(method, start):
+                    log_event(
+                        logger,
+                        AREA_IPC,
+                        "request",
+                        method=method,
+                        success=True,
+                        elapsed_ms=round((time.monotonic() - start) * 1000),
+                    )
             except Exception as exc:
                 response = {"ok": False, "error": _format_ipc_error(exc)}
                 log_event(

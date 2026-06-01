@@ -13,6 +13,18 @@ LOG_FORMAT = "%(asctime)s %(levelname)s %(name)s: %(message)s"
 MAX_LOG_BYTES = 2 * 1024 * 1024
 BACKUP_COUNT = 5
 HANDLER_MARKER = "_cheevo_runtime_log_handler"
+# Set CHEEVO_LOG_LEVEL=DEBUG (or INFO/WARNING) to override the default level.
+LOG_LEVEL_ENV = "CHEEVO_LOG_LEVEL"
+
+
+def _resolve_level(level):
+    """Return the log level, letting CHEEVO_LOG_LEVEL override the default."""
+    requested = os.environ.get(LOG_LEVEL_ENV, "").strip().upper()
+    if requested:
+        resolved = logging.getLevelName(requested)
+        if isinstance(resolved, int):
+            return resolved
+    return level
 
 
 def _is_runtime_handler(handler):
@@ -28,6 +40,7 @@ def _same_log_file(handler, log_file):
 
 def setup_logging(platform=None, level=logging.INFO):
     """Configure rotating file logging once and return the target log path."""
+    level = _resolve_level(level)
     logger = logging.getLogger(LOGGER_NAME)
     logger.setLevel(level)
     logger.propagate = False
