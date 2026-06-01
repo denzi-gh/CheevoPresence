@@ -36,6 +36,47 @@ class LinuxIndicatorLoaderTests(unittest.TestCase):
         self.assertIn(("Gtk", "3.0"), calls)
         self.assertIn(("AyatanaAppIndicator3", "0.1"), calls)
 
+    def test_backend_prefers_status_icon_on_x11(self):
+        Gtk = types.SimpleNamespace(StatusIcon=object())
+        AppIndicator = object()
+
+        backend = indicator._select_linux_tray_backend(
+            Gtk,
+            AppIndicator,
+            session_type="x11",
+        )
+
+        self.assertEqual("statusicon", backend)
+
+    def test_backend_prefers_appindicator_on_wayland(self):
+        Gtk = types.SimpleNamespace(StatusIcon=object())
+        AppIndicator = object()
+
+        backend = indicator._select_linux_tray_backend(
+            Gtk,
+            AppIndicator,
+            session_type="wayland",
+        )
+
+        self.assertEqual("appindicator", backend)
+
+    def test_backend_uses_status_icon_when_appindicator_missing(self):
+        Gtk = types.SimpleNamespace(StatusIcon=object())
+
+        backend = indicator._select_linux_tray_backend(
+            Gtk,
+            None,
+            session_type="wayland",
+        )
+
+        self.assertEqual("statusicon", backend)
+
+    def test_backend_fails_when_no_native_tray_exists(self):
+        Gtk = types.SimpleNamespace()
+
+        with self.assertRaises(indicator.LinuxTrayUnavailable):
+            indicator._select_linux_tray_backend(Gtk, None)
+
 
 if __name__ == "__main__":
     unittest.main()

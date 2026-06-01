@@ -14,6 +14,9 @@ from desktop.platform.linux import get_runtime_dir
 from desktop.runtime.controller import AppController
 from desktop.runtime.storage import (
     APP_ICON_PNG_FILE,
+    TRAY_ACTIVE_ICON_FILE,
+    TRAY_ERROR_ICON_FILE,
+    TRAY_INACTIVE_ICON_FILE,
     GENERATED_MENU_BAR_TEMPLATE_ICON_FILE,
     MENU_BAR_TEMPLATE_ICON_FILE,
 )
@@ -41,16 +44,35 @@ def _load_indicator_modules():
         gi.require_version("Gtk", "3.0")
         from gi.repository import GLib, Gtk
 
+        app_indicator = None
         try:
             gi.require_version("AyatanaAppIndicator3", "0.1")
-            from gi.repository import AyatanaAppIndicator3 as AppIndicator
+            from gi.repository import AyatanaAppIndicator3 as app_indicator
         except (ImportError, ValueError):
-            gi.require_version("AppIndicator3", "0.1")
-            from gi.repository import AppIndicator3 as AppIndicator
+            try:
+                gi.require_version("AppIndicator3", "0.1")
+                from gi.repository import AppIndicator3 as app_indicator
+            except (ImportError, ValueError):
+                app_indicator = None
     except Exception as exc:
         raise LinuxTrayUnavailable(str(exc) or "Linux tray backend unavailable.") from exc
 
-    return Gtk, GLib, AppIndicator
+    return Gtk, GLib, app_indicator
+
+
+def _select_linux_tray_backend(Gtk, AppIndicator, session_type=None):
+    """Choose the native Linux tray backend for this desktop session."""
+    session = (session_type or os.getenv("XDG_SESSION_TYPE", "")).strip().lower()
+    has_status_icon = hasattr(Gtk, "StatusIcon")
+    has_indicator = AppIndicator is not None
+
+    if session != "wayland" and has_status_icon:
+        return "statusicon"
+    if has_indicator:
+        return "appindicator"
+    if has_status_icon:
+        return "statusicon"
+    raise LinuxTrayUnavailable("No AppIndicator or GTK StatusIcon tray backend is available.")
 
 
 def _build_menu_trophy_mask(size):
@@ -110,11 +132,40 @@ def get_linux_tray_icon_path():
     return APP_ICON_PNG_FILE
 
 
+def _png_copy_for_icon(source_path, name):
+    """Return a PNG copy of an icon file for Linux tray APIs."""
+    output_path = os.path.join(get_runtime_dir(), f"{name}.png")
+    if os.path.exists(output_path):
+        return output_path
+    os.makedirs(os.path.dirname(output_path), mode=0o700, exist_ok=True)
+    with Image.open(source_path) as image:
+        image.convert("RGBA").resize((64, 64), Image.LANCZOS).save(output_path)
+    return output_path
+
+
+def get_linux_status_icon_path(status):
+    """Return a Windows-like colored tray icon path for GTK StatusIcon."""
+    icon_map = {
+        "connected": TRAY_ACTIVE_ICON_FILE,
+        "connecting": APP_ICON_PNG_FILE,
+        "disconnected": TRAY_INACTIVE_ICON_FILE,
+        "error": TRAY_ERROR_ICON_FILE,
+    }
+    source_path = icon_map.get(status, APP_ICON_PNG_FILE)
+    if os.path.exists(source_path):
+        try:
+            return _png_copy_for_icon(source_path, f"linux-tray-{status}")
+        except Exception:
+            logger.warning("Linux colored tray icon conversion failed", exc_info=True)
+    return get_linux_tray_icon_path()
+
+
 class LinuxIndicatorApp:
     """Own the native Linux indicator, settings window, and runtime lifecycle."""
 
     def __init__(self, controller: AppController, open_settings_on_launch=True):
         self.Gtk, self.GLib, self.AppIndicator = _load_indicator_modules()
+        self.backend = _select_linux_tray_backend(self.Gtk, self.AppIndicator)
         self.controller = controller
         self.worker = controller.worker
         self.controller.set_status_callback(self._on_status)
@@ -122,6 +173,7 @@ class LinuxIndicatorApp:
         self.current_status = "disconnected"
         self.status_text = "Not running"
         self.indicator = None
+        self.status_icon = None
         self.menu = None
         self.version_item = None
         self.status_item = None
@@ -176,6 +228,27 @@ class LinuxIndicatorApp:
         indicator.set_status(self.AppIndicator.IndicatorStatus.ACTIVE)
         return indicator
 
+    def _create_status_icon(self):
+        """Create a GTK StatusIcon tray item for classic Linux panels."""
+        icon_path = get_linux_status_icon_path(self.current_status)
+        status_icon = self.Gtk.StatusIcon.new_from_file(icon_path)
+        status_icon.set_title(APP_NAME)
+        status_icon.set_tooltip_text(f"{APP_NAME} - {self.status_text}")
+        status_icon.set_visible(True)
+        status_icon.connect("popup-menu", self._on_status_icon_popup)
+        status_icon.connect("activate", lambda *_args: self.open_settings())
+        self._build_menu()
+        return status_icon
+
+    def _create_tray(self):
+        """Create the selected native Linux tray backend."""
+        if self.backend == "statusicon":
+            logger.info("Linux tray backend selected backend=statusicon")
+            self.status_icon = self._create_status_icon()
+            return
+        logger.info("Linux tray backend selected backend=appindicator")
+        self.indicator = self._create_indicator()
+
     def _truncate_status(self, text, limit=72):
         """Trim long worker status text so the menu stays readable."""
         if len(text) <= limit:
@@ -204,6 +277,9 @@ class LinuxIndicatorApp:
         self._update_connection_item()
         if self.indicator is not None and hasattr(self.indicator, "set_title"):
             self.indicator.set_title(f"{APP_NAME} - {self.status_text}")
+        if self.status_icon is not None:
+            self.status_icon.set_from_file(get_linux_status_icon_path(self.current_status))
+            self.status_icon.set_tooltip_text(f"{APP_NAME} - {self.status_text}")
 
     def _get_connection_action_title(self):
         """Return the tray action label for the current worker lifecycle."""
@@ -292,6 +368,18 @@ class LinuxIndicatorApp:
         """Handle the native indicator quit command."""
         self.quit_app()
 
+    def _on_status_icon_popup(self, status_icon, button, activate_time):
+        """Open the classic GTK tray context menu."""
+        self._update_menu_status()
+        self.menu.popup(
+            None,
+            None,
+            self.Gtk.StatusIcon.position_menu,
+            status_icon,
+            button,
+            activate_time,
+        )
+
     def quit_app(self):
         """Stop monitoring and exit the native indicator app."""
         with self._shutdown_lock:
@@ -314,12 +402,14 @@ class LinuxIndicatorApp:
         """Hide the indicator and stop the GTK main loop."""
         if self.indicator is not None:
             self.indicator.set_status(self.AppIndicator.IndicatorStatus.PASSIVE)
+        if self.status_icon is not None:
+            self.status_icon.set_visible(False)
         self.Gtk.main_quit()
         return False
 
     def run(self):
         """Start the native indicator loop and auto-connect if config exists."""
-        self.indicator = self._create_indicator()
+        self._create_tray()
         self._exit_listener = self.controller.platform.start_exit_listener(self.quit_app)
         logger.info("Linux indicator run started")
         self.controller.start_saved_session()

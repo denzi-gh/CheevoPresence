@@ -144,6 +144,10 @@ PYTHONPATH="$project_root${PYTHONPATH:+:$PYTHONPATH}" "${build_python}" -m PyIns
   --exclude-module "PyObjCTools" \
   --add-data "console_icons.ini:." \
   --add-data ".github/assets/tray-default.png:.github/assets" \
+  --add-data "cheevoRP_icon.ico:." \
+  --add-data "cheevoRP_inactive.ico:." \
+  --add-data "cheevoRP_active.ico:." \
+  --add-data "cheevoRP_error.ico:." \
   "launch_linux.py"
 
 echo "Built dist/CheevoPresence"
