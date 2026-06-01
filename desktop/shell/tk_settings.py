@@ -5,6 +5,7 @@ import sys
 import threading
 import tkinter as tk
 import webbrowser
+from types import SimpleNamespace
 from tkinter import messagebox, ttk
 
 from desktop.core.constants import APP_NAME, APP_VERSION, RA_SETTINGS_URL
@@ -320,6 +321,7 @@ class TkSettingsWindow:
 
     def _build_status_section(self):
         """Build the Discord and RetroAchievements status summary row."""
+        worker_state = self._worker_state()
         status_frame = self._card(self.main)
         status_frame.pack(fill="x")
         status_row = tk.Frame(status_frame, bg=self.SURFACE)
@@ -344,7 +346,7 @@ class TkSettingsWindow:
             font=(self.FONT, 10),
         )
         self.status_dot.pack(side="left")
-        self.status_var = tk.StringVar(value=self.worker.status_text)
+        self.status_var = tk.StringVar(value=worker_state.status_text)
         self.status_label = tk.Label(
             dc_val,
             textvariable=self.status_var,
@@ -373,7 +375,7 @@ class TkSettingsWindow:
             font=(self.FONT, 10),
         )
         self.ra_status_dot.pack(side="left")
-        self.ra_status_var = tk.StringVar(value=self.worker.ra_status_text)
+        self.ra_status_var = tk.StringVar(value=worker_state.ra_status_text)
         self.ra_status_label = tk.Label(
             ra_val,
             textvariable=self.ra_status_var,
@@ -709,6 +711,21 @@ class TkSettingsWindow:
             self._destroyed = True
             return False
 
+    def _worker_state(self):
+        """Return a snapshot-like worker state for UI decisions."""
+        get_state = getattr(self.worker, "get_state", None)
+        if callable(get_state):
+            return get_state()
+        return SimpleNamespace(
+            running=self.worker.running,
+            is_busy=self.worker.is_busy(),
+            is_stopping=self.worker.is_stopping(),
+            current_status=self.worker.current_status,
+            status_text=self.worker.status_text,
+            ra_connected=self.worker.ra_connected,
+            ra_status_text=self.worker.ra_status_text,
+        )
+
     def _on_window_close(self):
         """Dispose the window and notify the tray host that it closed."""
         self._destroyed = True
@@ -747,19 +764,20 @@ class TkSettingsWindow:
 
     def _refresh_connection_button(self):
         """Refresh the connect button label and style from worker state."""
+        worker_state = self._worker_state()
         if self._is_connecting:
             self.connection_btn.configure(
                 text="Connecting...",
                 style="Accent.TButton",
                 state="disabled",
             )
-        elif self.worker.is_stopping():
+        elif worker_state.is_stopping:
             self.connection_btn.configure(
                 text="Stopping...",
                 style="Disconnect.TButton",
                 state="disabled",
             )
-        elif self.worker.running:
+        elif worker_state.running:
             self.connection_btn.configure(
                 text="Disconnect",
                 style="Disconnect.TButton",
@@ -779,21 +797,22 @@ class TkSettingsWindow:
         try:
             if not self._poll_controller_state():
                 return
+            worker_state = self._worker_state()
             colors = {
                 "connected": self.GREEN,
                 "connecting": "#fee75c",
                 "disconnected": self.MUTED,
                 "error": self.RED,
             }
-            color = colors.get(self.worker.current_status, self.MUTED)
-            ra_color = self.GREEN if self.worker.ra_connected else self.RED
-            discord_text = self.worker.status_text
+            color = colors.get(worker_state.current_status, self.MUTED)
+            ra_color = self.GREEN if worker_state.ra_connected else self.RED
+            discord_text = worker_state.status_text
             if len(discord_text) > 45:
                 discord_text = discord_text[:42] + "..."
             self.status_var.set(discord_text)
             self.status_dot.configure(fg=color)
             self.status_label.configure(fg=color)
-            ra_text = self.worker.ra_status_text
+            ra_text = worker_state.ra_status_text
             if len(ra_text) > 45:
                 ra_text = ra_text[:42] + "..."
             self.ra_status_var.set(ra_text)
@@ -801,7 +820,8 @@ class TkSettingsWindow:
             self.ra_status_label.configure(fg=ra_color)
             self._refresh_connection_button()
             self._refresh_update_notice()
-            self._set_inputs_enabled(not self.worker.is_busy() and not self._is_connecting)
+            worker_state = self._worker_state()
+            self._set_inputs_enabled(not worker_state.is_busy and not self._is_connecting)
             self.root.after(1000, self._poll_status)
         except tk.TclError:
             pass
@@ -868,11 +888,12 @@ class TkSettingsWindow:
 
     def _toggle_connection(self):
         """Start or stop monitoring after validating the current form data."""
-        if self._is_connecting or self.worker.is_stopping():
+        worker_state = self._worker_state()
+        if self._is_connecting or worker_state.is_stopping:
             return
 
         config_to_save = None
-        if not self.worker.running:
+        if not worker_state.running:
             username = self.username_var.get().strip()
             apikey = self.apikey_var.get().strip()
             if not username or not apikey:
@@ -903,7 +924,7 @@ class TkSettingsWindow:
             self._set_inputs_enabled(False)
 
         def do_toggle():
-            if self.worker.running:
+            if self._worker_state().running:
                 self.controller.disconnect()
             else:
                 result = self.controller.connect(config_to_save)
@@ -936,7 +957,7 @@ class TkSettingsWindow:
                 self._queue_ui(self._refresh_connection_button)
                 self._queue_ui(
                     lambda: self._set_inputs_enabled(
-                        not self.worker.is_busy() and not self._is_connecting
+                        not self._worker_state().is_busy and not self._is_connecting
                     )
                 )
 

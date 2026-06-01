@@ -235,9 +235,10 @@ class MacOSMenuBarApp:
 
     def _get_connection_action_title(self):
         """Return the menu action label for the current worker lifecycle."""
-        if self.worker.is_stopping():
+        state = self.worker.get_state()
+        if state.is_stopping:
             return "Stopping..."
-        if self.worker.running:
+        if state.running:
             return "Disconnect"
         return "Connect"
 
@@ -245,18 +246,19 @@ class MacOSMenuBarApp:
         """Refresh the dynamic Connect/Disconnect menu item."""
         if self.connection_item is None:
             return
+        state = self.worker.get_state()
         self.connection_item.setTitle_(self._get_connection_action_title())
-        self.connection_item.setEnabled_(not self.worker.is_stopping())
+        self.connection_item.setEnabled_(not state.is_stopping)
 
     def toggle_connection(self):
         """Connect or disconnect directly from the menu-bar context menu."""
-        if self.worker.is_stopping():
+        if self.worker.get_state().is_stopping:
             return
         threading.Thread(target=self._toggle_connection, daemon=True).start()
 
     def _toggle_connection(self):
         """Run the connect/disconnect action without blocking AppKit."""
-        if self.worker.running:
+        if self.worker.get_state().running:
             logger.info("macOS menu-bar disconnect requested")
             self.controller.disconnect()
             return

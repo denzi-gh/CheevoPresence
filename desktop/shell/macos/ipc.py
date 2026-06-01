@@ -10,6 +10,7 @@ import uuid
 from dataclasses import asdict
 
 from desktop.runtime.controller import ConnectResult, UpdateInstallResult, UpdateStatus
+from desktop.runtime.state import WorkerState
 
 MACOS_SETTINGS_ADDRESS_ENV = "CHEEVO_MACOS_SETTINGS_SOCKET"
 MACOS_SETTINGS_AUTH_ENV = "CHEEVO_MACOS_SETTINGS_TOKEN"
@@ -127,17 +128,10 @@ class MacOSAppService:
     def _build_state(self):
         """Capture the current controller/worker/platform snapshot."""
         worker = self.controller.worker
+        worker_state = worker.get_state()
         return {
             "config": _public_config(self.controller.config),
-            "worker": {
-                "running": worker.running,
-                "current_status": worker.current_status,
-                "status_text": worker.status_text,
-                "ra_connected": worker.ra_connected,
-                "ra_status_text": worker.ra_status_text,
-                "is_busy": worker.is_busy(),
-                "is_stopping": worker.is_stopping(),
-            },
+            "worker": asdict(worker_state),
             "platform": {
                 "startup_toggle_label": self.controller.platform.startup_toggle_label,
                 "autostart_enabled": self.controller.platform.is_autostart_enabled(),
@@ -224,6 +218,18 @@ class RemoteWorkerProxy:
     def is_stopping(self):
         """Return whether the host worker is in its shutdown grace period."""
         return self._is_stopping
+
+    def get_state(self):
+        """Return the cached host worker snapshot."""
+        return WorkerState(
+            running=self.running,
+            is_busy=self._is_busy,
+            is_stopping=self._is_stopping,
+            current_status=self.current_status,
+            status_text=self.status_text,
+            ra_connected=self.ra_connected,
+            ra_status_text=self.ra_status_text,
+        )
 
 
 class RemotePlatformProxy:
