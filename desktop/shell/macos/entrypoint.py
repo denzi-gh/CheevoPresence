@@ -5,6 +5,8 @@ import sys
 
 from desktop.platform import get_platform_services
 from desktop.runtime.controller import AppController
+from desktop.runtime.diagnostics import log_startup_diagnostics
+from desktop.runtime.log_events import AREA_STARTUP, log_event
 from desktop.runtime.logging_setup import setup_logging
 from desktop.shell.macos.menu_bar import MacOSMenuBarApp
 
@@ -15,36 +17,28 @@ logger = logging.getLogger(__name__)
 def main():
     """Boot the macOS menu-bar app and optionally open Settings on launch."""
     tray_mode = "--tray" in sys.argv
+    mode = "tray" if tray_mode else "settings"
     platform = get_platform_services()
     setup_logging(platform)
-    logger.info(
-        "macOS entrypoint started mode=%s frozen=%s",
-        "tray" if tray_mode else "settings",
-        bool(getattr(sys, "frozen", False)),
-    )
+    log_startup_diagnostics(platform)
+    log_event(logger, AREA_STARTUP, "entrypoint_started", platform="macos", mode=mode)
 
     if platform.handle_special_args(sys.argv):
-        logger.info("macOS platform helper mode handled")
+        log_event(logger, AREA_STARTUP, "platform_helper_handled", platform="macos")
         return
 
     if EXIT_APP_FLAG in sys.argv:
         requested = platform.request_running_app_exit()
-        logger.info("macOS external exit requested success=%s", requested)
+        log_event(logger, AREA_STARTUP, "external_exit_requested", success=requested)
         return
 
     if not platform.acquire_single_instance():
-        logger.info(
-            "macOS duplicate instance blocked mode=%s",
-            "tray" if tray_mode else "settings",
-        )
+        log_event(logger, AREA_STARTUP, "duplicate_instance_blocked", mode=mode)
         if not tray_mode:
             platform.notify_already_running()
         return
 
-    logger.info(
-        "macOS single instance acquired mode=%s",
-        "tray" if tray_mode else "settings",
-    )
+    log_event(logger, AREA_STARTUP, "single_instance_acquired", mode=mode)
     controller = AppController(platform=platform)
     app = MacOSMenuBarApp(
         controller,
