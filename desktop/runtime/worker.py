@@ -7,7 +7,6 @@ from datetime import datetime, timezone
 
 import requests
 from pypresence import Presence
-from pypresence import exceptions as pypresence_exceptions
 
 from desktop.core.api import (
     APIResponseError,
@@ -16,48 +15,17 @@ from desktop.core.api import (
     ra_get_user_progress,
     ra_get_user_summary,
 )
-from desktop.core.constants import DISCORD_APP_ID
 from desktop.core.settings import normalize_config
 from desktop.runtime.backoff import BackoffPolicy
+from desktop.runtime.discord_gateway import (
+    DiscordPresenceGateway,
+    is_discord_unavailable_error,
+    safe_exception_name,
+)
 from desktop.runtime.presence_builder import PresenceBuilder, coerce_progress_int
 from desktop.runtime.storage import load_config, load_console_icons
 
-DISCORD_IPC_PIPES = tuple(range(10))
 logger = logging.getLogger(__name__)
-
-
-def _safe_exception_name(exc):
-    """Return a diagnostic exception label without payload details."""
-    return exc.__class__.__name__
-
-
-def _close_rpc_client(rpc):
-    """Best-effort cleanup for a Discord RPC client."""
-    if not rpc:
-        return
-    try:
-        rpc.close()
-    except Exception:
-        pass
-
-
-def is_discord_unavailable_error(exc):
-    """Recognize Discord IPC errors that usually mean Discord is not running."""
-    return isinstance(
-        exc,
-        (
-            pypresence_exceptions.DiscordNotFound,
-            pypresence_exceptions.InvalidPipe,
-            pypresence_exceptions.PipeClosed,
-            pypresence_exceptions.ConnectionTimeout,
-            pypresence_exceptions.ResponseTimeout,
-            BrokenPipeError,
-            ConnectionRefusedError,
-            ConnectionResetError,
-            FileNotFoundError,
-            TimeoutError,
-        ),
-    )
 
 
 class RPCWorker:
@@ -69,8 +37,8 @@ class RPCWorker:
         initial_config=None,
         console_icons=None,
         presence_factory=Presence,
+        discord_gateway=None,
     ):
-        self._lock = threading.Lock()
         self._state_lock = threading.Lock()
         self._stop_event = threading.Event()
         self._external_callback = status_callback
@@ -81,6 +49,10 @@ class RPCWorker:
         self.console_icons = console_icons if console_icons is not None else load_console_icons()
         self.running = False
         self.thread = None
+        self.discord_gateway = discord_gateway or DiscordPresenceGateway(
+            presence_factory=presence_factory,
+            status_callback=self.status_callback,
+        )
         self.rpc = None
         self.rpc_connected = False
         self.rpc_pipe = None
@@ -208,98 +180,34 @@ class RPCWorker:
         self.set_ra_status(False)
         self.status_callback("error", "API error: unexpected response")
 
-    def _discord_pipe_order(self):
-        """Return the Discord IPC pipe order, preferring the last working pipe."""
-        if self.rpc_pipe in DISCORD_IPC_PIPES:
-            return (self.rpc_pipe,) + tuple(
-                pipe for pipe in DISCORD_IPC_PIPES if pipe != self.rpc_pipe
-            )
-        return DISCORD_IPC_PIPES
+    def _sync_gateway_from_worker(self):
+        """Keep compatibility fields in sync before delegating to the gateway."""
+        self.discord_gateway.presence_factory = self._presence_factory
+        self.discord_gateway.status_callback = self.status_callback
+        self.discord_gateway.rpc = self.rpc
+        self.discord_gateway.rpc_connected = self.rpc_connected
+        self.discord_gateway.rpc_pipe = self.rpc_pipe
+        self.discord_gateway.start_time = self.start_time
 
-    def _connect_rpc_pipe(self, pipe):
-        """Create and connect a Discord RPC client for one IPC pipe index."""
-        logger.info("Discord IPC connect attempt pipe=%s", pipe)
-        rpc = self._presence_factory(DISCORD_APP_ID, pipe=pipe)
-        try:
-            rpc.connect()
-        except Exception:
-            logger.info("Discord IPC connect failed pipe=%s", pipe)
-            _close_rpc_client(rpc)
-            raise
-        return rpc
+    def _sync_worker_from_gateway(self):
+        """Mirror gateway-owned Discord state onto legacy worker attributes."""
+        self.rpc = self.discord_gateway.rpc
+        self.rpc_connected = self.discord_gateway.rpc_connected
+        self.rpc_pipe = self.discord_gateway.rpc_pipe
+        self.start_time = self.discord_gateway.start_time
 
     def _connect_rpc(self):
         """Open the Discord IPC connection if it is not already active."""
-        with self._lock:
-            if self.rpc_connected:
-                logger.info("Discord IPC already connected pipe=%s", self.rpc_pipe)
-                return True
-            _close_rpc_client(self.rpc)
-            self.rpc = None
-            self.rpc_connected = False
-            self.start_time = None
-
-            for pipe in self._discord_pipe_order():
-                try:
-                    self.rpc = self._connect_rpc_pipe(pipe)
-                    self.rpc_connected = True
-                    self.rpc_pipe = pipe
-                    self.start_time = int(time.time())
-                    logger.info("Discord IPC connected pipe=%s", pipe)
-                    self.status_callback("connected", "Connected to Discord")
-                    return True
-                except pypresence_exceptions.InvalidID:
-                    self.rpc = None
-                    logger.error(
-                        "Discord IPC connection failed invalid_client_id=True pipe=%s",
-                        pipe,
-                    )
-                    self.status_callback("error", "Discord connection failed")
-                    return False
-                except Exception as exc:
-                    self.rpc = None
-                    if is_discord_unavailable_error(exc):
-                        logger.info(
-                            "Discord IPC pipe unavailable pipe=%s error_type=%s",
-                            pipe,
-                            _safe_exception_name(exc),
-                        )
-                        continue
-                    logger.warning(
-                        "Discord IPC connection failed pipe=%s error_type=%s",
-                        pipe,
-                        _safe_exception_name(exc),
-                    )
-                    self.status_callback("error", "Discord connection failed")
-                    return False
-
-            self.rpc_pipe = None
-            logger.warning("Discord unavailable no_ipc_pipe_connected=True")
-            self.status_callback("error", "Discord is not open")
-            return False
+        self._sync_gateway_from_worker()
+        connected = self.discord_gateway.connect()
+        self._sync_worker_from_gateway()
+        return connected
 
     def _disconnect_rpc(self):
         """Clear Discord presence and close the current IPC client safely."""
-        with self._lock:
-            if self.rpc:
-                if self.rpc_connected:
-                    try:
-                        self.rpc.clear()
-                        self.rpc.close()
-                        logger.info("Discord IPC cleared and closed pipe=%s", self.rpc_pipe)
-                    except Exception:
-                        logger.warning("Discord IPC cleanup failed pipe=%s", self.rpc_pipe)
-                        pass
-                else:
-                    try:
-                        self.rpc.close()
-                        logger.info("Discord IPC closed before connection")
-                    except Exception:
-                        logger.warning("Discord IPC close failed before connection")
-                        pass
-            self.rpc = None
-            self.rpc_connected = False
-            self.start_time = None
+        self._sync_gateway_from_worker()
+        self.discord_gateway.disconnect()
+        self._sync_worker_from_gateway()
 
     def _loop(self):
         """Continuously poll RA, build presence data, and update Discord."""
@@ -423,13 +331,13 @@ class RPCWorker:
                         presence.developer_activity,
                     )
                     try:
-                        self.rpc.update(**presence.update_kwargs)
+                        self.discord_gateway.update(**presence.update_kwargs)
                     except Exception as exc:
                         logger.warning(
                             "Discord rich presence update failed game_id=%s pipe=%s error_type=%s",
                             last_game_id,
                             self.rpc_pipe,
-                            _safe_exception_name(exc),
+                            safe_exception_name(exc),
                         )
                         raise
                     logger.info(
@@ -472,7 +380,7 @@ class RPCWorker:
                                 "Discord unavailable during worker loop "
                                 "error_type=%s consecutive_errors=%s"
                             ),
-                            _safe_exception_name(exc),
+                            safe_exception_name(exc),
                             consecutive_errors,
                         )
                         self.status_callback("error", "Discord is not open")

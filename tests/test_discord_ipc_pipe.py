@@ -48,7 +48,7 @@ class DiscordIpcPipeTests(unittest.TestCase):
         }
         worker = self._make_worker()
 
-        with self.assertLogs("desktop.runtime.worker", level="INFO") as logs:
+        with self.assertLogs("desktop.runtime.discord_gateway", level="INFO") as logs:
             self.assertTrue(worker._connect_rpc())
 
         self.assertEqual([0, 1], FakePresence.attempts)
