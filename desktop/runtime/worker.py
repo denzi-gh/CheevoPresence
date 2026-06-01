@@ -20,6 +20,7 @@ from desktop.core.api import (
 )
 from desktop.core.constants import DISCORD_APP_ID
 from desktop.core.settings import normalize_config
+from desktop.runtime.backoff import BackoffPolicy
 from desktop.runtime.storage import load_config, load_console_icons
 
 DEVELOPER_ACTIVITY_MESSAGES = {
@@ -345,6 +346,7 @@ class RPCWorker:
             apikey = self.config["apikey"]
             interval = self.config["interval"]
             timeout_sec = self.config["timeout"]
+            backoff = BackoffPolicy(interval)
             consecutive_errors = 0
 
             while not self._should_stop():
@@ -584,11 +586,7 @@ class RPCWorker:
                         )
                         self.status_callback("error", "Error: unexpected failure")
 
-                wait = (
-                    min(interval * (2 ** min(consecutive_errors, 4)), 60)
-                    if consecutive_errors > 0
-                    else interval
-                )
+                wait = backoff.delay_for(consecutive_errors)
                 if consecutive_errors > 0:
                     logger.info("Worker backing off wait_seconds=%s", wait)
                 self._sleep(wait)
