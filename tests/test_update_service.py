@@ -1,4 +1,5 @@
 import os
+import hashlib
 import tempfile
 import unittest
 
@@ -9,6 +10,7 @@ class FakeResponse:
     def __init__(self, payload=None, chunks=None):
         self.payload = payload if payload is not None else {}
         self.chunks = chunks or []
+        self.text = ""
 
     def raise_for_status(self):
         pass
@@ -107,6 +109,7 @@ class UpdateServiceTests(unittest.TestCase):
         service._status.available = True
         service._status.asset_name = "CheevoPresence.exe"
         service._status.asset_url = "https://example.test/exe"
+        service._status.asset_sha256 = hashlib.sha256(b"abcdef").hexdigest()
 
         result = service.install_update(relaunch_args=["--tray"], source_pid=123)
 
@@ -116,6 +119,43 @@ class UpdateServiceTests(unittest.TestCase):
         self.assertEqual(123, source_pid)
         with open(staged_path, "rb") as handle:
             self.assertEqual(b"abcdef", handle.read())
+
+    def test_install_update_refuses_unverified_asset(self):
+        platform = FakePlatform()
+        service = UpdateService(
+            platform,
+            session=FakeSession(FakeResponse(chunks=[b"abc"])),
+            current_version="1.0.0",
+            override_file="",
+        )
+        service._status.available = True
+        service._status.asset_name = "CheevoPresence.exe"
+        service._status.asset_url = "https://example.test/exe"
+
+        result = service.install_update()
+
+        self.assertFalse(result.success)
+        self.assertEqual("Update Verification Unavailable", result.error_title)
+        self.assertIsNone(platform.staged)
+
+    def test_install_update_refuses_checksum_mismatch(self):
+        platform = FakePlatform()
+        service = UpdateService(
+            platform,
+            session=FakeSession(FakeResponse(chunks=[b"abc"])),
+            current_version="1.0.0",
+            override_file="",
+        )
+        service._status.available = True
+        service._status.asset_name = "CheevoPresence.exe"
+        service._status.asset_url = "https://example.test/exe"
+        service._status.asset_sha256 = hashlib.sha256(b"different").hexdigest()
+
+        result = service.install_update()
+
+        self.assertFalse(result.success)
+        self.assertEqual("Update Verification Failed", result.error_title)
+        self.assertIsNone(platform.staged)
 
 
 if __name__ == "__main__":

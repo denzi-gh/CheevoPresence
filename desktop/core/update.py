@@ -69,10 +69,27 @@ def load_update_override(path, current_version):
         asset_name = os.path.basename(asset_url)
 
     release_url = payload.get("release_url") or path
+    asset_sha256 = payload.get("sha256") or payload.get("asset_sha256")
+    if isinstance(asset_sha256, str):
+        asset_sha256 = asset_sha256.strip().lower()
+    else:
+        asset_sha256 = None
+    checksum_url = payload.get("checksum_url")
+    checksum_path = payload.get("checksum_path")
+    if checksum_path:
+        if not os.path.isabs(checksum_path):
+            checksum_path = os.path.join(os.path.dirname(path), checksum_path)
+        checksum_url = os.path.abspath(checksum_path)
+    elif isinstance(checksum_url, str) and checksum_url:
+        checksum_url = checksum_url.strip()
+    else:
+        checksum_url = None
 
     return {
         "latest_version": latest_version,
         "release_url": release_url,
         "asset_name": asset_name,
         "asset_url": asset_url,
+        "asset_sha256": asset_sha256,
+        "checksum_url": checksum_url,
     }
