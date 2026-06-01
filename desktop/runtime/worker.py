@@ -23,6 +23,7 @@ from desktop.runtime.discord_gateway import (
     safe_exception_name,
 )
 from desktop.runtime.presence_builder import PresenceBuilder, coerce_progress_int
+from desktop.runtime.state import WorkerState
 from desktop.runtime.storage import load_config, load_console_icons
 
 logger = logging.getLogger(__name__)
@@ -39,7 +40,7 @@ class RPCWorker:
         presence_factory=Presence,
         discord_gateway=None,
     ):
-        self._state_lock = threading.Lock()
+        self._state_lock = threading.RLock()
         self._stop_event = threading.Event()
         self._external_callback = status_callback
         self._presence_factory = presence_factory
@@ -69,29 +70,44 @@ class RPCWorker:
 
     def status_callback(self, status, text):
         """Store the latest worker status and forward it to the UI if present."""
-        self.current_status = status
-        self.status_text = text
-        if self._external_callback:
-            self._external_callback(status, text)
+        with self._state_lock:
+            self.current_status = status
+            self.status_text = text
+            callback = self._external_callback
+        if callback:
+            callback(status, text)
 
     def set_ra_status(self, connected):
         """Track whether the RetroAchievements API is currently reachable."""
-        self.ra_connected = connected
-        self.ra_status_text = (
-            "Connected to RetroAchievements"
-            if connected
-            else "Not connected to RetroAchievements"
-        )
+        with self._state_lock:
+            self.ra_connected = connected
+            self.ra_status_text = (
+                "Connected to RetroAchievements"
+                if connected
+                else "Not connected to RetroAchievements"
+            )
+
+    def get_state(self):
+        """Return an immutable snapshot of UI-facing worker state."""
+        with self._state_lock:
+            thread_alive = self.thread is not None and self.thread.is_alive()
+            return WorkerState(
+                running=self.running,
+                is_busy=self.running or thread_alive,
+                is_stopping=not self.running and thread_alive,
+                current_status=self.current_status,
+                status_text=self.status_text,
+                ra_connected=self.ra_connected,
+                ra_status_text=self.ra_status_text,
+            )
 
     def is_busy(self):
         """Return whether the worker is active or still shutting down."""
-        with self._state_lock:
-            return self.running or (self.thread is not None and self.thread.is_alive())
+        return self.get_state().is_busy
 
     def is_stopping(self):
         """Return whether the worker is in its shutdown grace period."""
-        with self._state_lock:
-            return not self.running and self.thread is not None and self.thread.is_alive()
+        return self.get_state().is_stopping
 
     def start(self, config=None):
         """Start the polling thread if credentials are available."""
