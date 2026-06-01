@@ -1,0 +1,3 @@
+-r base.txt
+keyring>=25,<26
+SecretStorage>=3,<4

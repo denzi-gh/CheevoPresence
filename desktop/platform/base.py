@@ -1,5 +1,7 @@
 """Base contracts for desktop platform adapters."""
 
+import os
+
 
 class PlatformServices:
     """Describe the OS-specific hooks the desktop runtime depends on."""
@@ -18,6 +20,10 @@ class PlatformServices:
     def get_config_dir(self, app_name, runtime_root_dir):
         """Return the preferred config directory for this platform."""
         return None
+
+    def get_log_dir(self, app_name, runtime_root_dir, config_dir):
+        """Return the preferred log directory for this platform."""
+        return os.path.join(config_dir, "logs")
 
     def acquire_single_instance(self):
         """Claim the single-instance lock for the running app."""

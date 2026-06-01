@@ -11,7 +11,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        os: [windows-latest, macos-latest]
+        os: [windows-latest, macos-latest, ubuntu-latest]
         python-version: ["3.11", "3.12"]
 
     steps:
@@ -27,6 +27,7 @@ jobs:
             requirements/base.txt
             requirements/windows.txt
             requirements/macos.txt
+            requirements/linux.txt
 
       - name: install dependencies
         shell: bash
@@ -34,12 +35,14 @@ jobs:
           python -m pip install --upgrade pip
           if [[ "${{ runner.os }}" == "macOS" ]]; then
             python -m pip install -r requirements/macos.txt
+          elif [[ "${{ runner.os }}" == "Linux" ]]; then
+            python -m pip install -r requirements/linux.txt
           else
             python -m pip install -r requirements/windows.txt
           fi
 
       - name: compile
-        run: python -m compileall -q desktop tests launch_windows.py launch_macos.py ra_discord_rp.py
+        run: python -m compileall -q desktop tests launch_windows.py launch_macos.py launch_linux.py ra_discord_rp.py
 
       - name: unit tests
         run: python -m unittest discover -s tests -v

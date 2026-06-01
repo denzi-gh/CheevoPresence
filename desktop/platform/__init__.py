@@ -21,6 +21,10 @@ def get_platform_services() -> PlatformServices:
             from desktop.platform.macos import MacOSPlatformServices
 
             _platform_services = MacOSPlatformServices()
+        elif sys.platform.startswith("linux"):
+            from desktop.platform.linux import LinuxPlatformServices
+
+            _platform_services = LinuxPlatformServices()
         else:
             _platform_services = GenericPlatformServices()
     return _platform_services

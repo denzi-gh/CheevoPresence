@@ -44,7 +44,18 @@ def get_config_file(platform=None):
 
 def get_log_dir(platform=None):
     """Return the per-user directory where runtime diagnostic logs should live."""
-    return os.path.join(get_config_dir(platform), "logs")
+    platform = platform or get_platform_services()
+    config_dir = get_config_dir(platform)
+    get_platform_log_dir = getattr(platform, "get_log_dir", None)
+    if callable(get_platform_log_dir):
+        preferred_dir = get_platform_log_dir(
+            APP_NAME,
+            get_runtime_root_dir(),
+            config_dir,
+        )
+        if preferred_dir:
+            return preferred_dir
+    return os.path.join(config_dir, "logs")
 
 
 def get_log_file(platform=None):
