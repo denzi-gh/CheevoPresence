@@ -1,10 +1,8 @@
-"""Shared RetroAchievements API helpers and response validation."""
-
-from datetime import datetime
+"""Shared RetroAchievements API compatibility helpers and error formatting."""
 
 import requests
 
-from desktop.core.constants import RA_API_BASE
+from desktop.core.ra_client import APIResponseError, RAClient
 
 
 def trimmer(text, max_units=128):
@@ -24,46 +22,22 @@ def trimmer(text, max_units=128):
     return result
 
 
-class APIResponseError(Exception):
-    """Raised when RetroAchievements returns an unexpected payload shape."""
+_DEFAULT_CLIENT = RAClient()
 
 
 def ra_get_user_summary(username, apikey):
     """Fetch the current RetroAchievements session summary for a user."""
-    now = datetime.now()
-    no_cache = now.strftime("%d%m%Y%H%M%S")
-    url = f"{RA_API_BASE}/API_GetUserSummary.php"
-    params = {"u": username, "y": apikey, "g": 0, "a": 0, "noCache": no_cache}
-    response = requests.get(url, params=params, timeout=10)
-    response.raise_for_status()
-    data = response.json()
-    if not isinstance(data, dict):
-        raise APIResponseError
-    return data
+    return _DEFAULT_CLIENT.get_user_summary(username, apikey)
 
 
 def ra_get_game(username, apikey, game_id):
     """Fetch static metadata for the currently active RetroAchievements game."""
-    url = f"{RA_API_BASE}/API_GetGame.php"
-    params = {"z": username, "y": apikey, "i": game_id}
-    response = requests.get(url, params=params, timeout=10)
-    response.raise_for_status()
-    data = response.json()
-    if not isinstance(data, dict):
-        raise APIResponseError
-    return data
+    return _DEFAULT_CLIENT.get_game(username, apikey, game_id)
 
 
 def ra_get_user_progress(username, apikey, game_id):
     """Fetch the current user's achievement progress for one game."""
-    url = f"{RA_API_BASE}/API_GetUserProgress.php"
-    params = {"u": username, "y": apikey, "i": game_id}
-    response = requests.get(url, params=params, timeout=10)
-    response.raise_for_status()
-    data = response.json()
-    if not isinstance(data, dict):
-        raise APIResponseError
-    return data
+    return _DEFAULT_CLIENT.get_user_progress(username, apikey, game_id)
 
 
 def format_api_error(exc):

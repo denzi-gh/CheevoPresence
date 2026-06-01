@@ -12,8 +12,9 @@ from dataclasses import dataclass
 
 import requests
 
-from desktop.core.api import APIResponseError, format_api_error, ra_get_user_summary
+from desktop.core.api import APIResponseError, format_api_error
 from desktop.core.constants import APP_VERSION, RELEASES_LATEST_API_URL, RELEASES_PAGE_URL
+from desktop.core.ra_client import RAClient
 from desktop.core.settings import normalize_config
 from desktop.core.update import (
     is_newer_version,
@@ -69,8 +70,9 @@ class UpdateInstallResult:
 class AppController:
     """Coordinate config, platform hooks, and the background worker."""
 
-    def __init__(self, platform=None):
+    def __init__(self, platform=None, ra_client=None):
         self.platform = platform or get_platform_services()
+        self.ra_client = ra_client or RAClient()
         logger.info(
             "Controller initializing platform=%s",
             self.platform.__class__.__name__,
@@ -173,7 +175,10 @@ class AppController:
                 warning_message = autostart_error
 
             try:
-                ra_get_user_summary(self.config["username"], self.config["apikey"])
+                self.ra_client.get_user_summary(
+                    self.config["username"],
+                    self.config["apikey"],
+                )
                 logger.info("RetroAchievements credential validation succeeded")
             except requests.RequestException as exc:
                 logger.warning(
