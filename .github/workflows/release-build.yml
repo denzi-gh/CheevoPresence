@@ -215,36 +215,42 @@ jobs:
         with:
           name: CheevoPresence.exe
           path: downloaded/windows
+          skip-decompress: true
 
       - name: download windows checksum
         uses: actions/download-artifact@v8
         with:
           name: CheevoPresence.exe.sha256
           path: downloaded/windows
+          skip-decompress: true
 
       - name: download macos artifact
         uses: actions/download-artifact@v8
         with:
           name: CheevoPresence-macos.zip
           path: downloaded/macos
+          skip-decompress: true
 
       - name: download macos checksum
         uses: actions/download-artifact@v8
         with:
           name: CheevoPresence-macos.zip.sha256
           path: downloaded/macos
+          skip-decompress: true
 
       - name: download linux artifact
         uses: actions/download-artifact@v8
         with:
           name: CheevoPresence-linux-x86_64
           path: downloaded/linux
+          skip-decompress: true
 
       - name: download linux checksum
         uses: actions/download-artifact@v8
         with:
           name: CheevoPresence-linux-x86_64.sha256
           path: downloaded/linux
+          skip-decompress: true
 
       - name: prepare release notes
         shell: bash
