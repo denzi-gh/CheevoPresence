@@ -14,7 +14,7 @@ from dataclasses import asdict
 
 from desktop.runtime.controller import ConnectResult, UpdateInstallResult, UpdateStatus
 from desktop.runtime.log_events import AREA_IPC, log_event
-from desktop.runtime.state import WorkerState
+from desktop.runtime.state import MirroredPresence, WorkerState
 
 logger = logging.getLogger(__name__)
 
@@ -74,6 +74,45 @@ def _is_tcp_address(address):
 def _serialize_dataclass(value):
     """Convert runtime dataclasses into plain dictionaries for IPC."""
     return asdict(value)
+
+
+def _coerce_mirrored_presence(payload):
+    """Return a typed mirrored presence snapshot from IPC JSON payloads."""
+    if not isinstance(payload, dict):
+        return None
+    buttons = payload.get("buttons") or []
+    if not isinstance(buttons, list):
+        buttons = []
+    try:
+        game_id = int(payload.get("game_id", 0))
+    except (TypeError, ValueError):
+        game_id = 0
+    try:
+        achievement_count = int(payload.get("achievement_count", 0))
+    except (TypeError, ValueError):
+        achievement_count = 0
+    try:
+        achievement_total = int(payload.get("achievement_total", 0))
+    except (TypeError, ValueError):
+        achievement_total = 0
+    return MirroredPresence(
+        game_id=game_id,
+        title=str(payload.get("title") or ""),
+        details=payload.get("details") if payload.get("details") is not None else None,
+        state=payload.get("state") if payload.get("state") is not None else None,
+        console_name=str(payload.get("console_name") or ""),
+        game_icon_url=(
+            payload.get("game_icon_url")
+            if payload.get("game_icon_url") is not None
+            else None
+        ),
+        large_text=payload.get("large_text") if payload.get("large_text") is not None else None,
+        achievement_count=achievement_count,
+        achievement_total=achievement_total,
+        show_achievement_progress=bool(payload.get("show_achievement_progress", False)),
+        buttons=[dict(button) for button in buttons if isinstance(button, dict)],
+        developer_activity=bool(payload.get("developer_activity", False)),
+    )
 
 
 def _public_config(config):
@@ -292,6 +331,7 @@ class RemoteWorkerProxy:
         self.ra_permissions = None
         self.ra_role_label = ""
         self.ra_role_tier = ""
+        self.mirrored_presence = None
         self._is_busy = False
         self._is_stopping = False
 
@@ -309,6 +349,9 @@ class RemoteWorkerProxy:
             self.ra_permissions = None
         self.ra_role_label = str(payload.get("ra_role_label") or "")
         self.ra_role_tier = str(payload.get("ra_role_tier") or "")
+        self.mirrored_presence = _coerce_mirrored_presence(
+            payload.get("mirrored_presence")
+        )
         self._is_busy = bool(payload.get("is_busy", False))
         self._is_stopping = bool(payload.get("is_stopping", False))
 
@@ -333,6 +376,7 @@ class RemoteWorkerProxy:
             ra_permissions=self.ra_permissions,
             ra_role_label=self.ra_role_label,
             ra_role_tier=self.ra_role_tier,
+            mirrored_presence=self.mirrored_presence,
         )
 
 

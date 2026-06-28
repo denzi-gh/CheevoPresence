@@ -1,8 +1,33 @@
 import threading
 import unittest
 
-from desktop.runtime.state import WorkerState
+from desktop.runtime.presence_builder import PresenceBuilder
+from desktop.runtime.state import MirroredPresence, WorkerState
 from desktop.runtime.worker import RPCWorker
+
+
+def _presence_snapshot(**overrides):
+    payload = {
+        "game_id": 123,
+        "title": "Mega Game",
+        "details": "Playing Level 1",
+        "state": "\U0001F3C6 Softcore",
+        "console_name": "NES",
+        "game_icon_url": "https://media.retroachievements.org/Images/000123.png",
+        "large_text": "4/10 achievements",
+        "achievement_count": 4,
+        "achievement_total": 10,
+        "show_achievement_progress": True,
+        "buttons": [
+            {
+                "label": "View on RetroAchievements",
+                "url": "https://retroachievements.org/game/123",
+            }
+        ],
+        "developer_activity": False,
+    }
+    payload.update(overrides)
+    return MirroredPresence(**payload)
 
 
 class WorkerStateTests(unittest.TestCase):
@@ -97,6 +122,71 @@ class WorkerStateTests(unittest.TestCase):
 
         self.assertEqual([("error", "Discord is not open")], seen)
         self.assertEqual("error", worker.get_state().current_status)
+
+    def test_get_state_includes_mirrored_presence_snapshot(self):
+        worker = RPCWorker(initial_config={}, console_icons={})
+        worker.mirrored_presence = _presence_snapshot()
+
+        state = worker.get_state()
+
+        self.assertEqual("Mega Game", state.mirrored_presence.title)
+        self.assertEqual("NES", state.mirrored_presence.console_name)
+        self.assertEqual(4, state.mirrored_presence.achievement_count)
+
+    def test_ra_status_clear_removes_mirrored_presence_snapshot(self):
+        worker = RPCWorker(initial_config={}, console_icons={})
+        worker.mirrored_presence = _presence_snapshot()
+
+        worker.set_ra_status(False)
+
+        self.assertIsNone(worker.get_state().mirrored_presence)
+
+    def test_presence_disconnect_removes_mirrored_presence_snapshot(self):
+        worker = RPCWorker(initial_config={}, console_icons={})
+        worker.mirrored_presence = _presence_snapshot()
+
+        worker._disconnect_rpc()
+
+        self.assertIsNone(worker.get_state().mirrored_presence)
+
+    def test_mirrored_presence_uses_discord_payload_fields(self):
+        worker = RPCWorker(
+            initial_config={
+                "show_profile_button": True,
+                "show_gamepage_button": True,
+                "show_achievement_progress": False,
+                "use_retroachievements_developer_titles": True,
+            },
+            console_icons={"7": "nes-icon"},
+        )
+        presence = PresenceBuilder(worker.config, worker.console_icons).build(
+            username="some user",
+            last_game_id=123,
+            rich_presence_message="Developing Achievements",
+            game_data={
+                "GameTitle": "Mega Game",
+                "ConsoleName": "NES",
+                "ConsoleID": "7",
+                "ImageIcon": "/Images/000123.png",
+            },
+            progress_data={
+                "123": {
+                    "NumPossibleAchievements": 10,
+                    "NumAchieved": 4,
+                    "NumAchievedHardcore": 3,
+                }
+            },
+            start_time=99,
+        )
+
+        worker._set_mirrored_presence(123, presence)
+        snapshot = worker.get_state().mirrored_presence
+
+        self.assertEqual("Developing RetroAchievements", snapshot.title)
+        self.assertEqual("Mega Game", snapshot.details)
+        self.assertFalse(snapshot.show_achievement_progress)
+        self.assertEqual(2, len(snapshot.buttons))
+        self.assertTrue(snapshot.developer_activity)
 
 
 if __name__ == "__main__":

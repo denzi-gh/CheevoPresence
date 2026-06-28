@@ -1,8 +1,30 @@
 import unittest
 from unittest.mock import patch
 
-from desktop.runtime.state import WorkerState
+from desktop.runtime.state import MirroredPresence, WorkerState
 from desktop.shell.ipc import RemoteAppController, RemoteWorkerProxy, SettingsHostService
+
+
+def _presence_snapshot():
+    return MirroredPresence(
+        game_id=123,
+        title="Mega Game",
+        details="Playing Level 1",
+        state="\U0001F3C6 Softcore",
+        console_name="NES",
+        game_icon_url="https://media.retroachievements.org/Images/000123.png",
+        large_text="4/10 achievements",
+        achievement_count=4,
+        achievement_total=10,
+        show_achievement_progress=True,
+        buttons=[
+            {
+                "label": "View on RetroAchievements",
+                "url": "https://retroachievements.org/game/123",
+            }
+        ],
+        developer_activity=False,
+    )
 
 
 class FakeWorker:
@@ -18,6 +40,7 @@ class FakeWorker:
             ra_permissions=3,
             ra_role_label="Developer",
             ra_role_tier="developer",
+            mirrored_presence=_presence_snapshot(),
         )
 
 
@@ -53,6 +76,7 @@ class IpcStateTests(unittest.TestCase):
         self.assertEqual("connected", state["worker"]["current_status"])
         self.assertTrue(state["worker"]["is_busy"])
         self.assertEqual("Developer", state["worker"]["ra_role_label"])
+        self.assertEqual("Mega Game", state["worker"]["mirrored_presence"]["title"])
         self.assertTrue(state["config"]["apikey_present"])
         self.assertEqual("", state["config"]["apikey"])
 
@@ -68,6 +92,25 @@ class IpcStateTests(unittest.TestCase):
                 "ra_permissions": 4,
                 "ra_role_label": "Moderator",
                 "ra_role_tier": "moderator",
+                "mirrored_presence": {
+                    "game_id": 123,
+                    "title": "Mega Game",
+                    "details": "Playing Level 1",
+                    "state": "\U0001F3C6 Softcore",
+                    "console_name": "NES",
+                    "game_icon_url": "https://media.retroachievements.org/Images/000123.png",
+                    "large_text": "4/10 achievements",
+                    "achievement_count": 4,
+                    "achievement_total": 10,
+                    "show_achievement_progress": True,
+                    "buttons": [
+                        {
+                            "label": "View on RetroAchievements",
+                            "url": "https://retroachievements.org/game/123",
+                        }
+                    ],
+                    "developer_activity": False,
+                },
                 "is_busy": True,
                 "is_stopping": False,
             }
@@ -81,6 +124,8 @@ class IpcStateTests(unittest.TestCase):
         self.assertEqual(4, state.ra_permissions)
         self.assertEqual("Moderator", state.ra_role_label)
         self.assertEqual("moderator", state.ra_role_tier)
+        self.assertEqual("Mega Game", state.mirrored_presence.title)
+        self.assertEqual(1, len(state.mirrored_presence.buttons))
 
     def test_service_supports_tcp_fallback_transport(self):
         service = SettingsHostService(FakeController())
@@ -91,6 +136,7 @@ class IpcStateTests(unittest.TestCase):
                 self.assertEqual("user", client.config["username"])
                 self.assertTrue(client.config["apikey_present"])
                 self.assertEqual("connected", client.worker.current_status)
+                self.assertEqual("Mega Game", client.worker.mirrored_presence.title)
             finally:
                 service.stop()
 

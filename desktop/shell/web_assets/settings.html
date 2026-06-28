@@ -72,17 +72,20 @@
           </div>
         </div>
 
-        <div class="mirror-card hidden" id="mirrorCard">
-          <div class="mirror-label">NOW MIRRORING</div>
+        <div class="mirror-card" id="mirrorCard">
+          <div class="mirror-label">NOW MIRRORING TO DISCORD:</div>
           <div class="mirror-row">
             <div class="mirror-icon">
-              <svg viewBox="0 0 24 24"><line x1="6" y1="11" x2="10" y2="11"></line><line x1="8" y1="9" x2="8" y2="13"></line><line x1="15" y1="12" x2="15.01" y2="12"></line><line x1="18" y1="10" x2="18.01" y2="10"></line><rect x="2" y="6" width="20" height="12" rx="6"></rect></svg>
+              <img class="mirror-img hidden" id="mirrorIconImg" alt="">
+              <svg id="mirrorIconFallback" viewBox="0 0 24 24"><line x1="6" y1="11" x2="10" y2="11"></line><line x1="8" y1="9" x2="8" y2="13"></line><line x1="15" y1="12" x2="15.01" y2="12"></line><line x1="18" y1="10" x2="18.01" y2="10"></line><rect x="2" y="6" width="20" height="12" rx="6"></rect></svg>
             </div>
             <div class="mirror-text">
-              <div class="mirror-title" id="mirrorTitle"></div>
-              <div class="mirror-sub" id="mirrorSub"></div>
+              <div class="mirror-title" id="mirrorTitle">Not currently playing</div>
+              <div class="mirror-details" id="mirrorDetails"></div>
+              <div class="mirror-sub" id="mirrorSub">No active RetroAchievements game detected.</div>
             </div>
           </div>
+          <div class="mirror-actions hidden" id="mirrorActions"></div>
         </div>
 
         <form class="account" id="settingsForm" autocomplete="off">

@@ -4,7 +4,7 @@ import logging
 from unittest.mock import patch
 
 from desktop.runtime.controller import ConnectResult, UpdateStatus
-from desktop.runtime.state import WorkerState
+from desktop.runtime.state import MirroredPresence, WorkerState
 from desktop.shell.web_settings import WebSettingsAPI, role_badge_style
 
 
@@ -66,6 +66,28 @@ class FakeController:
     def disconnect(self):
         self.disconnected = True
         return True
+
+
+def _presence_snapshot():
+    return MirroredPresence(
+        game_id=123,
+        title="Mega Game",
+        details="Playing Level 1",
+        state="\U0001F3C6 Softcore",
+        console_name="NES",
+        game_icon_url="https://media.retroachievements.org/Images/000123.png",
+        large_text="4/10 achievements",
+        achievement_count=4,
+        achievement_total=10,
+        show_achievement_progress=True,
+        buttons=[
+            {
+                "label": "View on RetroAchievements",
+                "url": "https://retroachievements.org/game/123",
+            }
+        ],
+        developer_activity=False,
+    )
 
 
 class WebSettingsTests(unittest.TestCase):
@@ -193,6 +215,29 @@ class WebSettingsTests(unittest.TestCase):
             state["worker"]["ra_status_text"],
         )
 
+    def test_state_payload_serializes_mirrored_presence(self):
+        controller = FakeController({})
+        controller.worker.state = WorkerState(
+            running=True,
+            is_busy=True,
+            is_stopping=False,
+            current_status="connected",
+            status_text="Playing: Mega Game (NES)",
+            ra_connected=True,
+            ra_status_text="Connected to RetroAchievements",
+            mirrored_presence=_presence_snapshot(),
+        )
+
+        state = WebSettingsAPI(controller).get_state()
+
+        presence = state["worker"]["mirrored_presence"]
+        self.assertEqual("Mega Game", presence["title"])
+        self.assertEqual("NES", presence["console_name"])
+        self.assertEqual(
+            "https://retroachievements.org/game/123",
+            presence["buttons"][0]["url"],
+        )
+
     def test_open_logs_uses_platform_file_manager(self):
         controller = FakeController({})
         api = WebSettingsAPI(controller)
@@ -243,6 +288,26 @@ class WebSettingsTests(unittest.TestCase):
             self.assertEqual(logging.DEBUG, root.level)
         finally:
             root.setLevel(original)
+
+    def test_open_mirror_url_allows_retroachievements_https_links(self):
+        controller = FakeController({})
+        api = WebSettingsAPI(controller)
+
+        with patch("desktop.shell.web_settings.webbrowser.open") as open_url:
+            result = api.open_mirror_url("https://retroachievements.org/game/123")
+
+        self.assertTrue(result["success"])
+        open_url.assert_called_once_with("https://retroachievements.org/game/123")
+
+    def test_open_mirror_url_blocks_non_retroachievements_links(self):
+        controller = FakeController({})
+        api = WebSettingsAPI(controller)
+
+        with patch("desktop.shell.web_settings.webbrowser.open") as open_url:
+            result = api.open_mirror_url("https://example.com/game/123")
+
+        self.assertFalse(result["success"])
+        open_url.assert_not_called()
 
     def test_copy_diagnostics_returns_secret_free_support_text(self):
         controller = FakeController({})

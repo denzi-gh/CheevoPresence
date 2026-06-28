@@ -181,16 +181,26 @@ button, input, select { font-family: inherit; }
 /* Now mirroring */
 .mirror-card { margin-top: 12px; padding: 14px 16px; border: 1px solid #2a2f37; border-radius: 8px; }
 .mirror-label { margin-bottom: 11px; color: #7ea6d6; font-size: 11px; font-weight: 700; letter-spacing: .05em; }
-.mirror-row { display: flex; gap: 13px; align-items: center; }
+.mirror-row { display: flex; gap: 13px; align-items: center; min-width: 0; }
 .mirror-icon {
-  width: 46px; height: 46px; flex: 0 0 auto;
+  width: 50px; height: 50px; flex: 0 0 50px;
   display: flex; align-items: center; justify-content: center;
-  border: 1px solid #2e353e; border-radius: 8px; background: #1d2228;
+  overflow: hidden; border: 1px solid #2e353e; border-radius: 8px; background: #1d2228;
 }
+.mirror-img { width: 100%; height: 100%; display: block; object-fit: cover; }
 .mirror-icon svg { width: 24px; height: 24px; fill: none; stroke: #7ea6d6; stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round; }
 .mirror-text { flex: 1; min-width: 0; }
 .mirror-title { color: #e8edf2; font-size: 13.5px; font-weight: 700; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
-.mirror-sub { margin-top: 4px; color: #9aa1aa; font-size: 12px; }
+.mirror-details { margin-top: 4px; color: #c4cad1; font-size: 12px; font-weight: 500; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
+.mirror-sub { margin-top: 4px; color: #9aa1aa; font-size: 12px; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
+.mirror-actions { display: flex; gap: 8px; min-width: 0; margin-top: 12px; }
+.mirror-action {
+  max-width: 190px; height: 28px; padding: 0 10px;
+  overflow: hidden; border: 1px solid #304154; border-radius: 6px;
+  background: #1b2530; color: #9fc5f1; font-size: 11.5px; font-weight: 700;
+  white-space: nowrap; text-overflow: ellipsis; cursor: default;
+}
+.mirror-action:hover { border-color: #3e5b78; color: #bdd9f7; }
 
 /* Role badge */
 .role-badge {

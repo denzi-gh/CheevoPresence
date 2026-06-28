@@ -30,7 +30,7 @@ from desktop.runtime.log_events import (
     log_event,
 )
 from desktop.runtime.presence_builder import PresenceBuilder, coerce_progress_int
-from desktop.runtime.state import WorkerState
+from desktop.runtime.state import MirroredPresence, WorkerState
 from desktop.runtime.storage import load_config, load_console_icons
 
 logger = logging.getLogger(__name__)
@@ -73,6 +73,7 @@ class RPCWorker:
         self.ra_permissions = None
         self.ra_role_label = ""
         self.ra_role_tier = ""
+        self.mirrored_presence = None
 
     def set_status_callback(self, callback):
         """Register the UI-facing status callback used by the runtime shell."""
@@ -104,6 +105,7 @@ class RPCWorker:
                 self.ra_permissions = None
                 self.ra_role_label = ""
                 self.ra_role_tier = ""
+                self.mirrored_presence = None
 
     def set_ra_role(self, permissions):
         """Track display metadata for the connected user's RA role."""
@@ -129,6 +131,7 @@ class RPCWorker:
                 ra_permissions=self.ra_permissions,
                 ra_role_label=self.ra_role_label,
                 ra_role_tier=self.ra_role_tier,
+                mirrored_presence=self.mirrored_presence,
             )
 
     def is_busy(self):
@@ -244,6 +247,33 @@ class RPCWorker:
         self.set_ra_status(False)
         self.status_callback("error", "API error: unexpected response")
 
+    def _clear_mirrored_presence(self):
+        """Clear the settings preview for the last successful Discord update."""
+        with self._state_lock:
+            self.mirrored_presence = None
+
+    def _set_mirrored_presence(self, last_game_id, presence):
+        """Store the exact Discord-facing fields the settings UI can preview."""
+        update_kwargs = presence.update_kwargs
+        buttons = update_kwargs.get("buttons") or []
+        with self._state_lock:
+            self.mirrored_presence = MirroredPresence(
+                game_id=int(last_game_id),
+                title=update_kwargs.get("name") or presence.game_title,
+                details=update_kwargs.get("details"),
+                state=update_kwargs.get("state"),
+                console_name=presence.console_name,
+                game_icon_url=update_kwargs.get("large_image"),
+                large_text=update_kwargs.get("large_text"),
+                achievement_count=presence.achievement_count,
+                achievement_total=presence.achievement_total,
+                show_achievement_progress=bool(
+                    self.config.get("show_achievement_progress", True)
+                ),
+                buttons=[dict(button) for button in buttons],
+                developer_activity=presence.developer_activity,
+            )
+
     def _sync_gateway_from_worker(self):
         """Keep compatibility fields in sync before delegating to the gateway."""
         self.discord_gateway.presence_factory = self._presence_factory
@@ -272,6 +302,7 @@ class RPCWorker:
         self._sync_gateway_from_worker()
         self.discord_gateway.disconnect()
         self._sync_worker_from_gateway()
+        self._clear_mirrored_presence()
 
     def _loop(self):
         """Continuously poll RA, build presence data, and update Discord."""
@@ -379,6 +410,7 @@ class RPCWorker:
                     )
 
                     if not self._connect_rpc():
+                        self._clear_mirrored_presence()
                         self._sleep(interval)
                         continue
                     if self._should_stop():
@@ -422,6 +454,7 @@ class RPCWorker:
                             error_type=safe_exception_name(exc),
                         )
                         raise
+                    self._set_mirrored_presence(last_game_id, presence)
                     log_event(
                         logger,
                         AREA_DISCORD,

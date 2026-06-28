@@ -18,7 +18,8 @@ function bindElements() {
     "discordDot", "discordStatus", "raDot", "raStatus",
     "roleBadge", "roleIcon", "roleLabel",
     "roleBadgeDev", "roleIconDev", "roleLabelDev",
-    "mirrorCard", "mirrorTitle", "mirrorSub",
+    "mirrorCard", "mirrorIconImg", "mirrorIconFallback",
+    "mirrorTitle", "mirrorDetails", "mirrorSub", "mirrorActions",
     "connectButton", "exitButton",
     "versionText", "versionTextAbout", "versionPill",
     "updateButton", "updateLabel",
@@ -178,24 +179,95 @@ function applyDevGating(worker) {
   if (!unlocked && activeScreen === "radev") { showScreen("status"); }
 }
 
-function applyMirror(worker) {
-  /* Prefer richer fields if the backend adds them later. */
-  if (worker.running && worker.game_title) {
-    setText(els.mirrorTitle, worker.game_title);
-    var parts = [];
-    if (worker.console) { parts.push(worker.console); }
-    if (typeof worker.total === "number") {
-      parts.push((worker.earned || 0) + " / " + worker.total + " achievements");
-    }
-    setText(els.mirrorSub, parts.join(" \u00b7 "));
-    show(els.mirrorCard);
-  } else if (worker.running && worker.status_text) {
-    setText(els.mirrorTitle, worker.status_text);
-    setText(els.mirrorSub, "");
-    show(els.mirrorCard);
+function applyMirrorIcon(url) {
+  if (!els.mirrorIconImg || !els.mirrorIconFallback) { return; }
+  els.mirrorIconImg.onload = function () {
+    show(els.mirrorIconImg);
+    hide(els.mirrorIconFallback);
+  };
+  els.mirrorIconImg.onerror = function () {
+    els.mirrorIconImg.removeAttribute("src");
+    hide(els.mirrorIconImg);
+    show(els.mirrorIconFallback);
+  };
+  if (url) {
+    els.mirrorIconImg.src = url;
+    show(els.mirrorIconImg);
+    hide(els.mirrorIconFallback);
   } else {
-    hide(els.mirrorCard);
+    els.mirrorIconImg.removeAttribute("src");
+    hide(els.mirrorIconImg);
+    show(els.mirrorIconFallback);
   }
+}
+
+function renderMirrorButtons(buttons) {
+  if (!els.mirrorActions) { return; }
+  els.mirrorActions.innerHTML = "";
+  if (!buttons || !buttons.length) {
+    hide(els.mirrorActions);
+    return;
+  }
+  for (var i = 0; i < buttons.length; i += 1) {
+    if (!buttons[i] || !buttons[i].label || !buttons[i].url) { continue; }
+    var button = document.createElement("button");
+    button.className = "mirror-action";
+    button.type = "button";
+    button.setAttribute("data-url", buttons[i].url);
+    button.textContent = buttons[i].label;
+    els.mirrorActions.appendChild(button);
+  }
+  if (els.mirrorActions.children.length) { show(els.mirrorActions); }
+  else { hide(els.mirrorActions); }
+}
+
+function applyMirror(worker) {
+  var presence = worker.mirrored_presence;
+  if (!worker.running || !presence || !presence.title) {
+    setText(els.mirrorTitle, "Not currently playing");
+    setText(els.mirrorDetails, "");
+    els.mirrorDetails.classList.add("hidden");
+    setText(els.mirrorSub, "No active RetroAchievements game detected.");
+    applyMirrorIcon("");
+    renderMirrorButtons([]);
+    show(els.mirrorCard);
+    return;
+  }
+
+  setText(els.mirrorTitle, presence.title);
+  setText(els.mirrorDetails, presence.details || "");
+  els.mirrorDetails.classList.toggle("hidden", !presence.details);
+
+  var parts = [];
+  if (presence.state) { parts.push(presence.state); }
+  if (
+    presence.show_achievement_progress &&
+    typeof presence.achievement_total === "number" &&
+    presence.achievement_total > 0
+  ) {
+    parts.push((presence.achievement_count || 0) + "/" + presence.achievement_total + " achievements");
+  }
+  if (presence.console_name) { parts.push(presence.console_name); }
+  setText(els.mirrorSub, parts.join(" \u00b7 "));
+
+  applyMirrorIcon(presence.game_icon_url);
+  renderMirrorButtons(presence.buttons || []);
+  show(els.mirrorCard);
+}
+
+function openMirrorAction(event) {
+  var target = event.target;
+  while (target && target !== els.mirrorActions && target.tagName !== "BUTTON") {
+    target = target.parentElement;
+  }
+  if (!target || target === els.mirrorActions) { return; }
+  request("open_mirror_url", { url: target.getAttribute("data-url") || "" }, function (result) {
+    if (!result || !result.success) {
+      showMessage("Link Blocked", "Only RetroAchievements links can be opened from Now Mirroring.");
+    }
+  }, function () {
+    showMessage("Link Blocked", "Only RetroAchievements links can be opened from Now Mirroring.");
+  });
 }
 
 function applyConnectionButton(state) {
@@ -376,6 +448,7 @@ function bindEvents() {
   els.openLogsBtn.addEventListener("click", openLogs);
   els.aboutLogsBtn.addEventListener("click", openLogs);
   els.copyDiagBtn.addEventListener("click", copyDiagnostics);
+  els.mirrorActions.addEventListener("click", openMirrorAction);
   els.logLevel.addEventListener("change", function () {
     request("set_log_level", { level: els.logLevel.value }, null, function () { /* Keep the UI moving. */ });
   });

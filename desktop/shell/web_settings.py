@@ -152,6 +152,7 @@ class WebSettingsAPI:
             ra_permissions=getattr(self.worker, "ra_permissions", None),
             ra_role_label=getattr(self.worker, "ra_role_label", ""),
             ra_role_tier=getattr(self.worker, "ra_role_tier", ""),
+            mirrored_presence=getattr(self.worker, "mirrored_presence", None),
         )
 
     def _state_payload(self):
@@ -314,6 +315,14 @@ class WebSettingsAPI:
         webbrowser.open(url)
         return {"success": True}
 
+    def open_mirror_url(self, url):
+        """Open a mirrored presence action if it targets RetroAchievements."""
+        parsed = urlparse(str(url or ""))
+        if parsed.scheme != "https" or parsed.netloc != "retroachievements.org":
+            return {"success": False}
+        webbrowser.open(parsed.geturl())
+        return {"success": True}
+
     def open_logs(self):
         """Open the runtime log folder in the OS file manager."""
         platform = get_platform_services()
@@ -395,6 +404,8 @@ class WebSettingsAPI:
             return self.copy_diagnostics()
         if method == "open_url":
             return self.open_url(params.get("target"))
+        if method == "open_mirror_url":
+            return self.open_mirror_url(params.get("url"))
         if method == "open_logs":
             return self.open_logs()
         if method == "exit_app":
