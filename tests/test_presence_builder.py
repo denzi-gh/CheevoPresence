@@ -65,7 +65,11 @@ class PresenceBuilderTests(unittest.TestCase):
         self.assertEqual("ra_123", result.update_kwargs["party_id"])
         self.assertEqual([4, 10], result.update_kwargs["party_size"])
         self.assertEqual(2, result.button_count)
-        self.assertIn("some%20user", result.update_kwargs["buttons"][1]["url"])
+        self.assertEqual("some user's RA Page", result.update_kwargs["buttons"][1]["label"])
+        self.assertEqual(
+            "https://retroachievements.org/user/some%20user",
+            result.update_kwargs["buttons"][1]["url"],
+        )
 
     def test_hardcore_progress_uses_hardcore_count(self):
         result = self._builder().build(
@@ -112,6 +116,14 @@ class PresenceBuilderTests(unittest.TestCase):
                 self.assertTrue(result.developer_activity)
                 self.assertEqual(expected_title, result.update_kwargs["name"])
                 self.assertEqual("Mega Game", result.update_kwargs["details"])
+                self.assertEqual(
+                    "View user's Created Sets",
+                    result.update_kwargs["buttons"][1]["label"],
+                )
+                self.assertEqual(
+                    "https://retroachievements.org/user/user/developer/sets",
+                    result.update_kwargs["buttons"][1]["url"],
+                )
 
     def test_developer_activity_decorates_fixing_title_when_setting_disabled(self):
         result = self._builder(use_retroachievements_developer_titles=False).build(
@@ -127,6 +139,41 @@ class PresenceBuilderTests(unittest.TestCase):
         self.assertIn("Mega Game", result.update_kwargs["name"])
         self.assertNotEqual("Mega Game", result.update_kwargs["name"])
         self.assertEqual("Fixing Achievements", result.update_kwargs["details"])
+
+    def test_developer_activity_created_sets_button_quotes_username(self):
+        result = self._builder().build(
+            "some user",
+            123,
+            "Inspecting Memory",
+            _game(),
+            _progress(),
+            1,
+        )
+
+        self.assertEqual(
+            "View some user's Created Sets",
+            result.update_kwargs["buttons"][1]["label"],
+        )
+        self.assertEqual(
+            "https://retroachievements.org/user/some%20user/developer/sets",
+            result.update_kwargs["buttons"][1]["url"],
+        )
+
+    def test_can_hide_profile_button_during_developer_activity(self):
+        result = self._builder(show_profile_button=False).build(
+            "user",
+            123,
+            "Developing Achievements",
+            _game(),
+            _progress(),
+            1,
+        )
+
+        self.assertEqual(1, result.button_count)
+        self.assertEqual(
+            [{"label": "View on RetroAchievements", "url": "https://retroachievements.org/game/123"}],
+            result.update_kwargs["buttons"],
+        )
 
     def test_non_developer_activity_keeps_game_name_and_rich_presence_details(self):
         result = self._builder().build(

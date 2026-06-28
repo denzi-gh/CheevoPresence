@@ -132,13 +132,23 @@ class PresenceBuilder:
             large_tooltip = game_title
 
         game_url = f"https://retroachievements.org/game/{last_game_id}"
-        profile_url = f"https://retroachievements.org/user/{quote(username)}"
+        quoted_username = quote(username)
+        profile_url = f"https://retroachievements.org/user/{quoted_username}"
+        developer_sets_url = f"{profile_url}/developer/sets"
 
         buttons = []
         if self.config.get("show_gamepage_button", True):
             buttons.append({"label": "View on RetroAchievements", "url": game_url})
         if self.config.get("show_profile_button", True):
-            buttons.append({"label": f"{username}'s RA Page", "url": profile_url})
+            if developer_activity:
+                buttons.append(
+                    {
+                        "label": f"View {username}'s Created Sets",
+                        "url": developer_sets_url,
+                    }
+                )
+            else:
+                buttons.append({"label": f"{username}'s RA Page", "url": profile_url})
         if not buttons:
             buttons = None
 

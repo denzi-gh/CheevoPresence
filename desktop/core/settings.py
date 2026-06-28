@@ -6,6 +6,7 @@ DEFAULT_CONFIG = {
     "show_profile_button": True,
     "show_gamepage_button": True,
     "show_achievement_progress": True,
+    "dev_mode": False,
     "use_retroachievements_developer_titles": True,
     "interval": 5,
     "timeout": 130,
@@ -34,6 +35,7 @@ def normalize_config(raw, decode_api_key=None):
         "show_profile_button",
         "show_gamepage_button",
         "show_achievement_progress",
+        "dev_mode",
         "use_retroachievements_developer_titles",
         "start_on_boot",
     ):

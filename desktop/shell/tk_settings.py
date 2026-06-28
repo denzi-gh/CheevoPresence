@@ -518,16 +518,27 @@ class TkSettingsWindow:
             style="Panel.TCheckbutton",
         )
         self.achievement_progress_check.pack(anchor="w")
+        self.dev_mode_var = tk.BooleanVar(value=self.cfg.get("dev_mode", False))
+        self.dev_mode_check = ttk.Checkbutton(
+            checks,
+            text="Dev Mode",
+            variable=self.dev_mode_var,
+            command=self._refresh_developer_options_visibility,
+            style="Panel.TCheckbutton",
+        )
+        self.dev_mode_check.pack(anchor="w")
+        self.developer_options_frame = tk.Frame(checks, bg=self.SURFACE)
         self.developer_titles_var = tk.BooleanVar(
             value=self.cfg.get("use_retroachievements_developer_titles", True)
         )
         self.developer_titles_check = ttk.Checkbutton(
-            checks,
+            self.developer_options_frame,
             text="Use RetroAchievements developer titles",
             variable=self.developer_titles_var,
             style="Panel.TCheckbutton",
         )
         self.developer_titles_check.pack(anchor="w")
+        self._refresh_developer_options_visibility()
         self.autostart_var = tk.BooleanVar(value=self.platform.is_autostart_enabled())
         self.autostart_check = ttk.Checkbutton(
             checks,
@@ -536,6 +547,17 @@ class TkSettingsWindow:
             style="Panel.TCheckbutton",
         )
         self.autostart_check.pack(anchor="w")
+
+    def _refresh_developer_options_visibility(self):
+        """Show developer-only settings when Dev Mode is enabled."""
+        if self.dev_mode_var.get():
+            if not self.developer_options_frame.winfo_ismapped():
+                pack_kwargs = {"fill": "x", "padx": (18, 0)}
+                if hasattr(self, "autostart_check"):
+                    pack_kwargs["before"] = self.autostart_check
+                self.developer_options_frame.pack(**pack_kwargs)
+        else:
+            self.developer_options_frame.pack_forget()
 
     def _build_buttons(self):
         """Build the bottom action row."""
@@ -780,6 +802,7 @@ class TkSettingsWindow:
             self.profile_check,
             self.gamepage_check,
             self.achievement_progress_check,
+            self.dev_mode_check,
             self.developer_titles_check,
             self.autostart_check,
         ):
@@ -948,6 +971,7 @@ class TkSettingsWindow:
                 "show_profile_button": self.profile_btn_var.get(),
                 "show_gamepage_button": self.gamepage_btn_var.get(),
                 "show_achievement_progress": self.achievement_progress_var.get(),
+                "dev_mode": self.dev_mode_var.get(),
                 "use_retroachievements_developer_titles": self.developer_titles_var.get(),
                 "interval": interval,
                 "timeout": timeout,
