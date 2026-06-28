@@ -14,6 +14,9 @@ class FakeWorker:
             status_text="Playing",
             ra_connected=True,
             ra_status_text="Connected to RetroAchievements",
+            ra_permissions=3,
+            ra_role_label="Developer",
+            ra_role_tier="developer",
         )
 
 
@@ -45,6 +48,7 @@ class IpcStateTests(unittest.TestCase):
 
         self.assertEqual("connected", state["worker"]["current_status"])
         self.assertTrue(state["worker"]["is_busy"])
+        self.assertEqual("Developer", state["worker"]["ra_role_label"])
         self.assertTrue(state["config"]["apikey_present"])
         self.assertEqual("", state["config"]["apikey"])
 
@@ -57,6 +61,9 @@ class IpcStateTests(unittest.TestCase):
                 "status_text": "Discord is not open",
                 "ra_connected": False,
                 "ra_status_text": "Not connected to RetroAchievements",
+                "ra_permissions": 4,
+                "ra_role_label": "Moderator",
+                "ra_role_tier": "moderator",
                 "is_busy": True,
                 "is_stopping": False,
             }
@@ -67,6 +74,9 @@ class IpcStateTests(unittest.TestCase):
         self.assertTrue(state.running)
         self.assertEqual("error", state.current_status)
         self.assertTrue(state.is_busy)
+        self.assertEqual(4, state.ra_permissions)
+        self.assertEqual("Moderator", state.ra_role_label)
+        self.assertEqual("moderator", state.ra_role_tier)
 
 
 if __name__ == "__main__":

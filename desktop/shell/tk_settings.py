@@ -14,7 +14,7 @@ from desktop.platform import get_platform_services
 from desktop.runtime.log_events import AREA_SETTINGS, log_event
 from desktop.runtime.storage import APP_ICON_FILE, APP_ICON_PNG_FILE, get_log_dir
 from desktop.shell.settings_presenter import truncate_status_text
-from desktop.shell.tk_widgets import Tooltip
+from desktop.shell.tk_widgets import RoleBadge, Tooltip
 
 logger = logging.getLogger(__name__)
 
@@ -381,13 +381,18 @@ class TkSettingsWindow:
         """Build the account credential inputs."""
         left = self._card(parent)
         left.pack(side="left", fill="both", expand=True)
+        account_header = tk.Frame(left, bg=self.SURFACE)
+        account_header.pack(fill="x")
         tk.Label(
-            left,
+            account_header,
             text="Account",
             bg=self.SURFACE,
             fg=self.TEXT,
             font=(self.FONT, 11, "bold"),
-        ).pack(anchor="w")
+        ).pack(side="left")
+        self.role_badge = RoleBadge(account_header, font_family=self.FONT, bg=self.SURFACE)
+        self.role_badge_tooltip = Tooltip(self.role_badge, "")
+        self._refresh_role_badge()
 
         tk.Label(
             left,
@@ -760,7 +765,25 @@ class TkSettingsWindow:
             status_text=self.worker.status_text,
             ra_connected=self.worker.ra_connected,
             ra_status_text=self.worker.ra_status_text,
+            ra_permissions=getattr(self.worker, "ra_permissions", None),
+            ra_role_label=getattr(self.worker, "ra_role_label", ""),
+            ra_role_tier=getattr(self.worker, "ra_role_tier", ""),
         )
+
+    def _refresh_role_badge(self):
+        """Show or hide the connected RetroAchievements account role badge."""
+        worker_state = self._worker_state()
+        role_label = getattr(worker_state, "ra_role_label", "")
+        role_tier = getattr(worker_state, "ra_role_tier", "")
+        if worker_state.ra_connected and role_label:
+            self.role_badge.set_role(role_label, role_tier)
+            self.role_badge_tooltip.text = f"RetroAchievements role: {role_label}"
+            if not self.role_badge.winfo_ismapped():
+                self.role_badge.pack(side="right")
+        else:
+            self.role_badge.pack_forget()
+            self.role_badge.set_role("", "")
+            self.role_badge_tooltip.text = ""
 
     def _on_window_close(self):
         """Dispose the window and notify the tray host that it closed."""
@@ -864,6 +887,7 @@ class TkSettingsWindow:
             self.ra_status_var.set(ra_text)
             self.ra_status_dot.configure(fg=ra_color)
             self.ra_status_label.configure(fg=ra_color)
+            self._refresh_role_badge()
             self._refresh_connection_button()
             self._refresh_update_notice()
             worker_state = self._worker_state()
@@ -992,6 +1016,12 @@ class TkSettingsWindow:
                     self._queue_ui(
                         lambda value=result.config["start_on_boot"]: self.autostart_var.set(
                             value
+                        )
+                    )
+                    self._queue_ui(
+                        lambda value=result.config.get("dev_mode", False): (
+                            self.dev_mode_var.set(value),
+                            self._refresh_developer_options_visibility(),
                         )
                     )
                 if result.warning_message:

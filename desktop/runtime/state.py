@@ -14,3 +14,6 @@ class WorkerState:
     status_text: str
     ra_connected: bool
     ra_status_text: str
+    ra_permissions: int | None = None
+    ra_role_label: str = ""
+    ra_role_tier: str = ""

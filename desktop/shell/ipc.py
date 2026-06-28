@@ -251,6 +251,9 @@ class RemoteWorkerProxy:
         self.status_text = "Not running"
         self.ra_connected = False
         self.ra_status_text = "Not connected to RetroAchievements"
+        self.ra_permissions = None
+        self.ra_role_label = ""
+        self.ra_role_tier = ""
         self._is_busy = False
         self._is_stopping = False
 
@@ -261,6 +264,13 @@ class RemoteWorkerProxy:
         self.status_text = str(payload.get("status_text") or "Not running")
         self.ra_connected = bool(payload.get("ra_connected", False))
         self.ra_status_text = str(payload.get("ra_status_text") or "Not connected to RetroAchievements")
+        permissions = payload.get("ra_permissions")
+        try:
+            self.ra_permissions = int(permissions) if permissions is not None else None
+        except (TypeError, ValueError):
+            self.ra_permissions = None
+        self.ra_role_label = str(payload.get("ra_role_label") or "")
+        self.ra_role_tier = str(payload.get("ra_role_tier") or "")
         self._is_busy = bool(payload.get("is_busy", False))
         self._is_stopping = bool(payload.get("is_stopping", False))
 
@@ -282,6 +292,9 @@ class RemoteWorkerProxy:
             status_text=self.status_text,
             ra_connected=self.ra_connected,
             ra_status_text=self.ra_status_text,
+            ra_permissions=self.ra_permissions,
+            ra_role_label=self.ra_role_label,
+            ra_role_tier=self.ra_role_tier,
         )
 
 

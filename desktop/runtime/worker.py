@@ -15,6 +15,7 @@ from desktop.core.api import (
     ra_get_user_progress,
     ra_get_user_summary,
 )
+from desktop.core.roles import role_from_permissions
 from desktop.core.settings import normalize_config
 from desktop.runtime.backoff import BackoffPolicy
 from desktop.runtime.discord_gateway import (
@@ -69,6 +70,9 @@ class RPCWorker:
         self.status_text = "Not running"
         self.ra_connected = False
         self.ra_status_text = "Not connected to RetroAchievements"
+        self.ra_permissions = None
+        self.ra_role_label = ""
+        self.ra_role_tier = ""
 
     def set_status_callback(self, callback):
         """Register the UI-facing status callback used by the runtime shell."""
@@ -92,6 +96,18 @@ class RPCWorker:
                 if connected
                 else "Not connected to RetroAchievements"
             )
+            if not connected:
+                self.ra_permissions = None
+                self.ra_role_label = ""
+                self.ra_role_tier = ""
+
+    def set_ra_role(self, permissions):
+        """Track display metadata for the connected user's RA role."""
+        role = role_from_permissions(permissions)
+        with self._state_lock:
+            self.ra_permissions = role.permissions if role else None
+            self.ra_role_label = role.label if role else ""
+            self.ra_role_tier = role.tier if role else ""
 
     def get_state(self):
         """Return an immutable snapshot of UI-facing worker state."""
@@ -105,6 +121,9 @@ class RPCWorker:
                 status_text=self.status_text,
                 ra_connected=self.ra_connected,
                 ra_status_text=self.ra_status_text,
+                ra_permissions=self.ra_permissions,
+                ra_role_label=self.ra_role_label,
+                ra_role_tier=self.ra_role_tier,
             )
 
     def is_busy(self):
@@ -270,6 +289,7 @@ class RPCWorker:
 
                     was_ra_connected = self.ra_connected
                     self.set_ra_status(True)
+                    self.set_ra_role(user_data.get("Permissions"))
                     if not was_ra_connected:
                         log_event(logger, AREA_RA, "connection_succeeded")
                     last_game_id = coerce_progress_int(user_data.get("LastGameID", 0))

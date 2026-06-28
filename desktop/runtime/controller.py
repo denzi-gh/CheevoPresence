@@ -10,6 +10,7 @@ import requests
 
 from desktop.core.api import APIResponseError, format_api_error
 from desktop.core.ra_client import RAClient
+from desktop.core.roles import is_elevated_permission
 from desktop.core.settings import normalize_config
 from desktop.platform import get_platform_services
 from desktop.runtime.storage import (
@@ -130,7 +131,7 @@ class AppController:
                 warning_message = autostart_error
 
             try:
-                self.ra_client.get_user_summary(
+                user_summary = self.ra_client.get_user_summary(
                     self.config["username"],
                     self.config["apikey"],
                 )
@@ -170,6 +171,25 @@ class AppController:
                     error_title="Connection Failed",
                     error_message="Unexpected error",
                 )
+
+            if is_elevated_permission(user_summary.get("Permissions")) and not self.config.get(
+                "dev_mode",
+                False,
+            ):
+                self.config["dev_mode"] = True
+                try:
+                    save_config(self.config, self.platform)
+                    logger.info("Dev Mode enabled from RetroAchievements permissions")
+                except OSError:
+                    logger.exception("Configuration save failed after role detection")
+                    return ConnectResult(
+                        success=False,
+                        config=dict(self.config),
+                        warning_title=warning_title,
+                        warning_message=warning_message,
+                        error_title="Save Failed",
+                        error_message="Could not write the configuration file.",
+                    )
 
             started = self.worker.start(self.config)
             if not started:

@@ -11,6 +11,7 @@ class WorkerStateTests(unittest.TestCase):
 
         worker.status_callback("connected", "Playing")
         worker.set_ra_status(True)
+        worker.set_ra_role(2)
         state = worker.get_state()
 
         self.assertIsInstance(state, WorkerState)
@@ -21,6 +22,22 @@ class WorkerStateTests(unittest.TestCase):
         self.assertEqual("Playing", state.status_text)
         self.assertTrue(state.ra_connected)
         self.assertEqual("Connected to RetroAchievements", state.ra_status_text)
+        self.assertEqual(2, state.ra_permissions)
+        self.assertEqual("Junior Developer", state.ra_role_label)
+        self.assertEqual("junior_developer", state.ra_role_tier)
+
+    def test_ra_status_clear_removes_role_snapshot(self):
+        worker = RPCWorker(initial_config={}, console_icons={})
+        worker.set_ra_status(True)
+        worker.set_ra_role(3)
+
+        worker.set_ra_status(False)
+        state = worker.get_state()
+
+        self.assertFalse(state.ra_connected)
+        self.assertIsNone(state.ra_permissions)
+        self.assertEqual("", state.ra_role_label)
+        self.assertEqual("", state.ra_role_tier)
 
     def test_busy_and_stopping_are_derived_from_thread_lifecycle(self):
         worker = RPCWorker(initial_config={}, console_icons={})
