@@ -122,6 +122,25 @@ class WebSettingsTests(unittest.TestCase):
         self.assertTrue(result["success"])
         self.assertTrue(controller.disconnected)
 
+    def test_disconnected_state_does_not_render_stale_connected_ra_text(self):
+        controller = FakeController({})
+        controller.worker.state = WorkerState(
+            running=False,
+            is_busy=False,
+            is_stopping=False,
+            current_status="disconnected",
+            status_text="Stopped",
+            ra_connected=False,
+            ra_status_text="Connected as SomeUser",
+        )
+
+        state = WebSettingsAPI(controller).get_state()
+
+        self.assertEqual(
+            "Not connected to RetroAchievements",
+            state["worker"]["ra_status_text"],
+        )
+
     def test_open_logs_uses_platform_file_manager(self):
         controller = FakeController({})
         api = WebSettingsAPI(controller)

@@ -152,6 +152,10 @@ class WebSettingsAPI:
     def _state_payload(self):
         worker_state = self._worker_state()
         worker_payload = _dataclass_to_dict(worker_state)
+        if not worker_payload.get("ra_connected"):
+            ra_status_text = str(worker_payload.get("ra_status_text") or "")
+            if ra_status_text.startswith("Connected "):
+                worker_payload["ra_status_text"] = "Not connected to RetroAchievements"
         worker_payload["status_text"] = truncate_status_text(
             worker_payload.get("status_text", "")
         )

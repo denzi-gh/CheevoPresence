@@ -92,11 +92,14 @@ class RPCWorker:
         with self._state_lock:
             self.ra_connected = connected
             username = str(self.config.get("username") or "").strip()
-            self.ra_status_text = (
-                f"Connected as {username}" if username else "Connected to RetroAchievements"
-                if connected
-                else "Not connected to RetroAchievements"
-            )
+            if connected:
+                self.ra_status_text = (
+                    f"Connected as {username}"
+                    if username
+                    else "Connected to RetroAchievements"
+                )
+            else:
+                self.ra_status_text = "Not connected to RetroAchievements"
             if not connected:
                 self.ra_permissions = None
                 self.ra_role_label = ""
@@ -188,6 +191,7 @@ class RPCWorker:
                 return True
             self.running = False
             self._stop_event.set()
+            self.set_ra_status(False)
             log_event(
                 logger,
                 AREA_WORKER,
@@ -202,6 +206,7 @@ class RPCWorker:
         stopped = not thread or not thread.is_alive()
         if stopped:
             log_event(logger, AREA_WORKER, "stopped")
+            self.set_ra_status(False)
             self.status_callback("disconnected", "Stopped")
         else:
             log_event(

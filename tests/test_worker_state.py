@@ -47,6 +47,17 @@ class WorkerStateTests(unittest.TestCase):
 
         self.assertEqual("Connected to RetroAchievements", state.ra_status_text)
 
+    def test_stop_clears_connected_ra_status_text(self):
+        worker = RPCWorker(initial_config={"username": "SomeUser"}, console_icons={})
+        worker.running = True
+        worker.set_ra_status(True)
+
+        worker.stop()
+        state = worker.get_state()
+
+        self.assertFalse(state.ra_connected)
+        self.assertEqual("Not connected to RetroAchievements", state.ra_status_text)
+
     def test_busy_and_stopping_are_derived_from_thread_lifecycle(self):
         worker = RPCWorker(initial_config={}, console_icons={})
         stop_event = threading.Event()
