@@ -7,10 +7,12 @@ from pypresence import ActivityType
 
 from desktop.core.api import APIResponseError, trimmer
 
-DEVELOPER_ACTIVITY_MESSAGES = {
-    "inspecting memory",
-    "developing achievements",
+DEVELOPER_ACTIVITY_TITLES = {
+    "developing achievements": "Developing RetroAchievements",
+    "fixing achievements": "Fixing RetroAchievements",
+    "inspecting memory": "Inspecting Memory for RetroAchievements",
 }
+DEVELOPER_ACTIVITY_MESSAGES = frozenset(DEVELOPER_ACTIVITY_TITLES)
 
 
 @dataclass(frozen=True)
@@ -48,9 +50,14 @@ def build_achievement_state(total, achieved, achieved_hc):
 
 def is_developer_activity(rich_presence_message):
     """Return whether the RA rich presence text means achievement dev work."""
+    return _normalize_developer_activity(rich_presence_message) in DEVELOPER_ACTIVITY_MESSAGES
+
+
+def _normalize_developer_activity(rich_presence_message):
+    """Return the case-folded developer activity key, if present."""
     if not isinstance(rich_presence_message, str):
-        return False
-    return rich_presence_message.strip().casefold() in DEVELOPER_ACTIVITY_MESSAGES
+        return ""
+    return rich_presence_message.strip().casefold()
 
 
 def build_display_game_title(game_title, developer_activity):
@@ -58,6 +65,17 @@ def build_display_game_title(game_title, developer_activity):
     if developer_activity:
         return f"\U0001F6E0\ufe0f {game_title} \U0001F6E0\ufe0f"
     return game_title
+
+
+def build_activity_fields(game_title, rich_presence_message, use_developer_titles):
+    """Return Discord name/details for normal play or developer activity."""
+    developer_key = _normalize_developer_activity(rich_presence_message)
+    developer_activity = developer_key in DEVELOPER_ACTIVITY_MESSAGES
+    if developer_activity and use_developer_titles:
+        return DEVELOPER_ACTIVITY_TITLES[developer_key], game_title, developer_activity
+    display_game_title = build_display_game_title(game_title, developer_activity)
+    details = rich_presence_message if rich_presence_message else None
+    return display_game_title, details, developer_activity
 
 
 class PresenceBuilder:
@@ -73,8 +91,11 @@ class PresenceBuilder:
         if not isinstance(game_title, str):
             raise APIResponseError
 
-        developer_activity = is_developer_activity(rich_presence_message)
-        display_game_title = build_display_game_title(game_title, developer_activity)
+        display_name, details, developer_activity = build_activity_fields(
+            game_title,
+            rich_presence_message,
+            self.config.get("use_retroachievements_developer_titles", True),
+        )
 
         console_name = game_data.get("ConsoleName", "Unknown")
         if not isinstance(console_name, str):
@@ -130,8 +151,8 @@ class PresenceBuilder:
 
         update_kwargs = dict(
             activity_type=ActivityType.PLAYING,
-            name=trimmer(display_game_title),
-            details=trimmer(rich_presence_message) if rich_presence_message else None,
+            name=trimmer(display_name),
+            details=trimmer(details) if details else None,
             state=state_str,
             start=start_time,
             large_image=large_img,

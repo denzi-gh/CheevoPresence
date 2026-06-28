@@ -35,6 +35,7 @@ class PresenceBuilderTests(unittest.TestCase):
             "show_profile_button": True,
             "show_gamepage_button": True,
             "show_achievement_progress": True,
+            "use_retroachievements_developer_titles": True,
         }
         defaults.update(config)
         return PresenceBuilder(defaults, {"7": "nes-icon"})
@@ -91,11 +92,32 @@ class PresenceBuilderTests(unittest.TestCase):
         self.assertNotIn("party_id", result.update_kwargs)
         self.assertIsNone(result.update_kwargs["details"])
 
-    def test_developer_activity_decorates_title_and_metadata(self):
-        result = self._builder().build(
+    def test_developer_activity_uses_retroachievements_titles_when_enabled(self):
+        cases = {
+            "developing achievements": "Developing RetroAchievements",
+            "Fixing Achievements": "Fixing RetroAchievements",
+            "INSPECTING MEMORY": "Inspecting Memory for RetroAchievements",
+        }
+        for rich_presence_message, expected_title in cases.items():
+            with self.subTest(rich_presence_message=rich_presence_message):
+                result = self._builder().build(
+                    "user",
+                    123,
+                    rich_presence_message,
+                    _game(),
+                    _progress(),
+                    1,
+                )
+
+                self.assertTrue(result.developer_activity)
+                self.assertEqual(expected_title, result.update_kwargs["name"])
+                self.assertEqual("Mega Game", result.update_kwargs["details"])
+
+    def test_developer_activity_decorates_fixing_title_when_setting_disabled(self):
+        result = self._builder(use_retroachievements_developer_titles=False).build(
             "user",
             123,
-            "developing achievements",
+            "Fixing Achievements",
             _game(),
             _progress(),
             1,
@@ -104,6 +126,21 @@ class PresenceBuilderTests(unittest.TestCase):
         self.assertTrue(result.developer_activity)
         self.assertIn("Mega Game", result.update_kwargs["name"])
         self.assertNotEqual("Mega Game", result.update_kwargs["name"])
+        self.assertEqual("Fixing Achievements", result.update_kwargs["details"])
+
+    def test_non_developer_activity_keeps_game_name_and_rich_presence_details(self):
+        result = self._builder().build(
+            "user",
+            123,
+            "Playing Level 2",
+            _game(),
+            _progress(),
+            1,
+        )
+
+        self.assertFalse(result.developer_activity)
+        self.assertEqual("Mega Game", result.update_kwargs["name"])
+        self.assertEqual("Playing Level 2", result.update_kwargs["details"])
 
     def test_rejects_unexpected_payload_shapes(self):
         with self.assertRaises(APIResponseError):

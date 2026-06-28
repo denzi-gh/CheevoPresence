@@ -6,6 +6,7 @@ DEFAULT_CONFIG = {
     "show_profile_button": True,
     "show_gamepage_button": True,
     "show_achievement_progress": True,
+    "use_retroachievements_developer_titles": True,
     "interval": 5,
     "timeout": 130,
     "start_on_boot": False,
@@ -33,6 +34,7 @@ def normalize_config(raw, decode_api_key=None):
         "show_profile_button",
         "show_gamepage_button",
         "show_achievement_progress",
+        "use_retroachievements_developer_titles",
         "start_on_boot",
     ):
         value = raw.get(key, cfg[key])

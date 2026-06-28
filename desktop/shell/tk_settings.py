@@ -518,6 +518,16 @@ class TkSettingsWindow:
             style="Panel.TCheckbutton",
         )
         self.achievement_progress_check.pack(anchor="w")
+        self.developer_titles_var = tk.BooleanVar(
+            value=self.cfg.get("use_retroachievements_developer_titles", True)
+        )
+        self.developer_titles_check = ttk.Checkbutton(
+            checks,
+            text="Use RetroAchievements developer titles",
+            variable=self.developer_titles_var,
+            style="Panel.TCheckbutton",
+        )
+        self.developer_titles_check.pack(anchor="w")
         self.autostart_var = tk.BooleanVar(value=self.platform.is_autostart_enabled())
         self.autostart_check = ttk.Checkbutton(
             checks,
@@ -770,6 +780,7 @@ class TkSettingsWindow:
             self.profile_check,
             self.gamepage_check,
             self.achievement_progress_check,
+            self.developer_titles_check,
             self.autostart_check,
         ):
             widget.configure(state=state)
@@ -937,6 +948,7 @@ class TkSettingsWindow:
                 "show_profile_button": self.profile_btn_var.get(),
                 "show_gamepage_button": self.gamepage_btn_var.get(),
                 "show_achievement_progress": self.achievement_progress_var.get(),
+                "use_retroachievements_developer_titles": self.developer_titles_var.get(),
                 "interval": interval,
                 "timeout": timeout,
                 "start_on_boot": self.autostart_var.get(),
