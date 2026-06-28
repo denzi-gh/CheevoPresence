@@ -1,0 +1,110 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>CheevoPresence</title>
+  <link rel="stylesheet" href="./settings.css">
+</head>
+<body>
+  <div class="window">
+    <main class="content">
+      <section class="header">
+        <h1>CheevoPresence</h1>
+        <p>Mirror your RetroAchievements activity to Discord.</p>
+      </section>
+
+      <section class="status-strip">
+        <div class="status-block">
+          <div class="status-title">Discord</div>
+          <div class="status-value">
+            <span class="dot" id="discordDot"></span>
+            <span id="discordStatus">Not running</span>
+          </div>
+        </div>
+        <div class="status-block ra">
+          <div class="status-title">RetroAchievements</div>
+          <div class="status-value">
+            <span class="dot" id="raDot"></span>
+            <span id="raStatus">Not connected to RetroAchievements</span>
+          </div>
+        </div>
+      </section>
+
+      <section class="cards">
+        <form class="card account-card" id="settingsForm">
+          <div class="card-heading-row">
+            <h2>Account</h2>
+            <span class="role-badge hidden" id="roleBadge">
+              <span class="role-icon" id="roleIcon"></span>
+              <span id="roleLabel"></span>
+            </span>
+          </div>
+
+          <label class="field">
+            <span>RA Username</span>
+            <input id="usernameInput" autocomplete="username" spellcheck="false">
+          </label>
+
+          <label class="field">
+            <span>Web API Key</span>
+            <input id="apikeyInput" type="password" autocomplete="off" spellcheck="false">
+          </label>
+        </form>
+
+        <section class="card behavior-card">
+          <h2>Behavior</h2>
+          <div class="number-row">
+            <label class="field number-field">
+              <span>Poll Interval (s)</span>
+              <input id="intervalInput" type="number" min="5" max="120" step="1">
+            </label>
+            <label class="field number-field">
+              <span>Timeout (s)</span>
+              <input id="timeoutInput" type="number" min="0" max="3600" step="10">
+            </label>
+          </div>
+
+          <div class="checks">
+            <label class="check"><input id="profileCheck" type="checkbox"><span></span>Show profile button</label>
+            <label class="check"><input id="gamepageCheck" type="checkbox"><span></span>Show game page button</label>
+            <label class="check"><input id="achievementCheck" type="checkbox"><span></span>Show achievement counter</label>
+            <label class="check"><input id="devModeCheck" type="checkbox"><span></span>Dev Mode</label>
+          </div>
+        </section>
+      </section>
+
+      <section class="actions">
+        <button class="connect-button" id="connectButton" type="button">Connect</button>
+        <button class="exit-button" id="exitButton" type="button">Exit App</button>
+      </section>
+
+      <footer class="footer">
+        <button id="versionButton" type="button">v<span id="versionText"></span></button>
+        <button class="update hidden" id="updateButton" type="button">Update available</button>
+        <span>·</span>
+        <button data-link="api_key" type="button">Get API Key</button>
+        <span>·</span>
+        <button data-link="retroachievements" type="button">RetroAchievements</button>
+        <span>·</span>
+        <button data-link="github" type="button">GitHub</button>
+        <span>·</span>
+        <button data-link="kofi" type="button">Ko-fi</button>
+        <span>·</span>
+        <button id="logsButton" type="button">Open Logs</button>
+      </footer>
+    </main>
+  </div>
+
+  <div class="modal hidden" id="messageModal" role="dialog" aria-modal="true">
+    <div class="modal-panel">
+      <h3 id="messageTitle"></h3>
+      <p id="messageBody"></p>
+      <button id="messageClose" type="button">OK</button>
+    </div>
+  </div>
+
+  <script>window.CHEEVO_API_TOKEN = "__CHEEVO_API_TOKEN__";</script>
+  <script src="./settings.js"></script>
+</body>
+</html>

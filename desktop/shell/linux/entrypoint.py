@@ -9,7 +9,7 @@ from desktop.runtime.diagnostics import log_startup_diagnostics
 from desktop.runtime.log_events import AREA_STARTUP, log_event
 from desktop.runtime.logging_setup import setup_logging
 from desktop.shell.linux.indicator import LinuxIndicatorApp, LinuxTrayUnavailable
-from desktop.shell.tk_settings import TkSettingsWindow as SettingsWindow
+from desktop.shell.web_settings import WebSettingsWindow as SettingsWindow
 
 EXIT_APP_FLAG = "--exit"
 logger = logging.getLogger(__name__)

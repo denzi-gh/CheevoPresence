@@ -46,6 +46,7 @@ class RoleTests(unittest.TestCase):
     def test_badge_style_selection_uses_role_tier(self):
         self.assertEqual("#F0B450", role_badge_style("junior_developer")["accent"])
         self.assertEqual("#5FD07F", role_badge_style("developer")["accent"])
+        self.assertEqual("#B0A0F0", role_badge_style("code_reviewer")["accent"])
         self.assertEqual("#6FCFE2", role_badge_style("moderator")["accent"])
         self.assertEqual("#F0B450", role_badge_style("unknown")["accent"])
 

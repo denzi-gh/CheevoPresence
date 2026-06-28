@@ -10,7 +10,7 @@ import tkinter as tk
 from tkinter import messagebox
 
 from desktop.runtime.log_events import AREA_SETTINGS, log_event
-from desktop.shell.tk_settings import TkSettingsWindow
+from desktop.shell.web_settings import WebSettingsWindow
 
 logger = logging.getLogger(__name__)
 
@@ -45,7 +45,7 @@ def main(address=None, auth_token=None):
     auth_token = auth_token or os.environ.get(SETTINGS_AUTH_ENV)
     try:
         controller = RemoteAppController(address, auth_token)
-        TkSettingsWindow(controller, on_quit=controller.quit_app)
+        WebSettingsWindow(controller, on_quit=controller.quit_app)
     except Exception as exc:
         log_event(
             logger,

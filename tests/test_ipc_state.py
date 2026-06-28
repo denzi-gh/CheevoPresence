@@ -1,7 +1,8 @@
 import unittest
+from unittest.mock import patch
 
 from desktop.runtime.state import WorkerState
-from desktop.shell.ipc import SettingsHostService, RemoteWorkerProxy
+from desktop.shell.ipc import RemoteAppController, RemoteWorkerProxy, SettingsHostService
 
 
 class FakeWorker:
@@ -37,6 +38,9 @@ class FakeController:
         from desktop.runtime.controller import UpdateStatus
 
         return UpdateStatus(checked=True)
+
+    def load_config(self):
+        return dict(self.config)
 
 
 class IpcStateTests(unittest.TestCase):
@@ -77,6 +81,18 @@ class IpcStateTests(unittest.TestCase):
         self.assertEqual(4, state.ra_permissions)
         self.assertEqual("Moderator", state.ra_role_label)
         self.assertEqual("moderator", state.ra_role_tier)
+
+    def test_service_supports_tcp_fallback_transport(self):
+        service = SettingsHostService(FakeController())
+        with patch("desktop.shell.ipc._supports_unix_socket", return_value=False):
+            service.start()
+            try:
+                client = RemoteAppController(service.address, service.auth_token)
+                self.assertEqual("user", client.config["username"])
+                self.assertTrue(client.config["apikey_present"])
+                self.assertEqual("connected", client.worker.current_status)
+            finally:
+                service.stop()
 
 
 if __name__ == "__main__":

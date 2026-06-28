@@ -6,6 +6,7 @@ import json
 import logging
 import os
 import socket
+import tempfile
 import threading
 import time
 import uuid
@@ -20,6 +21,7 @@ logger = logging.getLogger(__name__)
 SETTINGS_ADDRESS_ENV = "CHEEVO_SETTINGS_SOCKET"
 SETTINGS_AUTH_ENV = "CHEEVO_SETTINGS_TOKEN"
 _MAX_MESSAGE_BYTES = 1024 * 1024
+_TCP_ADDRESS_PREFIX = "tcp://"
 # The settings UI polls these methods ~once per second; log them at most this
 # often so cheevo.log stays readable. Failures and other methods always log.
 IPC_THROTTLED_METHODS = frozenset({"get_state"})
@@ -28,7 +30,8 @@ IPC_LOG_THROTTLE_SECONDS = 60
 
 def _socket_dir():
     """Return the per-user directory used to host the settings socket."""
-    path = os.path.join("/tmp", f"CheevoPresence-{os.getuid()}")
+    user_token = str(os.getuid()) if hasattr(os, "getuid") else os.environ.get("USERNAME", "user")
+    path = os.path.join(tempfile.gettempdir(), f"CheevoPresence-{user_token}")
     os.makedirs(path, mode=0o700, exist_ok=True)
     try:
         os.chmod(path, 0o700)
@@ -40,6 +43,32 @@ def _socket_dir():
 def _make_socket_path():
     """Return a short AF_UNIX socket path that fits platform length limits."""
     return os.path.join(_socket_dir(), f"settings-{uuid.uuid4().hex[:8]}.sock")
+
+
+def _supports_unix_socket():
+    """Return whether this Python/socket runtime supports AF_UNIX."""
+    return hasattr(socket, "AF_UNIX")
+
+
+def _format_tcp_address(host, port):
+    """Return an environment-safe loopback TCP address string."""
+    return f"{_TCP_ADDRESS_PREFIX}{host}:{port}"
+
+
+def _parse_tcp_address(address):
+    """Parse a loopback TCP settings address into a socket endpoint tuple."""
+    if not str(address).startswith(_TCP_ADDRESS_PREFIX):
+        raise ValueError("Invalid TCP IPC address.")
+    endpoint = str(address)[len(_TCP_ADDRESS_PREFIX) :]
+    host, separator, port_text = endpoint.rpartition(":")
+    if not host or not separator:
+        raise ValueError("Invalid TCP IPC address.")
+    return host, int(port_text)
+
+
+def _is_tcp_address(address):
+    """Return whether the settings address uses the TCP fallback transport."""
+    return str(address or "").startswith(_TCP_ADDRESS_PREFIX)
 
 
 def _serialize_dataclass(value):
@@ -96,21 +125,30 @@ class SettingsHostService:
     def __init__(self, controller, on_quit=None):
         self.controller = controller
         self.on_quit = on_quit
-        self.address = _make_socket_path()
+        self.address = ""
         self.auth_token = uuid.uuid4().hex
         self.listener = None
         self.thread = None
+        self._uses_unix_socket = False
         self._stop_event = threading.Event()
         self._last_request_log = {}
 
     def start(self):
         """Start the background request loop."""
         self._stop_event.clear()
-        if os.path.exists(self.address):
-            os.remove(self.address)
-        self.listener = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
-        self.listener.bind(self.address)
-        os.chmod(self.address, 0o600)
+        self._uses_unix_socket = _supports_unix_socket()
+        if self._uses_unix_socket:
+            self.address = _make_socket_path()
+            if os.path.exists(self.address):
+                os.remove(self.address)
+            self.listener = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
+            self.listener.bind(self.address)
+            os.chmod(self.address, 0o600)
+        else:
+            self.listener = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+            self.listener.bind(("127.0.0.1", 0))
+            host, port = self.listener.getsockname()
+            self.address = _format_tcp_address(host, port)
         self.listener.listen()
         self.listener.settimeout(0.5)
         self.thread = threading.Thread(target=self._serve, daemon=True)
@@ -132,7 +170,7 @@ class SettingsHostService:
             and threading.current_thread() is not self.thread
         ):
             self.thread.join(timeout=1)
-        if os.path.exists(self.address):
+        if self._uses_unix_socket and os.path.exists(self.address):
             try:
                 os.remove(self.address)
             except OSError:
@@ -331,9 +369,17 @@ class RemoteAppController:
 
     def _request(self, method, **params):
         """Send one request to the host service and return the decoded result."""
-        with socket.socket(socket.AF_UNIX, socket.SOCK_STREAM) as conn:
+        if _is_tcp_address(self.address):
+            family = socket.AF_INET
+            endpoint = _parse_tcp_address(self.address)
+        else:
+            if not _supports_unix_socket():
+                raise RuntimeError("This platform does not support Unix IPC sockets.")
+            family = socket.AF_UNIX
+            endpoint = self.address
+        with socket.socket(family, socket.SOCK_STREAM) as conn:
             conn.settimeout(5)
-            conn.connect(self.address)
+            conn.connect(endpoint)
             _write_message(
                 conn,
                 {

@@ -2,6 +2,8 @@
 
 import logging
 import os
+import subprocess
+import sys
 import threading
 import webbrowser
 
@@ -15,7 +17,9 @@ from desktop.runtime.storage import (
     TRAY_ERROR_ICON_FILE,
     TRAY_INACTIVE_ICON_FILE,
 )
-from desktop.shell.windows.ui import SettingsWindow
+from desktop.shell.ipc import SettingsHostService
+
+WINDOWS_SETTINGS_CLIENT_FLAG = "--windows-settings-client"
 
 SHUTDOWN_GRACE_SECONDS = 8
 SHUTDOWN_WATCHDOG_SECONDS = 12
@@ -44,15 +48,18 @@ def load_icon_image(path):
 class TrayApp:
     """Own the tray icon, worker lifetime, and settings window entrypoints."""
 
-    def __init__(self, controller: AppController):
+    def __init__(self, controller: AppController, open_settings_on_launch=False):
         self.controller = controller
         self.icon = None
         self.platform = controller.platform
         self.worker = controller.worker
         self.controller.set_status_callback(self._on_status)
+        self.open_settings_on_launch = open_settings_on_launch
         self.current_status = "disconnected"
         self.status_text = "Not running"
         self._settings_open = False
+        self._settings_process = None
+        self._settings_service = SettingsHostService(controller, on_quit=self.quit_app)
         self._exit_listener = None
         self._shutdown_lock = threading.Lock()
         self._shutdown_started = False
@@ -152,25 +159,61 @@ class TrayApp:
 
     def _on_settings(self, icon, item):
         """Open the settings window once, even if the menu is clicked repeatedly."""
-        if self._shutdown_started or self._settings_open:
+        if self._shutdown_started:
             return
-        self._settings_open = True
-        threading.Thread(target=self._show_settings_window, daemon=True).start()
+        self.open_settings()
 
-    def _show_settings_window(self):
-        """Launch the settings window on a dedicated thread."""
+    def open_settings(self):
+        """Launch the settings window as a companion process."""
+        if self._settings_process is not None and self._settings_process.poll() is None:
+            return False
+        command = self._settings_command()
+        env = os.environ.copy()
+        env.update(self._settings_service.get_launch_env())
         try:
-            SettingsWindow(
-                self.controller,
-                on_close=self._on_settings_closed,
-                on_quit=self.quit_app,
+            self._settings_process = subprocess.Popen(
+                command,
+                env=env,
+                stdout=subprocess.DEVNULL,
+                stderr=subprocess.DEVNULL,
             )
         except Exception:
+            logger.exception("Windows settings client launch failed")
+            self._settings_process = None
             self._settings_open = False
+            return False
+        logger.info("Windows settings client launched pid=%s", self._settings_process.pid)
+        self._settings_open = True
+        return False
+
+    def _settings_command(self):
+        """Return the command for the companion settings client."""
+        args = [
+            WINDOWS_SETTINGS_CLIENT_FLAG,
+            self._settings_service.address,
+            self._settings_service.auth_token,
+        ]
+        if getattr(sys, "frozen", False):
+            return [sys.executable, *args]
+        return [sys.executable, os.path.abspath(sys.argv[0]), *args]
 
     def _on_settings_closed(self):
         """Allow the settings window to be reopened after it closes."""
         self._settings_open = False
+
+    def _stop_settings_client(self, timeout=2):
+        """Stop the companion settings process if it is still open."""
+        process = self._settings_process
+        self._settings_process = None
+        self._settings_open = False
+        if process is None or process.poll() is not None:
+            return
+        process.terminate()
+        try:
+            process.wait(timeout=timeout)
+        except subprocess.TimeoutExpired:
+            process.kill()
+            process.wait(timeout=1)
 
     def quit_app(self):
         """Stop monitoring and exit the tray host."""
@@ -204,6 +247,8 @@ class TrayApp:
                 except Exception:
                     logger.exception("Windows tray icon stop failed")
                     pass
+            self._stop_settings_client()
+            self._settings_service.stop()
             stopped = self.controller.shutdown(timeout=SHUTDOWN_GRACE_SECONDS)
             logger.info("Windows tray shutdown cleanup completed stopped=%s", stopped)
         finally:
@@ -233,6 +278,7 @@ class TrayApp:
         """Start the tray loop and auto-connect if a valid config exists."""
         import pystray
 
+        self._settings_service.start()
         icon_class = self.platform.get_tray_icon_class(pystray)
         menu = pystray.Menu(
             pystray.MenuItem(f"{APP_NAME} v{APP_VERSION}", None, enabled=False),
@@ -261,6 +307,12 @@ class TrayApp:
 
         logger.info("Windows tray run started")
         self.controller.start_saved_session()
+        if self.open_settings_on_launch:
+            self.open_settings()
 
-        self.icon.run()
-        logger.info("Windows tray run exited")
+        try:
+            self.icon.run()
+        finally:
+            self._settings_service.stop()
+            self._stop_settings_client()
+            logger.info("Windows tray run exited")

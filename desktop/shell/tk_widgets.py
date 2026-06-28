@@ -58,6 +58,12 @@ ROLE_BADGE_STYLES = {
         "border": "#3B7048",
         "icon": "code",
     },
+    "code_reviewer": {
+        "accent": "#B0A0F0",
+        "fill": "#2B2740",
+        "border": "#5D528F",
+        "icon": "search",
+    },
     "moderator": {
         "accent": "#6FCFE2",
         "fill": "#1C323B",
@@ -123,6 +129,8 @@ class RoleBadge(tk.Canvas):
         icon_y = (height - self.ICON_SIZE) / 2
         if style["icon"] == "shield":
             self._draw_shield(icon_x, icon_y, style["accent"])
+        elif style["icon"] == "search":
+            self._draw_search(icon_x, icon_y, style["accent"])
         else:
             self._draw_code(icon_x, icon_y, style["accent"])
 
@@ -179,4 +187,24 @@ class RoleBadge(tk.Canvas):
             width=1.2,
             capstyle="round",
             joinstyle="round",
+        )
+
+    def _draw_search(self, x, y, color):
+        scale = self.ICON_SIZE / 24
+        self.create_oval(
+            x + 4 * scale,
+            y + 4 * scale,
+            x + 17 * scale,
+            y + 17 * scale,
+            outline=color,
+            width=1.2,
+        )
+        self.create_line(
+            x + 15.5 * scale,
+            y + 15.5 * scale,
+            x + 21 * scale,
+            y + 21 * scale,
+            fill=color,
+            width=1.2,
+            capstyle="round",
         )
