@@ -60,7 +60,7 @@ class ControllerRoleTests(unittest.TestCase):
         self.assertEqual(2, save_config.call_count)
         self.assertTrue(save_config.call_args_list[-1].args[0]["dev_mode"])
 
-    def test_normal_permissions_do_not_disable_manual_dev_mode(self):
+    def test_normal_permissions_clear_manual_dev_mode(self):
         controller = self._controller(1)
         config = {
             "username": "user",
@@ -72,9 +72,10 @@ class ControllerRoleTests(unittest.TestCase):
             result = controller.connect(config)
 
         self.assertTrue(result.success)
-        self.assertTrue(result.config["dev_mode"])
-        self.assertTrue(controller.worker.started_config["dev_mode"])
-        self.assertEqual(1, save_config.call_count)
+        self.assertFalse(result.config["dev_mode"])
+        self.assertFalse(controller.worker.started_config["dev_mode"])
+        self.assertEqual(2, save_config.call_count)
+        self.assertFalse(save_config.call_args_list[-1].args[0]["dev_mode"])
 
     def test_normal_permissions_keep_dev_mode_off_when_disabled(self):
         controller = self._controller(1)

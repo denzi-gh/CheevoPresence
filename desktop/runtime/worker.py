@@ -15,7 +15,7 @@ from desktop.core.api import (
     ra_get_user_progress,
     ra_get_user_summary,
 )
-from desktop.core.roles import role_from_permissions
+from desktop.core.roles import is_elevated_permission, role_from_permissions
 from desktop.core.settings import normalize_config
 from desktop.runtime.backoff import BackoffPolicy
 from desktop.runtime.discord_gateway import (
@@ -112,6 +112,7 @@ class RPCWorker:
             self.ra_permissions = role.permissions if role else None
             self.ra_role_label = role.label if role else ""
             self.ra_role_tier = role.tier if role else ""
+            self.config["dev_mode"] = is_elevated_permission(permissions)
 
     def get_state(self):
         """Return an immutable snapshot of UI-facing worker state."""

@@ -1,5 +1,6 @@
 import tempfile
 import unittest
+import logging
 from unittest.mock import patch
 
 from desktop.runtime.controller import ConnectResult, UpdateStatus
@@ -43,6 +44,7 @@ class FakeController:
         self.worker = FakeWorker()
         self.platform = FakePlatform()
         self.connected_config = None
+        self.saved_config = None
         self.disconnected = False
 
     def load_config(self):
@@ -55,6 +57,11 @@ class FakeController:
         self.connected_config = dict(config)
         self.config = dict(config)
         return ConnectResult(success=True, config=dict(config))
+
+    def save_config(self, config):
+        self.saved_config = dict(config)
+        self.config = dict(config)
+        return {"success": True, "config": dict(config)}
 
     def disconnect(self):
         self.disconnected = True
@@ -99,6 +106,51 @@ class WebSettingsTests(unittest.TestCase):
         self.assertFalse(
             controller.connected_config["use_retroachievements_developer_titles"]
         )
+
+    def test_save_config_dispatch_persists_without_connecting(self):
+        controller = FakeController(
+            {
+                "username": "old",
+                "apikey": "old-key",
+                "show_profile_button": True,
+                "show_gamepage_button": True,
+                "show_achievement_progress": True,
+                "dev_mode": True,
+                "use_retroachievements_developer_titles": True,
+                "interval": 5,
+                "timeout": 130,
+                "start_on_boot": False,
+            }
+        )
+        api = WebSettingsAPI(controller)
+        api.load_config()
+
+        result = api.dispatch(
+            "save_config",
+            {
+                "payload": {
+                    "username": "new-user",
+                    "apikey": "new-key",
+                    "show_profile_button": False,
+                    "show_gamepage_button": True,
+                    "show_achievement_progress": False,
+                    "use_retroachievements_developer_titles": False,
+                    "interval": 15,
+                    "timeout": 260,
+                    "start_on_boot": True,
+                    "dev_mode": False,
+                }
+            },
+        )
+
+        self.assertTrue(result["success"])
+        self.assertIsNone(controller.connected_config)
+        self.assertEqual("new-user", controller.saved_config["username"])
+        self.assertTrue(controller.saved_config["start_on_boot"])
+        self.assertFalse(
+            controller.saved_config["use_retroachievements_developer_titles"]
+        )
+        self.assertTrue(controller.saved_config["dev_mode"])
 
     def test_polling_state_does_not_expose_api_key(self):
         controller = FakeController(
@@ -155,6 +207,60 @@ class WebSettingsTests(unittest.TestCase):
 
             self.assertTrue(result["success"])
             self.assertEqual(tmpdir, platform.opened_path)
+
+    def test_tail_logs_returns_recent_lines_path_and_level(self):
+        controller = FakeController({})
+        api = WebSettingsAPI(controller)
+
+        with tempfile.TemporaryDirectory() as tmpdir:
+            log_file = f"{tmpdir}/cheevo.log"
+            with open(log_file, "w", encoding="utf-8") as handle:
+                handle.write("one\ntwo\nthree\n")
+
+            with patch(
+                "desktop.shell.web_settings.get_platform_services",
+                return_value=FakePlatform(),
+            ), patch("desktop.shell.web_settings.get_log_dir", return_value=tmpdir), patch(
+                "desktop.shell.web_settings.get_log_file",
+                return_value=log_file,
+            ):
+                result = api.tail_logs(lines=2)
+
+        self.assertEqual(["two", "three"], result["lines"])
+        self.assertEqual(tmpdir, result["path"])
+        self.assertIn(result["level"], {"DEBUG", "INFO", "WARNING", "ERROR", "CRITICAL"})
+
+    def test_set_log_level_updates_root_logger(self):
+        controller = FakeController({})
+        api = WebSettingsAPI(controller)
+        root = logging.getLogger()
+        original = root.level
+        try:
+            result = api.set_log_level("DEBUG")
+
+            self.assertTrue(result["success"])
+            self.assertEqual("DEBUG", result["level"])
+            self.assertEqual(logging.DEBUG, root.level)
+        finally:
+            root.setLevel(original)
+
+    def test_copy_diagnostics_returns_secret_free_support_text(self):
+        controller = FakeController({})
+        api = WebSettingsAPI(controller)
+
+        with patch(
+            "desktop.shell.web_settings.get_platform_services",
+            return_value=FakePlatform(),
+        ), patch(
+            "desktop.shell.web_settings.get_config_dir",
+            return_value="CONFIG_DIR",
+        ), patch("desktop.shell.web_settings.get_log_dir", return_value="LOG_DIR"):
+            result = api.copy_diagnostics()
+
+        self.assertIn("CheevoPresence", result["text"])
+        self.assertIn("config_dir=CONFIG_DIR", result["text"])
+        self.assertIn("log_dir=LOG_DIR", result["text"])
+        self.assertNotIn("apikey", result["text"].lower())
 
     def test_role_badge_style_supports_reference_tiers(self):
         self.assertEqual("#f0b450", role_badge_style("junior_developer")["accent"])

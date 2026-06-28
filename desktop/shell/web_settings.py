@@ -16,13 +16,18 @@ from desktop.core.constants import APP_NAME, APP_VERSION, RA_SETTINGS_URL
 from desktop.core.settings import normalize_config
 from desktop.platform import get_platform_services
 from desktop.runtime.log_events import AREA_SETTINGS, log_event
-from desktop.runtime.storage import get_log_dir, get_resource_dir
+from desktop.runtime.storage import (
+    get_config_dir,
+    get_log_dir,
+    get_log_file,
+    get_resource_dir,
+)
 from desktop.shell.settings_presenter import truncate_status_text
 
 logger = logging.getLogger(__name__)
 
-WINDOW_WIDTH = 640
-WINDOW_HEIGHT = 530
+WINDOW_WIDTH = 700
+WINDOW_HEIGHT = 560
 
 ROLE_BADGE_STYLES = {
     "junior_developer": {
@@ -195,18 +200,57 @@ class WebSettingsAPI:
         visible = dict(payload or {})
         merged = {
             **base,
-            "username": str(visible.get("username", "")).strip(),
-            "apikey": str(visible.get("apikey", "")).strip(),
-            "show_profile_button": bool(visible.get("show_profile_button", False)),
-            "show_gamepage_button": bool(visible.get("show_gamepage_button", False)),
-            "show_achievement_progress": bool(
-                visible.get("show_achievement_progress", False)
+            "username": str(visible.get("username", base.get("username", ""))).strip(),
+            "apikey": str(visible.get("apikey", base.get("apikey", ""))).strip(),
+            "show_profile_button": bool(
+                visible.get("show_profile_button", base.get("show_profile_button", False))
             ),
-            "dev_mode": bool(visible.get("dev_mode", False)),
+            "show_gamepage_button": bool(
+                visible.get("show_gamepage_button", base.get("show_gamepage_button", False))
+            ),
+            "show_achievement_progress": bool(
+                visible.get(
+                    "show_achievement_progress",
+                    base.get("show_achievement_progress", False),
+                )
+            ),
+            "dev_mode": bool(base.get("dev_mode", False)),
+            "use_retroachievements_developer_titles": bool(
+                visible.get(
+                    "use_retroachievements_developer_titles",
+                    base.get("use_retroachievements_developer_titles", True),
+                )
+            ),
+            "start_on_boot": bool(
+                visible.get("start_on_boot", base.get("start_on_boot", False))
+            ),
             "interval": visible.get("interval", base.get("interval", 5)),
             "timeout": visible.get("timeout", base.get("timeout", 130)),
         }
         return normalize_config(merged)
+
+    def save_config(self, payload):
+        """Persist visible settings without starting or stopping monitoring."""
+        with self._lock:
+            config = self._visible_config(payload)
+            result = {}
+            saver = getattr(self.controller, "save_config", None)
+            if callable(saver):
+                result = saver(config)
+                if isinstance(result, dict) and result.get("config"):
+                    config = dict(result["config"])
+            self.cfg = dict(config)
+            response = {"success": True, "state": self._state_payload()}
+            if isinstance(result, dict):
+                response.update(
+                    {
+                        key: value
+                        for key, value in result.items()
+                        if key not in {"config", "success"}
+                    }
+                )
+                response["success"] = bool(result.get("success", True))
+            return response
 
     def connect(self, payload):
         """Persist visible settings and start monitoring."""
@@ -285,6 +329,49 @@ class WebSettingsAPI:
         )
         return {"success": bool(success), "path": log_dir}
 
+    def tail_logs(self, lines=200):
+        """Return the last lines of the runtime log for the diagnostics screen."""
+        platform = get_platform_services()
+        path = get_log_file(platform)
+        try:
+            limit = int(lines or 200)
+        except (TypeError, ValueError):
+            limit = 200
+        limit = max(1, min(limit, 1000))
+        out = []
+        try:
+            with open(path, "r", encoding="utf-8", errors="replace") as handle:
+                out = handle.read().splitlines()[-limit:]
+        except OSError:
+            out = []
+        level = logging.getLevelName(logging.getLogger().level)
+        return {"lines": out, "path": get_log_dir(platform), "level": level}
+
+    def set_log_level(self, level):
+        """Apply the selected root logging level for the current process."""
+        name = str(level or "INFO").upper()
+        value = getattr(logging, name, logging.INFO)
+        logging.getLogger().setLevel(value)
+        return {"success": True, "level": logging.getLevelName(value)}
+
+    def copy_diagnostics(self):
+        """Return a compact support diagnostics blob without secrets."""
+        import platform as platform_module
+
+        platform = get_platform_services()
+        lines = [
+            f"{APP_NAME} {APP_VERSION}",
+            f"python={platform_module.python_version()}",
+            (
+                f"system={platform_module.system()} "
+                f"release={platform_module.release()} "
+                f"machine={platform_module.machine()}"
+            ),
+            f"config_dir={get_config_dir(platform)}",
+            f"log_dir={get_log_dir(platform)}",
+        ]
+        return {"text": "\n".join(lines)}
+
     def dispatch(self, method, params=None):
         """Dispatch an HTTP API method from the web settings page."""
         params = params or {}
@@ -292,12 +379,20 @@ class WebSettingsAPI:
             return self.load_config()
         if method == "get_state":
             return self.get_state()
+        if method == "save_config":
+            return self.save_config(params.get("payload") or {})
         if method == "connect":
             return self.connect(params.get("payload") or {})
         if method == "disconnect":
             return self.disconnect()
         if method == "install_update":
             return self.install_update()
+        if method == "tail_logs":
+            return self.tail_logs(params.get("lines") or 200)
+        if method == "set_log_level":
+            return self.set_log_level(params.get("level"))
+        if method == "copy_diagnostics":
+            return self.copy_diagnostics()
         if method == "open_url":
             return self.open_url(params.get("target"))
         if method == "open_logs":

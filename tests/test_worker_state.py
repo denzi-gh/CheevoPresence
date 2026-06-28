@@ -25,6 +25,7 @@ class WorkerStateTests(unittest.TestCase):
         self.assertEqual(2, state.ra_permissions)
         self.assertEqual("Junior Developer", state.ra_role_label)
         self.assertEqual("junior_developer", state.ra_role_tier)
+        self.assertTrue(worker.config["dev_mode"])
 
     def test_ra_status_clear_removes_role_snapshot(self):
         worker = RPCWorker(initial_config={}, console_icons={})
@@ -38,6 +39,13 @@ class WorkerStateTests(unittest.TestCase):
         self.assertIsNone(state.ra_permissions)
         self.assertEqual("", state.ra_role_label)
         self.assertEqual("", state.ra_role_tier)
+
+    def test_role_refresh_clears_stale_manual_dev_mode(self):
+        worker = RPCWorker(initial_config={"dev_mode": True}, console_icons={})
+
+        worker.set_ra_role(1)
+
+        self.assertFalse(worker.config["dev_mode"])
 
     def test_ra_connected_status_uses_generic_text_without_username(self):
         worker = RPCWorker(initial_config={}, console_icons={})

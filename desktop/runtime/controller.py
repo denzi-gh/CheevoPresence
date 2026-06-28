@@ -70,6 +70,45 @@ class AppController:
         self.worker.config = dict(self.config)
         return dict(self.config)
 
+    def save_config(self, config):
+        """Persist settings without validating credentials or starting the worker."""
+        with self._action_lock:
+            previous_start_on_boot = bool(self.config.get("start_on_boot", False))
+            self.config = normalize_config(config)
+            warning_title = None
+            warning_message = None
+
+            autostart_error = None
+            if bool(self.config["start_on_boot"]) != previous_start_on_boot:
+                autostart_error = self.platform.set_autostart(self.config["start_on_boot"])
+                if autostart_error:
+                    logger.warning("Autostart update failed error=%s", autostart_error)
+                    self.config["start_on_boot"] = self.platform.is_autostart_enabled()
+                    warning_title = "Startup Setting Failed"
+                    warning_message = autostart_error
+
+            try:
+                save_config(self.config, self.platform)
+                logger.info("Configuration saved")
+            except OSError:
+                logger.exception("Configuration save failed")
+                return {
+                    "success": False,
+                    "config": dict(self.config),
+                    "error_title": "Save Failed",
+                    "error_message": "Could not write the configuration file.",
+                    "warning_title": warning_title,
+                    "warning_message": warning_message,
+                }
+
+            self.worker.config = dict(self.config)
+            return {
+                "success": autostart_error is None,
+                "config": dict(self.config),
+                "warning_title": warning_title,
+                "warning_message": warning_message,
+            }
+
     def get_update_status(self):
         """Return the latest cached update-check result."""
         return self.update_service.get_status()
@@ -172,14 +211,15 @@ class AppController:
                     error_message="Unexpected error",
                 )
 
-            if is_elevated_permission(user_summary.get("Permissions")) and not self.config.get(
-                "dev_mode",
-                False,
-            ):
-                self.config["dev_mode"] = True
+            derived_dev_mode = is_elevated_permission(user_summary.get("Permissions"))
+            if self.config.get("dev_mode", False) != derived_dev_mode:
+                self.config["dev_mode"] = derived_dev_mode
                 try:
                     save_config(self.config, self.platform)
-                    logger.info("Dev Mode enabled from RetroAchievements permissions")
+                    logger.info(
+                        "Dev Mode derived from RetroAchievements permissions enabled=%s",
+                        derived_dev_mode,
+                    )
                 except OSError:
                     logger.exception("Configuration save failed after role detection")
                     return ConnectResult(
