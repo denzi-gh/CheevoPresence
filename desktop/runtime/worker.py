@@ -91,8 +91,9 @@ class RPCWorker:
         """Track whether the RetroAchievements API is currently reachable."""
         with self._state_lock:
             self.ra_connected = connected
+            username = str(self.config.get("username") or "").strip()
             self.ra_status_text = (
-                "Connected to RetroAchievements"
+                f"Connected as {username}" if username else "Connected to RetroAchievements"
                 if connected
                 else "Not connected to RetroAchievements"
             )
