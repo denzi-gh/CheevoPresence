@@ -304,6 +304,10 @@ class RPCWorker:
         self._sync_worker_from_gateway()
         self._clear_mirrored_presence()
 
+    def _presence_builder(self):
+        """Create a presence builder from the latest runtime config."""
+        return PresenceBuilder(dict(self.config), self.console_icons)
+
     def _loop(self):
         """Continuously poll RA, build presence data, and update Discord."""
         try:
@@ -316,7 +320,6 @@ class RPCWorker:
             interval = self.config["interval"]
             timeout_sec = self.config["timeout"]
             backoff = BackoffPolicy(interval)
-            presence_builder = PresenceBuilder(self.config, self.console_icons)
             consecutive_errors = 0
 
             while not self._should_stop():
@@ -400,6 +403,7 @@ class RPCWorker:
                         if self.rpc_connected:
                             self.start_time = int(time.time())
 
+                    presence_builder = self._presence_builder()
                     presence = presence_builder.build(
                         username=username,
                         last_game_id=last_game_id,

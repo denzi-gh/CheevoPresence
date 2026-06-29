@@ -188,6 +188,50 @@ class WorkerStateTests(unittest.TestCase):
         self.assertEqual(2, len(snapshot.buttons))
         self.assertTrue(snapshot.developer_activity)
 
+    def test_presence_builder_uses_latest_worker_config_snapshot(self):
+        worker = RPCWorker(
+            initial_config={"use_retroachievements_developer_titles": True},
+            console_icons={},
+        )
+        game_data = {
+            "GameTitle": "Mega Game",
+            "ConsoleName": "NES",
+            "ConsoleID": "7",
+            "ImageIcon": "/Images/000123.png",
+        }
+        progress_data = {
+            "123": {
+                "NumPossibleAchievements": 10,
+                "NumAchieved": 4,
+                "NumAchievedHardcore": 3,
+            }
+        }
+
+        first = worker._presence_builder().build(
+            username="some user",
+            last_game_id=123,
+            rich_presence_message="Developing Achievements",
+            game_data=game_data,
+            progress_data=progress_data,
+            start_time=99,
+        )
+        worker.config = {
+            **worker.config,
+            "use_retroachievements_developer_titles": False,
+        }
+        second = worker._presence_builder().build(
+            username="some user",
+            last_game_id=123,
+            rich_presence_message="Developing Achievements",
+            game_data=game_data,
+            progress_data=progress_data,
+            start_time=99,
+        )
+
+        self.assertEqual("Developing RetroAchievements", first.update_kwargs["name"])
+        self.assertEqual("Developing Achievements", second.update_kwargs["details"])
+        self.assertNotEqual(first.update_kwargs["name"], second.update_kwargs["name"])
+
 
 if __name__ == "__main__":
     unittest.main()

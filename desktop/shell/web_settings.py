@@ -13,6 +13,7 @@ from types import SimpleNamespace
 from urllib.parse import urlparse
 
 from desktop.core.constants import APP_NAME, APP_VERSION, RA_SETTINGS_URL
+from desktop.core.roles import is_elevated_permission
 from desktop.core.settings import normalize_config
 from desktop.platform import get_platform_services
 from desktop.runtime.log_events import AREA_SETTINGS, log_event
@@ -112,6 +113,14 @@ def _public_config(config):
     return payload
 
 
+def _developer_settings_unlocked(worker_payload, config):
+    """Return whether RA developer-only settings should be accessible."""
+    if worker_payload.get("ra_connected"):
+        permissions = worker_payload.get("ra_permissions")
+        return permissions is not None and is_elevated_permission(permissions)
+    return bool((config or {}).get("dev_mode", False))
+
+
 class WebSettingsAPI:
     """Bridge used by the HTML settings window to call Python app services."""
 
@@ -158,6 +167,7 @@ class WebSettingsAPI:
     def _state_payload(self):
         worker_state = self._worker_state()
         worker_payload = _dataclass_to_dict(worker_state)
+        config = getattr(self.controller, "config", self.cfg)
         if not worker_payload.get("ra_connected"):
             ra_status_text = str(worker_payload.get("ra_status_text") or "")
             if ra_status_text.startswith("Connected "):
@@ -173,10 +183,14 @@ class WebSettingsAPI:
         return {
             "app_name": APP_NAME,
             "app_version": APP_VERSION,
-            "config": _public_config(getattr(self.controller, "config", self.cfg)),
+            "config": _public_config(config),
             "worker": worker_payload,
             "update_status": update_status,
             "role_style": role_badge_style(role_tier),
+            "developer_settings_unlocked": _developer_settings_unlocked(
+                worker_payload,
+                config,
+            ),
             "is_connecting": self._is_connecting,
             "is_installing_update": self._is_installing_update,
         }
@@ -196,9 +210,20 @@ class WebSettingsAPI:
             self._poll_controller_state()
             return self._state_payload()
 
-    def _visible_config(self, payload):
+    def _visible_config(self, payload, developer_settings_editable=None):
         base = dict(self.cfg or self.controller.load_config())
         visible = dict(payload or {})
+        if developer_settings_editable is None:
+            developer_settings_editable = _developer_settings_unlocked(
+                _dataclass_to_dict(self._worker_state()),
+                base,
+            )
+        developer_titles = base.get("use_retroachievements_developer_titles", True)
+        if developer_settings_editable:
+            developer_titles = visible.get(
+                "use_retroachievements_developer_titles",
+                developer_titles,
+            )
         merged = {
             **base,
             "username": str(visible.get("username", base.get("username", ""))).strip(),
@@ -216,12 +241,7 @@ class WebSettingsAPI:
                 )
             ),
             "dev_mode": bool(base.get("dev_mode", False)),
-            "use_retroachievements_developer_titles": bool(
-                visible.get(
-                    "use_retroachievements_developer_titles",
-                    base.get("use_retroachievements_developer_titles", True),
-                )
-            ),
+            "use_retroachievements_developer_titles": bool(developer_titles),
             "start_on_boot": bool(
                 visible.get("start_on_boot", base.get("start_on_boot", False))
             ),
@@ -233,7 +253,17 @@ class WebSettingsAPI:
     def save_config(self, payload):
         """Persist visible settings without starting or stopping monitoring."""
         with self._lock:
-            config = self._visible_config(payload)
+            state = self._state_payload()
+            worker_payload = state.get("worker") or {}
+            developer_settings_editable = (
+                state["developer_settings_unlocked"]
+                and not worker_payload.get("is_busy")
+                and not self._is_connecting
+            )
+            config = self._visible_config(
+                payload,
+                developer_settings_editable=developer_settings_editable,
+            )
             result = {}
             saver = getattr(self.controller, "save_config", None)
             if callable(saver):

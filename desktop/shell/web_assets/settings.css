@@ -292,6 +292,17 @@ button, input, select { font-family: inherit; }
 .btn-neutral.sm { height: 34px; padding: 0 14px; font-size: 12px; }
 .btn-neutral:hover { border-color: #45505c; }
 .btn-neutral:disabled { color: #80858c; background: #1c222a; }
+#connectButton.connect-action {
+  border-color: #d39128;
+  background: linear-gradient(#eab347, #e09b2f);
+  color: #2a1c06;
+}
+#connectButton.connect-action:hover { border-color: #efbd5a; }
+#connectButton.connect-action:disabled {
+  border-color: #5f4a25;
+  background: #4a371f;
+  color: #a58a57;
+}
 
 .btn-exit {
   display: inline-flex; align-items: center; gap: 7px; margin-left: auto;

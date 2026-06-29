@@ -17,7 +17,7 @@ function bindElements() {
     "devActivityCheck",
     "discordDot", "discordStatus", "raDot", "raStatus",
     "roleBadge", "roleIcon", "roleLabel",
-    "roleBadgeDev", "roleIconDev", "roleLabelDev",
+    "devBanner", "roleBadgeDev", "roleIconDev", "roleLabelDev",
     "mirrorCard", "mirrorIconImg", "mirrorIconFallback",
     "mirrorTitle", "mirrorDetails", "mirrorSub", "mirrorActions",
     "connectButton", "exitButton",
@@ -144,13 +144,16 @@ function applyStatusText(wrapper, valueClass) {
   if (valueClass === "connected" || valueClass === "error") { wrapper.classList.add(valueClass); }
 }
 
-function setControlsEnabled(enabled) {
+function setControlsEnabled(state) {
+  var worker = state.worker || {};
+  var generalEnabled = !worker.is_busy && !state.is_connecting;
+  var devEnabled = !!state.developer_settings_unlocked && generalEnabled;
   var inputs = [
     els.usernameInput, els.apikeyInput, els.intervalInput, els.timeoutInput,
-    els.profileCheck, els.gamepageCheck, els.achievementCheck, els.bootCheck,
-    els.devActivityCheck
+    els.profileCheck, els.gamepageCheck, els.achievementCheck, els.bootCheck
   ];
-  for (var i = 0; i < inputs.length; i += 1) { inputs[i].disabled = !enabled; }
+  for (var i = 0; i < inputs.length; i += 1) { inputs[i].disabled = !generalEnabled; }
+  els.devActivityCheck.disabled = !devEnabled;
 }
 
 function applyRoleBadge(badge, icon, label, worker, style) {
@@ -165,15 +168,9 @@ function applyRoleBadge(badge, icon, label, worker, style) {
   show(badge);
 }
 
-/* RA dev settings unlock from the account role. */
-function devUnlocked(worker) {
-  if (!worker) { return false; }
-  if (typeof worker.ra_permissions === "number") { return worker.ra_permissions > 1; }
-  return !!worker.ra_role_tier;
-}
-
-function applyDevGating(worker) {
-  var unlocked = devUnlocked(worker);
+/* RA dev settings unlock from the account entitlement. */
+function applyDevGating(state) {
+  var unlocked = !!state.developer_settings_unlocked;
   els.navRadev.classList.toggle("hidden", !unlocked);
   els.devGroupLabel.classList.toggle("hidden", !unlocked);
   if (!unlocked && activeScreen === "radev") { showScreen("status"); }
@@ -272,6 +269,7 @@ function openMirrorAction(event) {
 
 function applyConnectionButton(state) {
   var worker = state.worker || {};
+  els.connectButton.classList.toggle("connect-action", !state.is_connecting && !worker.is_stopping && !worker.running);
   if (state.is_connecting) {
     setText(els.connectButton, "Connecting..."); els.connectButton.disabled = true;
   } else if (worker.is_stopping) {
@@ -312,11 +310,12 @@ function applyState(state) {
 
   applyRoleBadge(els.roleBadge, els.roleIcon, els.roleLabel, worker, state.role_style);
   applyRoleBadge(els.roleBadgeDev, els.roleIconDev, els.roleLabelDev, worker, state.role_style);
-  applyDevGating(worker);
+  if (worker.ra_connected) { show(els.devBanner); } else { hide(els.devBanner); }
+  applyDevGating(state);
   applyMirror(worker);
   applyConnectionButton(state);
   applyUpdate(state);
-  setControlsEnabled(!worker.is_busy && !state.is_connecting);
+  setControlsEnabled(state);
 }
 
 /* Poll app state. */
@@ -343,6 +342,7 @@ function toggleConnection() {
     return;
   }
   els.connectButton.disabled = true;
+  els.connectButton.classList.remove("connect-action");
   setText(els.connectButton, "Connecting...");
   request("connect", { payload: formPayload() }, function (result) {
     if (result.warning_message) { showMessage(result.warning_title || "Warning", result.warning_message); }
@@ -351,6 +351,8 @@ function toggleConnection() {
     if (result.state) { applyState(result.state); } else { refreshState(); }
   }, function (err) {
     handleError("Connection Failed", err);
+    els.connectButton.classList.add("connect-action");
+    setText(els.connectButton, "Connect");
     els.connectButton.disabled = false;
   });
 }

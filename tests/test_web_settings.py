@@ -215,6 +215,97 @@ class WebSettingsTests(unittest.TestCase):
             state["worker"]["ra_status_text"],
         )
 
+    def test_disconnected_dev_mode_unlocks_developer_settings(self):
+        controller = FakeController({"dev_mode": True})
+
+        state = WebSettingsAPI(controller).get_state()
+
+        self.assertTrue(state["developer_settings_unlocked"])
+
+    def test_connected_elevated_permissions_unlock_developer_settings(self):
+        controller = FakeController({"dev_mode": False})
+        controller.worker.state = WorkerState(
+            running=True,
+            is_busy=True,
+            is_stopping=False,
+            current_status="connected",
+            status_text="Playing",
+            ra_connected=True,
+            ra_status_text="Connected to RetroAchievements",
+            ra_permissions=2,
+            ra_role_label="Junior Developer",
+            ra_role_tier="junior_developer",
+        )
+
+        state = WebSettingsAPI(controller).get_state()
+
+        self.assertTrue(state["developer_settings_unlocked"])
+
+    def test_connected_normal_permissions_ignore_stale_dev_mode_unlock(self):
+        controller = FakeController({"dev_mode": True})
+        controller.worker.state = WorkerState(
+            running=True,
+            is_busy=True,
+            is_stopping=False,
+            current_status="connected",
+            status_text="Playing",
+            ra_connected=True,
+            ra_status_text="Connected to RetroAchievements",
+            ra_permissions=1,
+        )
+
+        state = WebSettingsAPI(controller).get_state()
+
+        self.assertFalse(state["developer_settings_unlocked"])
+
+    def test_unauthorized_save_preserves_developer_title_setting(self):
+        controller = FakeController(
+            {
+                "username": "user",
+                "apikey": "key",
+                "dev_mode": False,
+                "use_retroachievements_developer_titles": False,
+            }
+        )
+        api = WebSettingsAPI(controller)
+
+        result = api.save_config({"use_retroachievements_developer_titles": True})
+
+        self.assertTrue(result["success"])
+        self.assertFalse(
+            controller.saved_config["use_retroachievements_developer_titles"]
+        )
+
+    def test_authorized_save_preserves_developer_title_setting_while_running(self):
+        controller = FakeController(
+            {
+                "username": "user",
+                "apikey": "key",
+                "dev_mode": True,
+                "use_retroachievements_developer_titles": True,
+            }
+        )
+        controller.worker.state = WorkerState(
+            running=True,
+            is_busy=True,
+            is_stopping=False,
+            current_status="connected",
+            status_text="Developing",
+            ra_connected=True,
+            ra_status_text="Connected to RetroAchievements",
+            ra_permissions=2,
+            ra_role_label="Junior Developer",
+            ra_role_tier="junior_developer",
+        )
+        api = WebSettingsAPI(controller)
+
+        result = api.save_config({"use_retroachievements_developer_titles": False})
+
+        self.assertTrue(result["success"])
+        self.assertTrue(
+            controller.saved_config["use_retroachievements_developer_titles"]
+        )
+
     def test_state_payload_serializes_mirrored_presence(self):
         controller = FakeController({})
         controller.worker.state = WorkerState(
