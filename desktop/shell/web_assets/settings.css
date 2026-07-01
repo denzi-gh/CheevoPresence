@@ -391,10 +391,10 @@ button, input, select { font-family: inherit; }
 
 .dev-banner {
   display: flex; align-items: center; gap: 13px; margin-top: 20px;
-  padding: 15px 17px; border: 1px solid rgba(217, 159, 43, .32); border-radius: 10px;
-  background: rgba(217, 159, 43, .1);
+  padding: 15px 17px; border: 1px solid #2e313a; border-radius: 10px;
+  background: #20222a; box-shadow: 0 1px 2px rgba(0, 0, 0, .3);
 }
-.dev-banner-text { color: #c2a061; font-size: 12.5px; font-weight: 500; }
+.dev-banner-text { color: #8a8f97; font-size: 12.5px; font-weight: 500; }
 
 /* About */
 .about-head { display: flex; align-items: center; gap: 14px; }
