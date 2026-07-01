@@ -116,7 +116,6 @@ button, input, select { font-family: inherit; }
 .version-pill {
   display: inline-flex;
   align-items: center;
-  gap: 4px;
   min-height: 24px;
   padding: 4px 9px;
   border: 1px solid #2e313a;
@@ -136,6 +135,7 @@ button, input, select { font-family: inherit; }
 .version-pill.update:hover { border-color: rgba(217, 159, 43, .7); color: #e8bb5f; }
 .version-arrow {
   display: none;
+  margin-left: 4px;
   color: #e8bb5f;
   font: 700 10px var(--ui);
   line-height: 1;
