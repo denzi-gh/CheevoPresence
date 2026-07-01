@@ -620,8 +620,6 @@ class TkSettingsWindow:
             label.bind("<Leave>", lambda e, l=label: l.configure(fg=self.MUTED))
 
     def _open_log_folder(self):
-        # The settings window always runs on the local machine, so resolve the
-        # real platform services here rather than the IPC platform proxy.
         platform = get_platform_services()
         log_dir = get_log_dir(platform)
         os.makedirs(log_dir, exist_ok=True)

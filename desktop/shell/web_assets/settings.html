@@ -121,7 +121,7 @@
       </section>
 
       <section class="screen" data-screen="behaviour">
-        <div class="screen-head"><div><h1>Behaviour</h1><p>How presence updates and what Discord shows</p></div></div>
+        <div class="screen-head"><div><h1>Behaviour</h1><p>How presence updates and what Discord shows</p></div><span class="locked-notice hidden" id="behaviourNotice">Disconnect to edit settings</span></div>
 
         <div class="number-row">
           <label class="field"><span>Poll Interval (s)</span><input id="intervalInput" type="number" min="5" max="120" step="1"></label>
@@ -162,7 +162,7 @@
       </section>
 
       <section class="screen" data-screen="radev">
-        <div class="screen-head"><div><h1>RA Dev Settings</h1><p>Settings for users that develop RetroAchievements</p></div></div>
+        <div class="screen-head"><div><h1>RA Dev Settings</h1><p>Settings for users that develop RetroAchievements</p></div><span class="locked-notice hidden" id="radevNotice">Disconnect to edit settings</span></div>
 
         <div class="dev-banner" id="devBanner">
           <span class="role-badge inline" id="roleBadgeDev"><span class="role-icon" id="roleIconDev"></span><span id="roleLabelDev"></span></span>
@@ -194,7 +194,7 @@
           <button class="about-row" data-link="api_key" type="button"><span>Get API Key</span><span class="chev">›</span></button>
           <button class="about-row" data-link="retroachievements" type="button"><span>RetroAchievements</span><span class="chev">›</span></button>
           <button class="about-row" data-link="github" type="button"><span>GitHub</span><span class="chev">›</span></button>
-          <button class="about-row kofi" data-link="kofi" type="button"><span>Support on Ko-fi</span><span class="tip">Tip</span></button>
+          <button class="about-row kofi" data-link="kofi" type="button"><span>Support on Ko-fi</span><span class="chev">›</span></button>
           <button class="about-row" id="aboutLogsBtn" type="button"><span>Open Logs</span><span class="chev">›</span></button>
           <button class="about-row update hidden" id="updateButton" type="button"><span id="updateLabel">Update available</span><span class="chev">›</span></button>
         </div>

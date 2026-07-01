@@ -15,6 +15,7 @@ function bindElements() {
     "devActivityCheck",
     "discordDot", "discordStatus", "raDot", "raStatus",
     "roleBadge", "roleIcon", "roleLabel",
+    "behaviourNotice", "radevNotice",
     "devBanner", "roleBadgeDev", "roleIconDev", "roleLabelDev",
     "mirrorCard", "mirrorIconImg", "mirrorIconFallback",
     "mirrorTitle", "mirrorDetails", "mirrorSub", "mirrorActions",
@@ -309,6 +310,8 @@ function applyState(state) {
   applyRoleBadge(els.roleBadgeDev, els.roleIconDev, els.roleLabelDev, worker, state.role_style);
   if (worker.ra_connected) { show(els.usernameCheck); show(els.devBanner); }
   else { hide(els.usernameCheck); hide(els.devBanner); }
+  if (worker.running) { show(els.behaviourNotice); show(els.radevNotice); }
+  else { hide(els.behaviourNotice); hide(els.radevNotice); }
   applyDevGating(state);
   applyMirror(worker);
   applyConnectionButton(state);

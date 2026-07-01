@@ -157,6 +157,11 @@ button, input, select { font-family: inherit; }
   letter-spacing: -.01em;
 }
 .screen-head p { margin: 4px 0 0; color: #8b9099; font-size: 13px; font-weight: 400; }
+.locked-notice {
+  align-self: flex-start; margin-left: auto; padding: 4px 10px;
+  border: 1px solid #2e313a; border-radius: 6px; background: #20222a;
+  color: #6b7079; font-size: 11px; font-weight: 500; white-space: nowrap;
+}
 
 .section-label {
   margin: 20px 0 11px;
@@ -440,11 +445,7 @@ button, input, select { font-family: inherit; }
 .about-row:hover { color: #e0a93c; }
 .about-row > span:first-child { flex: 1; }
 .about-row .chev { color: #5a5e66; font-size: 17px; }
-.about-row.kofi { color: #e0a93c; font-weight: 600; }
-.about-row .tip {
-  padding: 2px 9px; border: 1px solid rgba(217, 159, 43, .4); border-radius: 999px;
-  background: rgba(217, 159, 43, .14); color: #e0a93c; font-size: 10.5px; font-weight: 600;
-}
+.about-row.kofi { color: #ffb4cd; font-weight: 600; }
 .about-row.update { color: #7bb0e8; }
 .about-foot { margin-top: auto; padding-top: 18px; color: #7b818a; font-size: 12px; font-weight: 500; }
 
