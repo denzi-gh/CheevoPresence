@@ -4,6 +4,9 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>CheevoPresence</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Hanken+Grotesk:wght@400;500;600;700&family=JetBrains+Mono:wght@500;600&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="./settings.css">
 </head>
 <body>
@@ -12,10 +15,6 @@
 
     <!-- Sidebar -->
     <nav class="sidebar">
-      <div class="sidebar-head">
-        <span class="version-pill" id="versionPill">v<span id="versionText"></span></span>
-      </div>
-
       <div class="nav" id="navList">
         <div class="nav-group-label">MENU</div>
         <button class="nav-item active" type="button" data-screen="status">
@@ -37,11 +36,17 @@
           <span>RA Dev Settings</span>
         </button>
 
-        <div class="nav-spacer"></div>
         <button class="nav-item" type="button" data-screen="about">
           <svg viewBox="0 0 24 24" class="nav-ic"><circle cx="12" cy="12" r="10"></circle><line x1="12" y1="16" x2="12" y2="12"></line><line x1="12" y1="8" x2="12.01" y2="8"></line></svg>
           <span>About</span>
         </button>
+
+        <div class="nav-spacer"></div>
+      </div>
+
+      <div class="sidebar-foot">
+        <span class="version-caption">VERSION</span>
+        <span class="version-pill" id="versionPill">v<span id="versionText"></span></span>
       </div>
     </nav>
 
@@ -53,7 +58,7 @@
         <div class="screen-head">
           <div>
             <h1>Status</h1>
-            <p>Connection status and what CheevoPresence is sending to Discord</p>
+            <p>Your connection, account, and what Discord is showing.</p>
           </div>
           <span class="role-badge hidden" id="roleBadge">
             <span class="role-icon" id="roleIcon"></span>
@@ -61,6 +66,7 @@
           </span>
         </div>
 
+        <div class="screen-scroll">
         <div class="status-strip">
           <div class="status-block">
             <div class="status-title">DISCORD</div>
@@ -68,7 +74,7 @@
           </div>
           <div class="status-block ra">
             <div class="status-title">RETROACHIEVEMENTS</div>
-            <div class="status-value"><span class="dot" id="raDot"></span><span id="raStatus">Not connected to RetroAchievements</span></div>
+            <div class="status-value"><span class="dot" id="raDot"></span><span id="raStatus">Not connected</span></div>
           </div>
         </div>
 
@@ -104,6 +110,7 @@
             </label>
           </div>
         </form>
+        </div>
 
         <div class="screen-foot">
           <button class="btn-neutral" id="connectButton" type="button">Connect</button>
@@ -137,7 +144,7 @@
 
       <!-- Logs -->
       <section class="screen" data-screen="logs">
-        <div class="screen-head"><div><h1>Logs &amp; Diagnostics</h1><p>Local log output</p></div></div>
+        <div class="screen-head"><div><h1>Logs &amp; Diagnostics</h1><p>Local log output. No API keys or full paths are collected.</p></div></div>
 
         <pre class="log-pane" id="logPane">Loading log…</pre>
 
@@ -178,8 +185,14 @@
       <!-- About -->
       <section class="screen" data-screen="about">
         <div class="about-head">
-          <div class="about-title">CheevoPresence</div>
-          <div class="about-meta"><span class="ver-chip">v<span id="versionTextAbout"></span></span><span>Mirror RetroAchievements Rich Presence to Discord</span></div>
+          <span class="about-badge">
+            <img class="about-logo" src="__CHEEVO_ABOUT_LOGO__" alt="CheevoPresence logo">
+          </span>
+          <div class="about-titles">
+            <div class="about-title">CheevoPresence</div>
+            <div class="about-sub">Mirror RetroAchievements to Discord.</div>
+          </div>
+          <span class="ver-chip">v<span id="versionTextAbout"></span></span>
         </div>
 
         <div class="about-list">

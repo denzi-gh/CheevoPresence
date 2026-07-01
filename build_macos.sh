@@ -181,6 +181,7 @@ PYTHONPATH="$project_root${PYTHONPATH:+:$PYTHONPATH}" "${build_python}" -m PyIns
   --exclude-module "pystray._win32" \
   --add-data "console_icons.ini:." \
   --add-data "desktop/shell/web_assets:desktop/shell/web_assets" \
+  --add-data ".github/assets/tray-default.png:.github/assets" \
   --add-data "build/macos/generated/cheevoRP_menubar_template.png:." \
   "launch_macos.py"
 

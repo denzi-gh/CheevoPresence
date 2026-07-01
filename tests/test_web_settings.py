@@ -211,7 +211,7 @@ class WebSettingsTests(unittest.TestCase):
         state = WebSettingsAPI(controller).get_state()
 
         self.assertEqual(
-            "Not connected to RetroAchievements",
+            "Not connected",
             state["worker"]["ra_status_text"],
         )
 
@@ -419,11 +419,11 @@ class WebSettingsTests(unittest.TestCase):
         self.assertNotIn("apikey", result["text"].lower())
 
     def test_role_badge_style_supports_reference_tiers(self):
-        self.assertEqual("#f0b450", role_badge_style("junior_developer")["accent"])
-        self.assertEqual("#5fd07f", role_badge_style("developer")["accent"])
+        self.assertEqual("#e0a93c", role_badge_style("junior_developer")["accent"])
+        self.assertEqual("#5cc081", role_badge_style("developer")["accent"])
         self.assertEqual("#b0a0f0", role_badge_style("code_reviewer")["accent"])
         self.assertEqual("#6fcfe2", role_badge_style("moderator")["accent"])
-        self.assertEqual("#f0b450", role_badge_style("unknown")["accent"])
+        self.assertEqual("#e0a93c", role_badge_style("unknown")["accent"])
 
 
 if __name__ == "__main__":

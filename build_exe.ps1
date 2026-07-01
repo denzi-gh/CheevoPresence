@@ -32,6 +32,7 @@ python -m PyInstaller `
   --exclude-module "PyObjCTools" `
   --add-data "console_icons.ini;." `
   --add-data "desktop/shell/web_assets;desktop/shell/web_assets" `
+  --add-data ".github/assets/tray-default.png;.github/assets" `
   --add-data "cheevoRP_icon.ico;." `
   --add-data "cheevoRP_inactive.ico;." `
   --add-data "cheevoRP_active.ico;." `

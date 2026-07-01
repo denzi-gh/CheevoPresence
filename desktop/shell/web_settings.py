@@ -2,9 +2,10 @@
 
 from __future__ import annotations
 
+import base64
+import json
 import logging
 import os
-import json
 import threading
 import webbrowser
 from dataclasses import asdict, is_dataclass
@@ -18,6 +19,7 @@ from desktop.core.settings import normalize_config
 from desktop.platform import get_platform_services
 from desktop.runtime.log_events import AREA_SETTINGS, log_event
 from desktop.runtime.storage import (
+    APP_ICON_PNG_FILE,
     get_config_dir,
     get_log_dir,
     get_log_file,
@@ -27,20 +29,21 @@ from desktop.shell.settings_presenter import truncate_status_text
 
 logger = logging.getLogger(__name__)
 
-WINDOW_WIDTH = 700
-WINDOW_HEIGHT = 560
+WINDOW_WIDTH = 720
+WINDOW_HEIGHT = 600
+WEB_RA_DISCONNECTED_TEXT = "Not connected"
 
 ROLE_BADGE_STYLES = {
     "junior_developer": {
-        "accent": "#f0b450",
-        "fill": "rgba(231,163,58,.13)",
-        "border": "rgba(231,163,58,.4)",
+        "accent": "#e0a93c",
+        "fill": "rgba(217,159,43,.12)",
+        "border": "rgba(217,159,43,.4)",
         "icon": "code",
     },
     "developer": {
-        "accent": "#5fd07f",
-        "fill": "rgba(63,191,99,.12)",
-        "border": "rgba(63,191,99,.45)",
+        "accent": "#5cc081",
+        "fill": "rgba(92,192,129,.12)",
+        "border": "rgba(92,192,129,.45)",
         "icon": "code",
     },
     "code_reviewer": {
@@ -84,6 +87,24 @@ def _asset_text(filename):
         return handle.read()
 
 
+def _data_uri_for_file(path):
+    """Return a compact data URI for an image file, or an empty URI if absent."""
+    if not os.path.exists(path):
+        return ""
+    content_type = "image/png" if path.lower().endswith(".png") else "image/x-icon"
+    try:
+        with open(path, "rb") as handle:
+            encoded = base64.b64encode(handle.read()).decode("ascii")
+    except OSError:
+        return ""
+    return f"data:{content_type};base64,{encoded}"
+
+
+def _about_logo_data_uri():
+    """Return the preferred CheevoPresence logo for the About screen."""
+    return _data_uri_for_file(APP_ICON_PNG_FILE)
+
+
 def _settings_html():
     """Return the settings page with CSS and JS inlined for webview engines."""
     html = _asset_text("settings.html")
@@ -95,6 +116,7 @@ def _settings_html():
         '<script src="./settings.js"></script>',
         "<script>\n" + _asset_text("settings.js") + "\n</script>",
     )
+    html = html.replace("__CHEEVO_ABOUT_LOGO__", _about_logo_data_uri())
     return html
 
 
@@ -169,9 +191,7 @@ class WebSettingsAPI:
         worker_payload = _dataclass_to_dict(worker_state)
         config = getattr(self.controller, "config", self.cfg)
         if not worker_payload.get("ra_connected"):
-            ra_status_text = str(worker_payload.get("ra_status_text") or "")
-            if ra_status_text.startswith("Connected "):
-                worker_payload["ra_status_text"] = "Not connected to RetroAchievements"
+            worker_payload["ra_status_text"] = WEB_RA_DISCONNECTED_TEXT
         worker_payload["status_text"] = truncate_status_text(
             worker_payload.get("status_text", "")
         )
@@ -567,7 +587,7 @@ class WebSettingsWindow:
             min_size=(WINDOW_WIDTH, WINDOW_HEIGHT),
             resizable=False,
             frameless=False,
-            background_color="#15191f",
+            background_color="#16171b",
         )
         self.api.set_window(window)
         try:

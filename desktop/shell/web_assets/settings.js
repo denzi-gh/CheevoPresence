@@ -302,7 +302,7 @@ function applyState(state) {
   var raClass = statusClass(worker.ra_connected ? "connected" : "error", worker.ra_connected);
 
   setText(els.discordStatus, worker.status_text || "Not running");
-  setText(els.raStatus, worker.ra_status_text || "Not connected to RetroAchievements");
+  setText(els.raStatus, worker.ra_status_text || "Not connected");
   applyDot(els.discordDot, discordClass);
   applyDot(els.raDot, raClass);
   applyStatusText(els.discordStatus.parentElement, discordClass);
