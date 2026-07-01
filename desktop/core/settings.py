@@ -15,7 +15,6 @@ DEFAULT_CONFIG = {
 
 
 def normalize_config(raw, decode_api_key=None):
-    """Coerce loose JSON config data into the app's validated shape."""
     cfg = dict(DEFAULT_CONFIG)
     if not isinstance(raw, dict):
         return cfg

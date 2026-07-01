@@ -6,7 +6,6 @@ LINUX_SETTINGS_CLIENT_FLAG = "--linux-settings-client"
 
 
 def main():
-    """Dispatch to the Linux host or the companion settings helper."""
     if LINUX_SETTINGS_CLIENT_FLAG in sys.argv:
         flag_index = sys.argv.index(LINUX_SETTINGS_CLIENT_FLAG)
         from desktop.shell.settings_client import main as settings_main

@@ -10,10 +10,7 @@
   <link rel="stylesheet" href="./settings.css">
 </head>
 <body>
-  <!-- Sidebar shell; the OS keeps the native window frame. -->
   <div class="window">
-
-    <!-- Sidebar -->
     <nav class="sidebar">
       <div class="nav" id="navList">
         <div class="nav-group-label">MENU</div>
@@ -50,15 +47,12 @@
       </div>
     </nav>
 
-    <!-- Content -->
     <main class="content">
-
-      <!-- Status -->
       <section class="screen active" data-screen="status">
         <div class="screen-head">
           <div>
             <h1>Status</h1>
-            <p>Your connection, account, and what Discord is showing.</p>
+            <p>Your connection, account, and what Discord is showing</p>
           </div>
           <span class="role-badge hidden" id="roleBadge">
             <span class="role-icon" id="roleIcon"></span>
@@ -121,7 +115,6 @@
         </div>
       </section>
 
-      <!-- Behaviour -->
       <section class="screen" data-screen="behaviour">
         <div class="screen-head"><div><h1>Behaviour</h1><p>How presence updates and what Discord shows</p></div></div>
 
@@ -142,9 +135,8 @@
         </div>
       </section>
 
-      <!-- Logs -->
       <section class="screen" data-screen="logs">
-        <div class="screen-head"><div><h1>Logs &amp; Diagnostics</h1><p>Local log output. No API keys or full paths are collected.</p></div></div>
+        <div class="screen-head"><div><h1>Logs &amp; Diagnostics</h1></div></div>
 
         <pre class="log-pane" id="logPane">Loading log…</pre>
 
@@ -164,9 +156,8 @@
         <div class="log-path" id="logPath"></div>
       </section>
 
-      <!-- RA dev settings -->
       <section class="screen" data-screen="radev">
-        <div class="screen-head"><div><h1>RA Dev Settings</h1><p>Settings for users that develop RetroAchievements.</p></div></div>
+        <div class="screen-head"><div><h1>RA Dev Settings</h1><p>Settings for users that develop RetroAchievements</p></div></div>
 
         <div class="dev-banner" id="devBanner">
           <span class="role-badge inline" id="roleBadgeDev"><span class="role-icon" id="roleIconDev"></span><span id="roleLabelDev"></span></span>
@@ -182,7 +173,6 @@
         </div>
       </section>
 
-      <!-- About -->
       <section class="screen" data-screen="about">
         <div class="about-head">
           <span class="about-badge">
@@ -190,7 +180,7 @@
           </span>
           <div class="about-titles">
             <div class="about-title">CheevoPresence</div>
-            <div class="about-sub">Mirror RetroAchievements to Discord.</div>
+            <div class="about-sub">Mirror RetroAchievements Activity to Discord</div>
           </div>
           <span class="ver-chip">v<span id="versionTextAbout"></span></span>
         </div>
@@ -204,13 +194,12 @@
           <button class="about-row update hidden" id="updateButton" type="button"><span id="updateLabel">Update available</span><span class="chev">›</span></button>
         </div>
 
-        <div class="about-foot">Made by Denzi · MIT License</div>
+        <div class="about-foot">Made by Denzi · GPL-3.0 License</div>
       </section>
 
     </main>
   </div>
 
-  <!-- Message modal -->
   <div class="modal hidden" id="messageModal" role="dialog" aria-modal="true">
     <div class="modal-panel">
       <h3 id="messageTitle"></h3>

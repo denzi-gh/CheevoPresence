@@ -8,18 +8,16 @@ from desktop.core.constants import RA_API_BASE
 
 
 class APIResponseError(Exception):
-    """Raised when RetroAchievements returns an unexpected payload shape."""
+    pass
 
 
 class RAClient:
-    """Small RetroAchievements API client backed by a requests-like session."""
 
     def __init__(self, session=None, base_url=RA_API_BASE):
         self.session = session or requests.Session()
         self.base_url = base_url.rstrip("/")
 
     def _get_json_dict(self, path, params, timeout=10):
-        """Fetch one endpoint and require a dictionary JSON payload."""
         response = self.session.get(
             f"{self.base_url}/{path}",
             params=params,
@@ -32,7 +30,6 @@ class RAClient:
         return data
 
     def get_user_summary(self, username, apikey):
-        """Fetch the current RetroAchievements session summary for a user."""
         no_cache = datetime.now().strftime("%d%m%Y%H%M%S")
         return self._get_json_dict(
             "API_GetUserSummary.php",
@@ -40,14 +37,12 @@ class RAClient:
         )
 
     def get_game(self, username, apikey, game_id):
-        """Fetch static metadata for the currently active RetroAchievements game."""
         return self._get_json_dict(
             "API_GetGame.php",
             {"z": username, "y": apikey, "i": game_id},
         )
 
     def get_user_progress(self, username, apikey, game_id):
-        """Fetch the current user's achievement progress for one game."""
         return self._get_json_dict(
             "API_GetUserProgress.php",
             {"u": username, "y": apikey, "i": game_id},

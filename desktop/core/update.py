@@ -6,7 +6,6 @@ import re
 
 
 def _version_key(value):
-    """Convert a version-like string into a comparable numeric tuple."""
     if not isinstance(value, str):
         return None
     match = re.search(r"(\d+)(?:\.(\d+))?(?:\.(\d+))?", value.strip())
@@ -19,7 +18,6 @@ def _version_key(value):
 
 
 def normalize_version_label(value):
-    """Return a normalized dotted version string if one can be parsed."""
     key = _version_key(value)
     if key is None:
         return None
@@ -27,7 +25,6 @@ def normalize_version_label(value):
 
 
 def is_newer_version(candidate, current):
-    """Return whether the candidate version is newer than the current version."""
     candidate_key = _version_key(candidate)
     current_key = _version_key(current)
     if candidate_key is None or current_key is None:
@@ -36,7 +33,6 @@ def is_newer_version(candidate, current):
 
 
 def load_update_override(path, current_version):
-    """Load an optional local update override file used for release-flow testing."""
     if not path or not os.path.exists(path):
         return None
 

@@ -16,7 +16,6 @@ logger = logging.getLogger(__name__)
 
 
 def _run_settings_fallback(controller, reason):
-    """Run a visible settings window when no indicator backend is available."""
     log_event(
         logger,
         AREA_STARTUP,
@@ -32,7 +31,6 @@ def _run_settings_fallback(controller, reason):
 
 
 def main():
-    """Boot the Linux native tray app and optionally open Settings on launch."""
     tray_mode = "--tray" in sys.argv
     mode = "tray" if tray_mode else "settings"
     platform = get_platform_services()

@@ -8,7 +8,6 @@ from desktop.core.constants import APP_NAME
 
 
 class DataBlob(ctypes.Structure):
-    """Mirror the Win32 DATA_BLOB struct used by DPAPI."""
 
     _fields_ = [
         ("cbData", ctypes.c_uint),
@@ -17,7 +16,6 @@ class DataBlob(ctypes.Structure):
 
 
 def _blob_from_bytes(data):
-    """Wrap Python bytes in a DATA_BLOB plus a keepalive buffer."""
     if not data:
         return DataBlob(), None
     buffer = ctypes.create_string_buffer(data)
@@ -25,7 +23,6 @@ def _blob_from_bytes(data):
 
 
 def protect_api_key(value):
-    """Encrypt the API key for storage, using DPAPI on Windows."""
     if not value:
         return ""
 
@@ -49,7 +46,6 @@ def protect_api_key(value):
 
 
 def unprotect_api_key(value):
-    """Decrypt a previously stored API key back into plain text."""
     if not isinstance(value, str) or not value:
         return ""
 

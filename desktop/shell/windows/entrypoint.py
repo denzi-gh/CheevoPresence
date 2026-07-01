@@ -16,7 +16,6 @@ logger = logging.getLogger(__name__)
 
 
 def main():
-    """Boot the tray app and optionally open the settings window on launch."""
     if WINDOWS_SETTINGS_CLIENT_FLAG in sys.argv:
         flag_index = sys.argv.index(WINDOWS_SETTINGS_CLIENT_FLAG)
         from desktop.shell.settings_client import main as settings_main

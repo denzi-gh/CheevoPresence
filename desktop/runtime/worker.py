@@ -37,7 +37,6 @@ logger = logging.getLogger(__name__)
 
 
 class RPCWorker:
-    """Poll RetroAchievements and mirror the active session to Discord RPC."""
 
     def __init__(
         self,
@@ -76,11 +75,9 @@ class RPCWorker:
         self.mirrored_presence = None
 
     def set_status_callback(self, callback):
-        """Register the UI-facing status callback used by the runtime shell."""
         self._external_callback = callback
 
     def status_callback(self, status, text):
-        """Store the latest worker status and forward it to the UI if present."""
         with self._state_lock:
             self.current_status = status
             self.status_text = text
@@ -89,7 +86,6 @@ class RPCWorker:
             callback(status, text)
 
     def set_ra_status(self, connected):
-        """Track whether the RetroAchievements API is currently reachable."""
         with self._state_lock:
             self.ra_connected = connected
             username = str(self.config.get("username") or "").strip()
@@ -108,7 +104,6 @@ class RPCWorker:
                 self.mirrored_presence = None
 
     def set_ra_role(self, permissions):
-        """Track display metadata for the connected user's RA role."""
         role = role_from_permissions(permissions)
         with self._state_lock:
             self.ra_permissions = role.permissions if role else None
@@ -117,7 +112,6 @@ class RPCWorker:
             self.config["dev_mode"] = is_elevated_permission(permissions)
 
     def get_state(self):
-        """Return an immutable snapshot of UI-facing worker state."""
         with self._state_lock:
             thread_alive = self.thread is not None and self.thread.is_alive()
             return WorkerState(
@@ -135,15 +129,12 @@ class RPCWorker:
             )
 
     def is_busy(self):
-        """Return whether the worker is active or still shutting down."""
         return self.get_state().is_busy
 
     def is_stopping(self):
-        """Return whether the worker is in its shutdown grace period."""
         return self.get_state().is_stopping
 
     def start(self, config=None):
-        """Start the polling thread if credentials are available."""
         with self._state_lock:
             if self.running or (self.thread is not None and self.thread.is_alive()):
                 log_event(logger, AREA_WORKER, "start_skipped", reason="already_running")
@@ -183,7 +174,6 @@ class RPCWorker:
             return True
 
     def stop(self, timeout=35):
-        """Request a clean worker shutdown and wait briefly for it to finish."""
         with self._state_lock:
             thread = self.thread
             if not self.running and not (thread and thread.is_alive()):
@@ -224,18 +214,15 @@ class RPCWorker:
         return stopped
 
     def _should_stop(self):
-        """Return whether the polling loop should exit on the next check."""
         return self._stop_event.is_set() or not self.running
 
     def _current_thread_done(self):
-        """Mark the current worker thread as finished in shared state."""
         with self._state_lock:
             self.running = False
             if threading.current_thread() is self.thread:
                 self.thread = None
 
     def _unexpected_api_response(self):
-        """Surface a standard unexpected-API-response error to the UI."""
         log_event(
             logger,
             AREA_RA,
@@ -248,12 +235,10 @@ class RPCWorker:
         self.status_callback("error", "API error: unexpected response")
 
     def _clear_mirrored_presence(self):
-        """Clear the settings preview for the last successful Discord update."""
         with self._state_lock:
             self.mirrored_presence = None
 
     def _set_mirrored_presence(self, last_game_id, presence):
-        """Store the exact Discord-facing fields the settings UI can preview."""
         update_kwargs = presence.update_kwargs
         buttons = update_kwargs.get("buttons") or []
         with self._state_lock:
@@ -275,7 +260,6 @@ class RPCWorker:
             )
 
     def _sync_gateway_from_worker(self):
-        """Keep compatibility fields in sync before delegating to the gateway."""
         self.discord_gateway.presence_factory = self._presence_factory
         self.discord_gateway.status_callback = self.status_callback
         self.discord_gateway.rpc = self.rpc
@@ -284,32 +268,27 @@ class RPCWorker:
         self.discord_gateway.start_time = self.start_time
 
     def _sync_worker_from_gateway(self):
-        """Mirror gateway-owned Discord state onto legacy worker attributes."""
         self.rpc = self.discord_gateway.rpc
         self.rpc_connected = self.discord_gateway.rpc_connected
         self.rpc_pipe = self.discord_gateway.rpc_pipe
         self.start_time = self.discord_gateway.start_time
 
     def _connect_rpc(self):
-        """Open the Discord IPC connection if it is not already active."""
         self._sync_gateway_from_worker()
         connected = self.discord_gateway.connect()
         self._sync_worker_from_gateway()
         return connected
 
     def _disconnect_rpc(self):
-        """Clear Discord presence and close the current IPC client safely."""
         self._sync_gateway_from_worker()
         self.discord_gateway.disconnect()
         self._sync_worker_from_gateway()
         self._clear_mirrored_presence()
 
     def _presence_builder(self):
-        """Create a presence builder from the latest runtime config."""
         return PresenceBuilder(dict(self.config), self.console_icons)
 
     def _loop(self):
-        """Continuously poll RA, build presence data, and update Discord."""
         try:
             log_event(logger, AREA_WORKER, "loop_started")
             self.set_ra_status(False)
@@ -335,9 +314,6 @@ class RPCWorker:
                         log_event(logger, AREA_RA, "connection_succeeded")
                     last_game_id = coerce_progress_int(user_data.get("LastGameID", 0))
 
-
-                    # Test Dev Mode by forcing "Developing Achievements" activity
-                    # rp_msg = user_data.get("RichPresenceMsg", "")
                     rp_msg = user_data.get("RichPresenceMsg", "")
                     if not isinstance(rp_msg, str):
                         raise APIResponseError
@@ -537,7 +513,6 @@ class RPCWorker:
             )
 
     def _sleep(self, seconds):
-        """Sleep in one-second slices so shutdown stays responsive."""
         for _ in range(int(seconds)):
             if self._should_stop():
                 return

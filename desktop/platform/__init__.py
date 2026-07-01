@@ -1,4 +1,3 @@
-"""Platform-specific desktop adapters."""
 
 import os
 import sys
@@ -10,7 +9,6 @@ _platform_services = None
 
 
 def get_platform_services() -> PlatformServices:
-    """Return the singleton platform adapter for the current runtime."""
     global _platform_services
     if _platform_services is None:
         if os.name == "nt":

@@ -1,1 +1,0 @@
-"""Windows desktop shell implementation."""

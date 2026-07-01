@@ -15,7 +15,6 @@ logger = logging.getLogger(__name__)
 
 
 def main():
-    """Boot the macOS menu-bar app and optionally open Settings on launch."""
     tray_mode = "--tray" in sys.argv
     mode = "tray" if tray_mode else "settings"
     platform = get_platform_services()

@@ -5,7 +5,6 @@ import tkinter.font as tkfont
 
 
 class Tooltip:
-    """Show a compact hover tooltip for a Tk widget."""
 
     def __init__(self, widget, text):
         self.widget = widget
@@ -16,7 +15,6 @@ class Tooltip:
         widget.bind("<ButtonPress>", self.hide)
 
     def show(self, _event=None):
-        """Render the tooltip next to the owning widget."""
         if self.tip_window or not self.text:
             return
         x = self.widget.winfo_rootx() + self.widget.winfo_width() + 10
@@ -39,7 +37,6 @@ class Tooltip:
         ).pack()
 
     def hide(self, _event=None):
-        """Close the tooltip if it is currently visible."""
         if self.tip_window:
             self.tip_window.destroy()
             self.tip_window = None
@@ -75,12 +72,10 @@ DEFAULT_ROLE_BADGE_STYLE = ROLE_BADGE_STYLES["junior_developer"]
 
 
 def role_badge_style(tier):
-    """Return drawing colors and icon metadata for a role badge tier."""
     return ROLE_BADGE_STYLES.get(tier, DEFAULT_ROLE_BADGE_STYLE)
 
 
 class RoleBadge(tk.Canvas):
-    """Draw a compact rounded RetroAchievements role badge."""
 
     ICON_SIZE = 11
     PADDING_LEFT = 8
@@ -103,7 +98,6 @@ class RoleBadge(tk.Canvas):
         self.tier = ""
 
     def set_role(self, label, tier):
-        """Redraw the badge for a role label and tier."""
         self.label = str(label or "")
         self.tier = str(tier or "")
         self.delete("all")
@@ -144,7 +138,6 @@ class RoleBadge(tk.Canvas):
         )
 
     def _rounded_rect(self, x1, y1, x2, y2, radius, fill, outline):
-        """Draw a rounded rectangle from primitive canvas shapes."""
         self.create_rectangle(x1 + radius, y1, x2 - radius, y2, fill=fill, outline=fill)
         self.create_rectangle(x1, y1 + radius, x2, y2 - radius, fill=fill, outline=fill)
         self.create_oval(x1, y1, x1 + radius * 2, y1 + radius * 2, fill=fill, outline=fill)

@@ -36,7 +36,6 @@ logger = logging.getLogger(__name__)
 
 
 def acquire_single_instance():
-    """Create a Windows mutex so only one tray instance can run at a time."""
     global _single_instance_mutex
 
     if os.name != "nt":
@@ -71,7 +70,6 @@ def acquire_single_instance():
 
 
 def notify_already_running():
-    """Show a small info dialog when a second instance is launched."""
     message = f"{APP_NAME} is already running in the system tray."
 
     if os.name == "nt":
@@ -88,7 +86,6 @@ def notify_already_running():
 
 
 def request_running_app_exit():
-    """Signal the running tray instance to shut itself down."""
     if os.name != "nt":
         return False
 
@@ -110,7 +107,6 @@ def request_running_app_exit():
 
 
 def start_exit_listener(callback):
-    """Listen for a named Win32 event triggered by `--exit`."""
     global _exit_event_handle, _exit_listener_thread
 
     if os.name != "nt" or not callable(callback):
@@ -148,20 +144,17 @@ def start_exit_listener(callback):
 
 
 def get_exe_path():
-    """Return the path to the running executable or script."""
     if getattr(sys, "frozen", False):
         return sys.executable
     return os.path.abspath(sys.argv[0])
 
 
 def _encode_relaunch_args(values):
-    """Serialize relaunch arguments into a compact command-line token."""
     raw = json.dumps(list(values or []), separators=(",", ":")).encode("utf-8")
     return base64.urlsafe_b64encode(raw).decode("ascii")
 
 
 def _decode_relaunch_args(value):
-    """Restore relaunch arguments previously encoded for the update helper."""
     if not value:
         return []
     try:
@@ -173,7 +166,6 @@ def _decode_relaunch_args(value):
 
 
 def _append_update_log(log_path, message):
-    """Append a timestamped line to the helper log when troubleshooting updates."""
     try:
         with open(log_path, "a", encoding="utf-8") as handle:
             handle.write(f"{time.strftime('%Y-%m-%d %H:%M:%S')} {message}\n")
@@ -182,7 +174,6 @@ def _append_update_log(log_path, message):
 
 
 def _wait_for_process_exit(pid, timeout_seconds=120):
-    """Wait for a Windows process id to exit, falling back to polling if needed."""
     if not pid or os.name != "nt":
         return
     kernel32 = ctypes.windll.kernel32
@@ -209,7 +200,6 @@ def _wait_for_process_exit(pid, timeout_seconds=120):
 
 
 def _replace_file_with_retries(source_path, target_path, log_path, attempts=60):
-    """Retry replacing the old EXE until Windows releases the target file."""
     for attempt in range(1, attempts + 1):
         try:
             os.replace(source_path, target_path)
@@ -222,7 +212,6 @@ def _replace_file_with_retries(source_path, target_path, log_path, attempts=60):
 
 
 def _spawn_cleanup(cleanup_paths):
-    """Remove temporary update directories after the helper exits."""
     paths = [path for path in cleanup_paths if path and os.path.isdir(path)]
     if not paths:
         return
@@ -238,7 +227,6 @@ def _spawn_cleanup(cleanup_paths):
 
 
 def _parse_update_helper_args(argv):
-    """Parse the embedded update-helper command line into a small options dict."""
     options = {}
     index = 0
     while index < len(argv):
@@ -261,7 +249,6 @@ def _parse_update_helper_args(argv):
 
 
 def handle_special_args(argv):
-    """Run the embedded updater helper when the app is launched in helper mode."""
     if UPDATE_HELPER_FLAG not in argv:
         return False
 
@@ -306,13 +293,11 @@ def handle_special_args(argv):
 
 
 def supports_self_update():
-    """Return whether the packaged Windows executable can replace itself."""
     exe_path = get_exe_path()
     return os.name == "nt" and getattr(sys, "frozen", False) and exe_path.lower().endswith(".exe")
 
 
 def select_update_asset(assets):
-    """Choose the preferred Windows release asset from the GitHub asset list."""
     preferred = None
     for asset in assets or []:
         if not isinstance(asset, dict):
@@ -329,7 +314,6 @@ def select_update_asset(assets):
 
 
 def stage_update_install(download_path, relaunch_args, source_pid):
-    """Copy the running EXE to temp and launch it in embedded update-helper mode."""
     if not supports_self_update():
         return "Automatic updates only work in the packaged Windows .exe build."
 
@@ -356,7 +340,6 @@ def stage_update_install(download_path, relaunch_args, source_pid):
 
 
 def set_autostart(enable):
-    """Enable or disable Windows startup by writing the Run registry value."""
     try:
         import winreg
 
@@ -398,7 +381,6 @@ def set_autostart(enable):
 
 
 def is_autostart_enabled():
-    """Return whether the Windows startup registry entry already exists."""
     try:
         import winreg
 
@@ -418,7 +400,6 @@ def is_autostart_enabled():
 
 
 def get_tray_icon_class(pystray):
-    """Return the tray icon class that matches the current OS behavior."""
     if os.name != "nt":
         return pystray.Icon
 
@@ -473,66 +454,51 @@ def get_tray_icon_class(pystray):
 
 
 class WindowsPlatformServices(PlatformServices):
-    """Bundle the Windows-specific hooks needed by the desktop runtime."""
 
     startup_toggle_label = "Launch on Windows startup"
     settings_menu_default = True
 
     def get_config_dir(self, app_name, runtime_root_dir):
-        """Store config under %APPDATA% when it is available on Windows."""
         appdata = os.getenv("APPDATA")
         if appdata:
             return os.path.join(appdata, app_name)
         return None
 
     def protect_api_key(self, value):
-        """Protect the API key using Windows DPAPI."""
         return protect_api_key(value)
 
     def unprotect_api_key(self, value):
-        """Restore a DPAPI-protected API key."""
         return unprotect_api_key(value)
 
     def acquire_single_instance(self):
-        """Claim the Windows single-instance mutex."""
         return acquire_single_instance()
 
     def notify_already_running(self):
-        """Show the standard duplicate-instance notice."""
         return notify_already_running()
 
     def request_running_app_exit(self):
-        """Signal the running tray instance to exit."""
         return request_running_app_exit()
 
     def start_exit_listener(self, callback):
-        """Start listening for external shutdown requests."""
         return start_exit_listener(callback)
 
     def set_autostart(self, enable):
-        """Update the Windows Run registry entry."""
         return set_autostart(enable)
 
     def is_autostart_enabled(self):
-        """Read the Windows Run registry state."""
         return is_autostart_enabled()
 
     def get_tray_icon_class(self, pystray):
-        """Return the Windows tray class with double-click support."""
         return get_tray_icon_class(pystray)
 
     def supports_self_update(self):
-        """Report whether the running Windows app can replace its own EXE."""
         return supports_self_update()
 
     def select_update_asset(self, assets):
-        """Pick the preferred EXE asset for the latest Windows release."""
         return select_update_asset(assets)
 
     def stage_update_install(self, download_path, relaunch_args, source_pid):
-        """Start the detached Windows helper that installs the downloaded EXE."""
         return stage_update_install(download_path, relaunch_args, source_pid)
 
     def handle_special_args(self, argv):
-        """Run the embedded Windows update helper before normal app startup."""
         return handle_special_args(argv)

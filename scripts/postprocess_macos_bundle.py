@@ -14,7 +14,6 @@ from desktop.core.constants import APP_NAME, APP_VERSION
 
 
 def main(app_path):
-    """Set the menu-bar bundle plist fields expected by the macOS app."""
     bundle_path = Path(app_path).resolve()
     plist_path = bundle_path / "Contents" / "Info.plist"
     if not plist_path.exists():

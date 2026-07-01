@@ -17,7 +17,6 @@ DEVELOPER_ACTIVITY_MESSAGES = frozenset(DEVELOPER_ACTIVITY_TITLES)
 
 @dataclass(frozen=True)
 class PresenceBuildResult:
-    """Discord payload plus metadata used for status text and safe logging."""
 
     update_kwargs: dict
     game_title: str
@@ -30,7 +29,6 @@ class PresenceBuildResult:
 
 
 def coerce_progress_int(value):
-    """Coerce loose API progress values into non-negative integers."""
     try:
         return max(0, int(value))
     except (TypeError, ValueError):
@@ -38,7 +36,6 @@ def coerce_progress_int(value):
 
 
 def build_achievement_state(total, achieved, achieved_hc):
-    """Translate raw progress counts into the Discord state label."""
     if total <= 0:
         return "No achievements available", 0
     if achieved <= 0:
@@ -49,26 +46,22 @@ def build_achievement_state(total, achieved, achieved_hc):
 
 
 def is_developer_activity(rich_presence_message):
-    """Return whether the RA rich presence text means achievement dev work."""
     return _normalize_developer_activity(rich_presence_message) in DEVELOPER_ACTIVITY_MESSAGES
 
 
 def _normalize_developer_activity(rich_presence_message):
-    """Return the case-folded developer activity key, if present."""
     if not isinstance(rich_presence_message, str):
         return ""
     return rich_presence_message.strip().casefold()
 
 
 def build_display_game_title(game_title, developer_activity):
-    """Decorate the Discord game title when the user is developing achievements."""
     if developer_activity:
         return f"\U0001F6E0\ufe0f {game_title} \U0001F6E0\ufe0f"
     return game_title
 
 
 def build_activity_fields(game_title, rich_presence_message, use_developer_titles):
-    """Return Discord name/details for normal play or developer activity."""
     developer_key = _normalize_developer_activity(rich_presence_message)
     developer_activity = developer_key in DEVELOPER_ACTIVITY_MESSAGES
     if developer_activity and use_developer_titles:
@@ -79,14 +72,12 @@ def build_activity_fields(game_title, rich_presence_message, use_developer_title
 
 
 class PresenceBuilder:
-    """Translate validated RA payloads into pypresence update arguments."""
 
     def __init__(self, config, console_icons):
         self.config = config
         self.console_icons = console_icons
 
     def build(self, username, last_game_id, rich_presence_message, game_data, progress_data, start_time):
-        """Build the Discord presence payload for the active game session."""
         game_title = game_data.get("GameTitle", "Unknown")
         if not isinstance(game_title, str):
             raise APIResponseError

@@ -24,7 +24,6 @@ logger = logging.getLogger(__name__)
 
 
 def parse_os_release(path="/etc/os-release"):
-    """Parse an ``os-release`` file into a dict; missing file yields ``{}``."""
     data = {}
     try:
         with open(path, "r", encoding="utf-8") as handle:
@@ -41,7 +40,6 @@ def parse_os_release(path="/etc/os-release"):
 
 
 def collect_linux_diagnostics():
-    """Collect safe Linux distro/desktop/session signals for logging."""
     os_release = parse_os_release()
     return {
         "distro_id": os_release.get("ID", "unknown"),
@@ -55,7 +53,6 @@ def collect_linux_diagnostics():
 
 
 def collect_windows_diagnostics():
-    """Collect safe Windows version signals for logging."""
     return {
         "release": platform_module.release(),
         "version": platform_module.version(),
@@ -63,12 +60,10 @@ def collect_windows_diagnostics():
 
 
 def collect_macos_diagnostics():
-    """Collect safe macOS version signals for logging."""
     return {"mac_version": platform_module.mac_ver()[0] or "unknown"}
 
 
 def collect_platform_diagnostics(platform=None):
-    """Return platform-specific diagnostic fields for the current system."""
     system = platform_module.system()
     if system == "Linux":
         return collect_linux_diagnostics()
@@ -80,7 +75,6 @@ def collect_platform_diagnostics(platform=None):
 
 
 def log_startup_diagnostics(platform=None):
-    """Emit ``[STARTUP]``/``[PLATFORM]``/``[PATHS]`` diagnostics into the log."""
     log_event(
         logger,
         AREA_STARTUP,

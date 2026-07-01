@@ -16,21 +16,18 @@ logger = logging.getLogger(__name__)
 
 
 def get_resource_dir():
-    """Return the directory that contains bundled runtime assets."""
     if getattr(sys, "frozen", False):
         return getattr(sys, "_MEIPASS", os.path.dirname(sys.executable))
     return os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 
 def get_runtime_root_dir():
-    """Return the directory next to the running EXE or top-level script tree."""
     if getattr(sys, "frozen", False):
         return os.path.dirname(sys.executable)
     return os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 
 def get_config_dir(platform=None):
-    """Return the per-user directory where the runtime config should live."""
     platform = platform or get_platform_services()
     runtime_root_dir = get_runtime_root_dir()
     preferred_dir = platform.get_config_dir(APP_NAME, runtime_root_dir)
@@ -42,12 +39,10 @@ def get_config_dir(platform=None):
 
 
 def get_config_file(platform=None):
-    """Return the config file path for the selected platform adapter."""
     return os.path.join(get_config_dir(platform), "config.json")
 
 
 def get_log_dir(platform=None):
-    """Return the per-user directory where runtime diagnostic logs should live."""
     platform = platform or get_platform_services()
     config_dir = get_config_dir(platform)
     get_platform_log_dir = getattr(platform, "get_log_dir", None)
@@ -63,7 +58,6 @@ def get_log_dir(platform=None):
 
 
 def get_log_file(platform=None):
-    """Return the main runtime diagnostic log file path."""
     return os.path.join(get_log_dir(platform), "cheevo.log")
 
 
@@ -88,7 +82,6 @@ UPDATE_OVERRIDE_FILE = os.path.join(RUNTIME_ROOT_DIR, UPDATE_TEST_FILE_NAME)
 
 
 def load_config(platform=None):
-    """Load config from disk and migrate the legacy in-repo file if needed."""
     platform = platform or get_platform_services()
     config_file = get_config_file(platform)
     source = config_file
@@ -149,7 +142,6 @@ def load_config(platform=None):
 
 
 def save_config(cfg, platform=None):
-    """Persist the normalized config to disk with a protected API key."""
     platform = platform or get_platform_services()
     config_dir = get_config_dir(platform)
     config_file = get_config_file(platform)
@@ -207,7 +199,6 @@ def save_config(cfg, platform=None):
 
 
 def load_console_icons():
-    """Load RetroAchievements console image mappings from the INI file."""
     cp = configparser.ConfigParser()
     cp.read(CONSOLE_ICONS_FILE)
     mapping = {}

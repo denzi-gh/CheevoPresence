@@ -1,5 +1,3 @@
-/* CheevoPresence settings — dark graphite redesign. */
-
 :root {
   color-scheme: dark;
   --ui: "Hanken Grotesk", system-ui, "Segoe UI", sans-serif;
@@ -33,7 +31,7 @@ button, input, select { font-family: inherit; }
   background: #16171b;
 }
 
-/* ============ Sidebar (navigation rail) ============ */
+/* Sidebar */
 .sidebar {
   width: 198px;
   flex: 0 0 198px;
@@ -90,7 +88,6 @@ button, input, select { font-family: inherit; }
   stroke-linejoin: round;
 }
 
-/* Active item — graphite well, accent icon. */
 .nav-item.active {
   background: #2c2f37;
   box-shadow: inset 0 0 0 1px rgba(255, 255, 255, .06), 0 1px 2px rgba(0, 0, 0, .25);
@@ -99,10 +96,8 @@ button, input, select { font-family: inherit; }
 }
 .nav-item.active .nav-ic { stroke: #e0a93c; }
 
-/* Dev nav item — green accent when active. */
 .nav-item.dev.active .nav-ic { stroke: #5cc081; }
 
-/* Version footer. */
 .sidebar-foot {
   display: flex;
   align-items: center;
@@ -129,7 +124,7 @@ button, input, select { font-family: inherit; }
 }
 .version-pill.update { border-color: rgba(217, 159, 43, .55); color: #e0a93c; }
 
-/* ============ Content ============ */
+/* Content */
 .content { flex: 1; min-width: 0; position: relative; background: #16171b; }
 
 .screen {
@@ -142,7 +137,6 @@ button, input, select { font-family: inherit; }
 
 .screen-head { display: flex; align-items: flex-start; gap: 12px; flex: 0 0 auto; }
 
-/* Scrollable middle so the status footer stays pinned regardless of content. */
 .screen-scroll {
   display: flex;
   flex-direction: column;
@@ -173,7 +167,7 @@ button, input, select { font-family: inherit; }
   text-transform: uppercase;
 }
 
-/* ---- Status: connection card ---- */
+/* Status */
 .status-strip {
   display: flex;
   margin-top: 18px;
@@ -210,7 +204,6 @@ button, input, select { font-family: inherit; }
 .dot.connecting { background: #d99f2b; }
 .dot.error { background: #c2575c; }
 
-/* ---- Status: now mirroring ---- */
 .mirror-card {
   margin-top: 13px;
   padding: 16px 18px;
@@ -248,7 +241,6 @@ button, input, select { font-family: inherit; }
 }
 .mirror-action:hover { border-color: #3a3d45; color: #e0a93c; }
 
-/* ---- Role badge / chip ---- */
 .role-badge {
   display: inline-flex; align-items: center; gap: 7px;
   margin-left: auto; padding: 5px 11px;
@@ -276,7 +268,7 @@ button, input, select { font-family: inherit; }
   mask-image: url("data:image/svg+xml,%3Csvg width='24' height='24' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='2.3' stroke-linecap='round' stroke-linejoin='round' xmlns='http://www.w3.org/2000/svg'%3E%3Ccircle cx='11' cy='11' r='7'/%3E%3Cpath d='m20 20-3.5-3.5'/%3E%3C/svg%3E");
 }
 
-/* ---- Fields / inputs ---- */
+/* Form controls */
 .field { display: block; }
 .field > span { display: block; margin-bottom: 7px; color: #8b9099; font-size: 12px; font-weight: 600; }
 .field-row, .number-row { display: flex; gap: 14px; }
@@ -302,7 +294,6 @@ button, input, select { font-family: inherit; }
   border: 0; background: transparent; color: #e0a93c; font-size: 12px; font-weight: 600; cursor: default;
 }
 
-/* ---- Toggle cards ---- */
 .toggles {
   margin-top: 20px;
   padding: 4px 18px;
@@ -336,7 +327,6 @@ button, input, select { font-family: inherit; }
 .toggle-row input:checked + .switch::after { left: 18px; }
 .toggle-row input:disabled + .switch { opacity: .6; }
 
-/* ---- Status footer actions ---- */
 .screen-foot { display: flex; align-items: center; flex: 0 0 auto; padding-top: 20px; gap: 12px; }
 .btn-neutral {
   height: 40px; padding: 0 22px; border: 1px solid #3a3d45; border-radius: 7px;
@@ -369,7 +359,7 @@ button, input, select { font-family: inherit; }
 .btn-exit svg { width: 14px; height: 14px; fill: none; stroke: #e08a8f; stroke-width: 2.2; stroke-linecap: round; stroke-linejoin: round; }
 .btn-exit:hover { border-color: #6f474a; }
 
-/* ---- Logs ---- */
+/* Logs */
 .log-pane {
   margin: 16px 0 0; padding: 15px 16px; flex: 1; min-height: 0;
   overflow: auto; border: 1px solid #2a2d33; border-radius: 9px; background: #101114;
@@ -383,7 +373,6 @@ button, input, select { font-family: inherit; }
 }
 .log-path { margin-top: 14px; color: #7b818a; font: 500 11.5px var(--mono); }
 
-/* ---- RA dev banner ---- */
 .dev-banner {
   display: flex; align-items: center; gap: 13px; margin-top: 20px;
   padding: 15px 17px; border: 1px solid rgba(217, 159, 43, .32); border-radius: 10px;
@@ -391,7 +380,7 @@ button, input, select { font-family: inherit; }
 }
 .dev-banner-text { color: #c2a061; font-size: 12.5px; font-weight: 500; }
 
-/* ---- About ---- */
+/* About */
 .about-head { display: flex; align-items: center; gap: 14px; }
 .about-badge {
   width: 46px; height: 46px; flex: 0 0 auto;
@@ -433,7 +422,7 @@ button, input, select { font-family: inherit; }
 .about-row.update { color: #7bb0e8; }
 .about-foot { margin-top: auto; padding-top: 18px; color: #7b818a; font-size: 12px; font-weight: 500; }
 
-/* ---- Modal ---- */
+/* Modal */
 .hidden { display: none !important; }
 .modal {
   position: fixed; inset: 0; display: flex; align-items: center; justify-content: center;

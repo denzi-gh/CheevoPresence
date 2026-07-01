@@ -5,7 +5,6 @@ from dataclasses import dataclass
 
 @dataclass(frozen=True)
 class RoleInfo:
-    """Display metadata for a special RetroAchievements account role."""
 
     permissions: int
     label: str
@@ -22,7 +21,6 @@ ROLE_BY_PERMISSION = {
 
 
 def coerce_permissions(value):
-    """Return an integer permission value, or None for unusable data."""
     try:
         return int(value)
     except (TypeError, ValueError):
@@ -30,7 +28,6 @@ def coerce_permissions(value):
 
 
 def role_from_permissions(value):
-    """Return special-role display metadata for a RetroAchievements permission."""
     permissions = coerce_permissions(value)
     if permissions is None:
         return None
@@ -38,11 +35,9 @@ def role_from_permissions(value):
 
 
 def has_special_role(value):
-    """Return whether a permission value represents an elevated RA role."""
     return role_from_permissions(value) is not None
 
 
 def is_elevated_permission(value):
-    """Return whether a permission value should unlock developer settings."""
     permissions = coerce_permissions(value)
     return permissions is not None and permissions > 1

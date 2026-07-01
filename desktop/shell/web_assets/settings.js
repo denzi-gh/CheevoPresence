@@ -1,5 +1,3 @@
-/* Sidebar settings UI over the local web_settings.py API. */
-
 var els = {};
 var latestState = null;
 var pollingTimer = null;
@@ -35,7 +33,6 @@ function bindElements() {
   els.linkButtons = document.querySelectorAll("[data-link]");
 }
 
-/* Small DOM helpers. */
 function setText(node, value) {
   if (node) { node.textContent = value == null ? "" : String(value); }
 }
@@ -76,7 +73,6 @@ function valueOr(value, fallback) {
   return value === undefined || value === null ? fallback : value;
 }
 
-/* Sidebar navigation. */
 function showScreen(name) {
   activeScreen = name;
   var i;
@@ -90,7 +86,6 @@ function showScreen(name) {
   else { stopLogsPolling(); }
 }
 
-/* Config form mapping. */
 function formPayload() {
   return {
     username: els.usernameInput.value,
@@ -101,7 +96,6 @@ function formPayload() {
     show_gamepage_button: els.gamepageCheck.checked,
     show_achievement_progress: els.achievementCheck.checked,
     start_on_boot: els.bootCheck.checked,
-    /* Reuses the existing developer-title setting. */
     use_retroachievements_developer_titles: els.devActivityCheck.checked
   };
 }
@@ -119,15 +113,13 @@ function applyConfig(config) {
   els.devActivityCheck.checked = !!config.use_retroachievements_developer_titles;
 }
 
-/* Debounce autosave so toggles feel instant. */
 function scheduleSave() {
   if (saveTimer) { window.clearTimeout(saveTimer); }
   saveTimer = window.setTimeout(function () {
-    request("save_config", { payload: formPayload() }, null, function () { /* Keep the UI moving. */ });
+    request("save_config", { payload: formPayload() }, null, function () {});
   }, 400);
 }
 
-/* Status rendering. */
 function statusClass(status, connected) {
   if (connected || status === "connected") { return "connected"; }
   if (status === "connecting") { return "connecting"; }
@@ -168,7 +160,6 @@ function applyRoleBadge(badge, icon, label, worker, style) {
   show(badge);
 }
 
-/* RA dev settings unlock from the account entitlement. */
 function applyDevGating(state) {
   var unlocked = !!state.developer_settings_unlocked;
   els.navRadev.classList.toggle("hidden", !unlocked);
@@ -318,7 +309,6 @@ function applyState(state) {
   setControlsEnabled(state);
 }
 
-/* Poll app state. */
 function refreshState() {
   request("get_state", {}, function (state) { applyState(state); }, function () {
     window.clearInterval(pollingTimer);
@@ -333,7 +323,6 @@ function loadConfig() {
   }, function (err) { handleError("Startup Failed", err); });
 }
 
-/* Connect and disconnect. */
 function toggleConnection() {
   if (latestState && latestState.worker && latestState.worker.running) {
     request("disconnect", {}, function (result) {
@@ -357,7 +346,6 @@ function toggleConnection() {
   });
 }
 
-/* Updates. */
 function installUpdate() {
   if (!latestState || !latestState.update_status || !latestState.update_status.available) { return; }
   var update = latestState.update_status;
@@ -371,7 +359,6 @@ function installUpdate() {
   }, function (err) { handleError("Update Failed", err); });
 }
 
-/* Logs screen. */
 function renderLogLines(lines) {
   if (!lines || !lines.length) { els.logPane.textContent = "No log output yet."; return; }
   els.logPane.textContent = lines.join("\n");
@@ -385,7 +372,6 @@ function loadLogs() {
     if (result.path) { setText(els.logPath, result.path); }
     if (result.level && els.logLevel) { els.logLevel.value = result.level; }
   }, function () {
-    /* Older backend fallback. */
     els.logPane.textContent = "Live log tail is not available yet.\nUse \u201cOpen logs folder\u201d to view cheevo.log.";
   });
 }
@@ -417,7 +403,6 @@ function copyDiagnostics() {
   });
 }
 
-/* Wire events once. */
 function bindEvents() {
   if (eventsBound) { return; }
   eventsBound = true;
@@ -438,7 +423,6 @@ function bindEvents() {
     setText(els.revealKey, apiKeyVisible ? "Hide" : "Reveal");
   });
 
-  /* Autosave non-credential settings. */
   var autosaveInputs = [
     els.intervalInput, els.timeoutInput, els.profileCheck, els.gamepageCheck,
     els.achievementCheck, els.bootCheck, els.devActivityCheck
@@ -452,7 +436,7 @@ function bindEvents() {
   els.copyDiagBtn.addEventListener("click", copyDiagnostics);
   els.mirrorActions.addEventListener("click", openMirrorAction);
   els.logLevel.addEventListener("change", function () {
-    request("set_log_level", { level: els.logLevel.value }, null, function () { /* Keep the UI moving. */ });
+    request("set_log_level", { level: els.logLevel.value }, null, function () {});
   });
 
   els.updateButton.addEventListener("click", installUpdate);
@@ -472,7 +456,6 @@ function openLogs() {
   }, function (err) { handleError("Logs", err); });
 }
 
-/* Boot the page. */
 function init() {
   bindElements();
   bindEvents();

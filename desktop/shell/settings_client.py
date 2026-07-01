@@ -16,7 +16,6 @@ logger = logging.getLogger(__name__)
 
 
 def _show_startup_error(message):
-    """Display a small native error when the settings client cannot boot."""
     try:
         root = tk.Tk()
         root.withdraw()
@@ -27,7 +26,6 @@ def _show_startup_error(message):
 
 
 def main(address=None, auth_token=None):
-    """Start the shared Tk settings window against the host app bridge."""
     from desktop.platform import get_platform_services
     from desktop.runtime.logging_setup import setup_logging
     from desktop.shell.ipc import (

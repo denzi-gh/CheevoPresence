@@ -29,7 +29,6 @@ IPC_LOG_THROTTLE_SECONDS = 60
 
 
 def _socket_dir():
-    """Return the per-user directory used to host the settings socket."""
     user_token = str(os.getuid()) if hasattr(os, "getuid") else os.environ.get("USERNAME", "user")
     path = os.path.join(tempfile.gettempdir(), f"CheevoPresence-{user_token}")
     os.makedirs(path, mode=0o700, exist_ok=True)
@@ -41,22 +40,18 @@ def _socket_dir():
 
 
 def _make_socket_path():
-    """Return a short AF_UNIX socket path that fits platform length limits."""
     return os.path.join(_socket_dir(), f"settings-{uuid.uuid4().hex[:8]}.sock")
 
 
 def _supports_unix_socket():
-    """Return whether this Python/socket runtime supports AF_UNIX."""
     return hasattr(socket, "AF_UNIX")
 
 
 def _format_tcp_address(host, port):
-    """Return an environment-safe loopback TCP address string."""
     return f"{_TCP_ADDRESS_PREFIX}{host}:{port}"
 
 
 def _parse_tcp_address(address):
-    """Parse a loopback TCP settings address into a socket endpoint tuple."""
     if not str(address).startswith(_TCP_ADDRESS_PREFIX):
         raise ValueError("Invalid TCP IPC address.")
     endpoint = str(address)[len(_TCP_ADDRESS_PREFIX) :]
@@ -67,17 +62,14 @@ def _parse_tcp_address(address):
 
 
 def _is_tcp_address(address):
-    """Return whether the settings address uses the TCP fallback transport."""
     return str(address or "").startswith(_TCP_ADDRESS_PREFIX)
 
 
 def _serialize_dataclass(value):
-    """Convert runtime dataclasses into plain dictionaries for IPC."""
     return asdict(value)
 
 
 def _coerce_mirrored_presence(payload):
-    """Return a typed mirrored presence snapshot from IPC JSON payloads."""
     if not isinstance(payload, dict):
         return None
     buttons = payload.get("buttons") or []
@@ -116,7 +108,6 @@ def _coerce_mirrored_presence(payload):
 
 
 def _public_config(config):
-    """Return the config fields safe to include in background state polling."""
     payload = dict(config or {})
     payload["apikey"] = ""
     payload["apikey_present"] = bool((config or {}).get("apikey"))
@@ -124,7 +115,6 @@ def _public_config(config):
 
 
 def _read_message(conn):
-    """Read a single newline-delimited JSON message from a socket."""
     chunks = []
     total = 0
     while True:
@@ -145,12 +135,10 @@ def _read_message(conn):
 
 
 def _write_message(conn, payload):
-    """Write one newline-delimited JSON response to a socket."""
     conn.sendall(json.dumps(payload).encode("utf-8") + b"\n")
 
 
 def _format_ipc_error(exc):
-    """Return a client-safe IPC error string."""
     if isinstance(exc, PermissionError):
         return "Invalid IPC token."
     if isinstance(exc, ValueError):
@@ -159,7 +147,6 @@ def _format_ipc_error(exc):
 
 
 class SettingsHostService:
-    """Expose the main-app controller to the companion settings process."""
 
     def __init__(self, controller, on_quit=None):
         self.controller = controller
@@ -173,7 +160,6 @@ class SettingsHostService:
         self._last_request_log = {}
 
     def start(self):
-        """Start the background request loop."""
         self._stop_event.clear()
         self._uses_unix_socket = _supports_unix_socket()
         if self._uses_unix_socket:
@@ -195,7 +181,6 @@ class SettingsHostService:
         log_event(logger, AREA_IPC, "host_service_start", socket=self.address)
 
     def stop(self):
-        """Stop serving requests and remove the socket path."""
         self._stop_event.set()
         if self.listener is not None:
             try:
@@ -217,14 +202,12 @@ class SettingsHostService:
         log_event(logger, AREA_IPC, "host_service_stop")
 
     def get_launch_env(self):
-        """Return the environment variables required by the settings client."""
         return {
             SETTINGS_ADDRESS_ENV: self.address,
             SETTINGS_AUTH_ENV: self.auth_token,
         }
 
     def _build_state(self):
-        """Capture the current controller/worker/platform snapshot."""
         worker = self.controller.worker
         worker_state = worker.get_state()
         return {
@@ -238,7 +221,6 @@ class SettingsHostService:
         }
 
     def _dispatch(self, request):
-        """Handle a single IPC request and return a serializable response."""
         if request.get("token") != self.auth_token:
             raise PermissionError("Invalid IPC token.")
 
@@ -262,7 +244,6 @@ class SettingsHostService:
         raise ValueError(f"Unknown IPC method: {method}")
 
     def _should_log_request(self, method, now):
-        """Return whether a successful request should be logged, throttling polls."""
         if method not in IPC_THROTTLED_METHODS:
             return True
         last = self._last_request_log.get(method, 0)
@@ -272,7 +253,6 @@ class SettingsHostService:
         return False
 
     def _serve(self):
-        """Serve one-request connections until the host shuts down."""
         while not self._stop_event.is_set():
             try:
                 conn, _addr = self.listener.accept()
@@ -320,7 +300,6 @@ class SettingsHostService:
 
 
 class RemoteWorkerProxy:
-    """Mirror the main worker state inside the companion settings process."""
 
     def __init__(self):
         self.running = False
@@ -336,7 +315,6 @@ class RemoteWorkerProxy:
         self._is_stopping = False
 
     def update(self, payload):
-        """Replace the cached worker snapshot."""
         self.running = bool(payload.get("running", False))
         self.current_status = str(payload.get("current_status") or "disconnected")
         self.status_text = str(payload.get("status_text") or "Not running")
@@ -356,15 +334,12 @@ class RemoteWorkerProxy:
         self._is_stopping = bool(payload.get("is_stopping", False))
 
     def is_busy(self):
-        """Return whether the host worker is running or shutting down."""
         return self._is_busy
 
     def is_stopping(self):
-        """Return whether the host worker is in its shutdown grace period."""
         return self._is_stopping
 
     def get_state(self):
-        """Return the cached host worker snapshot."""
         return WorkerState(
             running=self.running,
             is_busy=self._is_busy,
@@ -381,24 +356,20 @@ class RemoteWorkerProxy:
 
 
 class RemotePlatformProxy:
-    """Expose the platform fields the Tk settings UI reads."""
 
     def __init__(self):
         self.startup_toggle_label = "Launch on system startup"
         self._autostart_enabled = False
 
     def update(self, payload):
-        """Replace the cached platform snapshot."""
         self.startup_toggle_label = str(payload.get("startup_toggle_label") or self.startup_toggle_label)
         self._autostart_enabled = bool(payload.get("autostart_enabled", False))
 
     def is_autostart_enabled(self):
-        """Return the cached launch-at-login state."""
         return self._autostart_enabled
 
 
 class RemoteAppController:
-    """Controller adapter used by the shared Tk UI in the settings client."""
 
     def __init__(self, address=None, auth_token=None):
         self.address = address or os.environ.get(SETTINGS_ADDRESS_ENV, "").strip()
@@ -412,7 +383,6 @@ class RemoteAppController:
         self.poll_runtime_state()
 
     def _request(self, method, **params):
-        """Send one request to the host service and return the decoded result."""
         if _is_tcp_address(self.address):
             family = socket.AF_INET
             endpoint = _parse_tcp_address(self.address)
@@ -438,43 +408,35 @@ class RemoteAppController:
         return response.get("result")
 
     def _apply_state(self, state):
-        """Update cached worker/platform/update state from an IPC snapshot."""
         self.config = dict(state.get("config") or {})
         self.worker.update(state.get("worker") or {})
         self.platform.update(state.get("platform") or {})
         self._update_status = UpdateStatus(**(state.get("update_status") or {}))
 
     def poll_runtime_state(self):
-        """Refresh the cached state from the host app."""
         self._apply_state(self._request("get_state"))
 
     def load_config(self):
-        """Load the persisted config from the host controller."""
         self.config = dict(self._request("load_config") or {})
         return dict(self.config)
 
     def get_update_status(self):
-        """Return the most recently cached update status."""
         return self._update_status
 
     def connect(self, config):
-        """Request a connect action from the host app."""
         result = ConnectResult(**(self._request("connect", config=config) or {}))
         self.poll_runtime_state()
         return result
 
     def disconnect(self):
-        """Request a disconnect action from the host app."""
         result = self._request("disconnect")
         self.poll_runtime_state()
         return bool((result or {}).get("success"))
 
     def install_update(self):
-        """Request update staging from the host app."""
         result = UpdateInstallResult(**(self._request("install_update") or {}))
         self.poll_runtime_state()
         return result
 
     def quit_app(self):
-        """Request full app shutdown from the host app."""
         self._request("quit_app")

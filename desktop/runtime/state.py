@@ -5,7 +5,6 @@ from dataclasses import dataclass
 
 @dataclass(frozen=True)
 class MirroredPresence:
-    """Discord presence snapshot mirrored into the settings UI."""
 
     game_id: int
     title: str
@@ -23,7 +22,6 @@ class MirroredPresence:
 
 @dataclass(frozen=True)
 class WorkerState:
-    """Immutable snapshot of the worker lifecycle and display status."""
 
     running: bool
     is_busy: bool

@@ -63,12 +63,10 @@ DEFAULT_ROLE_BADGE_STYLE = ROLE_BADGE_STYLES["junior_developer"]
 
 
 def role_badge_style(tier):
-    """Return web badge colors and icon metadata for a role tier."""
     return ROLE_BADGE_STYLES.get(tier, DEFAULT_ROLE_BADGE_STYLE)
 
 
 def _asset_path(filename):
-    """Resolve a web settings asset in source and frozen builds."""
     bundled = os.path.join(
         get_resource_dir(),
         "desktop",
@@ -82,13 +80,11 @@ def _asset_path(filename):
 
 
 def _asset_text(filename):
-    """Read a packaged web settings asset as UTF-8 text."""
     with open(_asset_path(filename), "r", encoding="utf-8") as handle:
         return handle.read()
 
 
 def _data_uri_for_file(path):
-    """Return a compact data URI for an image file, or an empty URI if absent."""
     if not os.path.exists(path):
         return ""
     content_type = "image/png" if path.lower().endswith(".png") else "image/x-icon"
@@ -101,12 +97,10 @@ def _data_uri_for_file(path):
 
 
 def _about_logo_data_uri():
-    """Return the preferred CheevoPresence logo for the About screen."""
     return _data_uri_for_file(APP_ICON_PNG_FILE)
 
 
 def _settings_html():
-    """Return the settings page with CSS and JS inlined for webview engines."""
     html = _asset_text("settings.html")
     html = html.replace(
         '<link rel="stylesheet" href="./settings.css">',
@@ -136,7 +130,6 @@ def _public_config(config):
 
 
 def _developer_settings_unlocked(worker_payload, config):
-    """Return whether RA developer-only settings should be accessible."""
     if worker_payload.get("ra_connected"):
         permissions = worker_payload.get("ra_permissions")
         return permissions is not None and is_elevated_permission(permissions)
@@ -144,7 +137,6 @@ def _developer_settings_unlocked(worker_payload, config):
 
 
 class WebSettingsAPI:
-    """Bridge used by the HTML settings window to call Python app services."""
 
     def __init__(self, controller, on_close=None, on_quit=None):
         self.controller = controller
@@ -160,7 +152,6 @@ class WebSettingsAPI:
         self._lock = threading.Lock()
 
     def set_window(self, window):
-        """Attach the pywebview window after it has been created."""
         self.window = window
 
     def _poll_controller_state(self):
@@ -216,7 +207,6 @@ class WebSettingsAPI:
         }
 
     def load_config(self):
-        """Load the editable form config, including the API key field."""
         with self._lock:
             self.cfg = dict(self.controller.load_config())
             return {
@@ -225,7 +215,6 @@ class WebSettingsAPI:
             }
 
     def get_state(self):
-        """Return a sanitized runtime snapshot for polling."""
         with self._lock:
             self._poll_controller_state()
             return self._state_payload()
@@ -271,7 +260,6 @@ class WebSettingsAPI:
         return normalize_config(merged)
 
     def save_config(self, payload):
-        """Persist visible settings without starting or stopping monitoring."""
         with self._lock:
             state = self._state_payload()
             worker_payload = state.get("worker") or {}
@@ -304,7 +292,6 @@ class WebSettingsAPI:
             return response
 
     def connect(self, payload):
-        """Persist visible settings and start monitoring."""
         with self._lock:
             config = self._visible_config(payload)
             if not config["username"] or not config["apikey"]:
@@ -329,13 +316,11 @@ class WebSettingsAPI:
             return payload
 
     def disconnect(self):
-        """Stop active monitoring."""
         success = self.controller.disconnect()
         with self._lock:
             return {"success": bool(success), "state": self._state_payload()}
 
     def install_update(self):
-        """Install a staged update, then request app shutdown on success."""
         with self._lock:
             self._is_installing_update = True
         try:
@@ -352,7 +337,6 @@ class WebSettingsAPI:
         return payload
 
     def open_url(self, target):
-        """Open one of the footer links in the system browser."""
         urls = {
             "api_key": RA_SETTINGS_URL,
             "retroachievements": "https://retroachievements.org",
@@ -366,7 +350,6 @@ class WebSettingsAPI:
         return {"success": True}
 
     def open_mirror_url(self, url):
-        """Open a mirrored presence action if it targets RetroAchievements."""
         parsed = urlparse(str(url or ""))
         if parsed.scheme != "https" or parsed.netloc != "retroachievements.org":
             return {"success": False}
@@ -374,7 +357,6 @@ class WebSettingsAPI:
         return {"success": True}
 
     def open_logs(self):
-        """Open the runtime log folder in the OS file manager."""
         platform = get_platform_services()
         log_dir = get_log_dir(platform)
         os.makedirs(log_dir, exist_ok=True)
@@ -389,7 +371,6 @@ class WebSettingsAPI:
         return {"success": bool(success), "path": log_dir}
 
     def tail_logs(self, lines=200):
-        """Return the last lines of the runtime log for the diagnostics screen."""
         platform = get_platform_services()
         path = get_log_file(platform)
         try:
@@ -407,14 +388,12 @@ class WebSettingsAPI:
         return {"lines": out, "path": get_log_dir(platform), "level": level}
 
     def set_log_level(self, level):
-        """Apply the selected root logging level for the current process."""
         name = str(level or "INFO").upper()
         value = getattr(logging, name, logging.INFO)
         logging.getLogger().setLevel(value)
         return {"success": True, "level": logging.getLevelName(value)}
 
     def copy_diagnostics(self):
-        """Return a compact support diagnostics blob without secrets."""
         import platform as platform_module
 
         platform = get_platform_services()
@@ -432,7 +411,6 @@ class WebSettingsAPI:
         return {"text": "\n".join(lines)}
 
     def dispatch(self, method, params=None):
-        """Dispatch an HTTP API method from the web settings page."""
         params = params or {}
         if method == "load_config":
             return self.load_config()
@@ -463,20 +441,17 @@ class WebSettingsAPI:
         raise ValueError(f"Unknown web settings method: {method}")
 
     def minimize_window(self):
-        """Minimize the webview window."""
         if self.window is not None:
             self.window.minimize()
         return {"success": True}
 
     def close_window(self):
-        """Close only the settings window."""
         self._notify_closed()
         if self.window is not None:
             self.window.destroy()
         return {"success": True}
 
     def exit_app(self):
-        """Close settings and delegate full app shutdown to the host."""
         self._notify_closed()
         if self.window is not None:
             self.window.destroy()
@@ -485,7 +460,6 @@ class WebSettingsAPI:
         return {"success": True}
 
     def on_window_closed(self, *_args):
-        """Handle native window close events."""
         self._notify_closed()
 
     def _notify_closed(self):
@@ -497,7 +471,6 @@ class WebSettingsAPI:
 
 
 class WebSettingsWindow:
-    """Render the HTML settings window and block until it closes."""
 
     def __init__(self, controller, on_close=None, on_quit=None, on_ready=None):
         self.api = WebSettingsAPI(controller, on_close=on_close, on_quit=on_quit)

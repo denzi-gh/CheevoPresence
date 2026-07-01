@@ -20,7 +20,6 @@ logger = logging.getLogger(__name__)
 
 
 class TkSettingsWindow:
-    """Render the shared settings window and drive connect/disconnect actions."""
 
     BG = "#0b0d12"
     SURFACE = "#131821"
@@ -35,7 +34,6 @@ class TkSettingsWindow:
     FONT = "Segoe UI"
 
     def __init__(self, controller, on_close=None, on_quit=None, on_ready=None):
-        """Build the settings window and start its status refresh loop."""
         self.controller = controller
         self.worker = controller.worker
         self.platform = controller.platform
@@ -69,7 +67,6 @@ class TkSettingsWindow:
         self.root.mainloop()
 
     def focus_window(self):
-        """Bring the existing window to the foreground."""
         if self._destroyed:
             return
         try:
@@ -80,7 +77,6 @@ class TkSettingsWindow:
             pass
 
     def _configure_root(self):
-        """Configure the top-level window and its icon behavior."""
         self.root.title(f"{APP_NAME}")
         self.root.resizable(False, False)
         self.root.configure(bg=self.BORDER if self._use_custom_mac_chrome else self.BG)
@@ -92,7 +88,6 @@ class TkSettingsWindow:
         self._set_window_icon()
 
     def _set_window_icon(self):
-        """Set the window/taskbar icon using the format each platform supports."""
         # Windows renders the multi-resolution .ico via iconbitmap. On X11/Tk,
         # iconbitmap expects an XBM bitmap and silently rejects .ico, so the
         # window keeps the default Tk icon; iconphoto with a PNG is required.
@@ -112,7 +107,6 @@ class TkSettingsWindow:
                 pass
 
     def _build_styles(self):
-        """Register the ttk styles used by the settings controls."""
         style = ttk.Style(self.root)
         style.theme_use("clam")
         for name, bg, fg, active_bg in [
@@ -142,7 +136,6 @@ class TkSettingsWindow:
         )
 
     def _build_layout(self):
-        """Assemble the full settings window layout."""
         container = tk.Frame(
             self.root,
             bg=self.BORDER if self._use_custom_mac_chrome else self.BG,
@@ -181,7 +174,6 @@ class TkSettingsWindow:
         self._build_footer()
 
     def _build_mac_chrome(self, parent):
-        """Build the custom macOS title bar shown inside the settings window."""
         chrome = tk.Frame(parent, bg=self.SURFACE, height=34)
         chrome.pack(fill="x")
         chrome.pack_propagate(False)
@@ -214,7 +206,6 @@ class TkSettingsWindow:
             widget.bind("<ButtonRelease-1>", self._end_mac_drag)
 
     def _build_mac_control(self, parent, fill, hover_fill, command):
-        """Render one macOS-style traffic light button in the custom title bar."""
         button = tk.Canvas(
             parent,
             width=14,
@@ -238,7 +229,6 @@ class TkSettingsWindow:
             button.bind("<Button-1>", lambda _event: command())
 
     def _begin_mac_drag(self, event):
-        """Capture the initial pointer position before dragging the custom title bar."""
         if self._mac_fullscreen:
             return
         self._mac_drag_state = (
@@ -249,7 +239,6 @@ class TkSettingsWindow:
         )
 
     def _perform_mac_drag(self, event):
-        """Move the borderless window while dragging the custom title bar."""
         if self._mac_drag_state is None or self._mac_fullscreen:
             return
         start_x, start_y, window_x, window_y = self._mac_drag_state
@@ -258,17 +247,14 @@ class TkSettingsWindow:
         )
 
     def _end_mac_drag(self, _event=None):
-        """Release the custom title bar drag state."""
         self._mac_drag_state = None
 
     def _on_mac_window_map(self, _event=None):
-        """Reapply the borderless style after the window is restored on macOS."""
         if not self._use_custom_mac_chrome or self._destroyed:
             return
         self.root.after(10, self._restore_mac_chrome)
 
     def _restore_mac_chrome(self):
-        """Restore the custom macOS chrome after a minimize/restore cycle."""
         if self._destroyed or not self._use_custom_mac_chrome:
             return
         try:
@@ -277,7 +263,6 @@ class TkSettingsWindow:
             pass
 
     def _minimize_window(self):
-        """Minimize the custom-chrome macOS window."""
         if self._destroyed:
             return
         try:
@@ -287,7 +272,6 @@ class TkSettingsWindow:
             pass
 
     def _toggle_fullscreen(self):
-        """Toggle a fullscreen-style presentation for the borderless macOS window."""
         if self._destroyed:
             return
         try:
@@ -305,7 +289,6 @@ class TkSettingsWindow:
             pass
 
     def _build_status_section(self):
-        """Build the Discord and RetroAchievements status summary row."""
         worker_state = self._worker_state()
         status_frame = self._card(self.main)
         status_frame.pack(fill="x")
@@ -371,14 +354,12 @@ class TkSettingsWindow:
         self.ra_status_label.pack(side="left", padx=(4, 0))
 
     def _build_content_columns(self):
-        """Build the account and behavior panels."""
         cols = tk.Frame(self.main, bg=self.BG)
         cols.pack(fill="x", pady=(12, 0))
         self._build_account_panel(cols)
         self._build_behavior_panel(cols)
 
     def _build_account_panel(self, parent):
-        """Build the account credential inputs."""
         left = self._card(parent)
         left.pack(side="left", fill="both", expand=True)
         account_header = tk.Frame(left, bg=self.SURFACE)
@@ -417,7 +398,6 @@ class TkSettingsWindow:
         self.apikey_entry.pack(fill="x", pady=(4, 0), ipady=6)
 
     def _build_behavior_panel(self, parent):
-        """Build the behavior controls and startup options."""
         right = self._card(parent)
         right.pack(side="left", fill="both", expand=True, padx=(12, 0))
         tk.Label(
@@ -554,7 +534,6 @@ class TkSettingsWindow:
         self.autostart_check.pack(anchor="w")
 
     def _refresh_developer_options_visibility(self):
-        """Show developer-only settings when Dev Mode is enabled."""
         if self.dev_mode_var.get():
             if not self.developer_options_frame.winfo_ismapped():
                 pack_kwargs = {"fill": "x", "padx": (18, 0)}
@@ -565,7 +544,6 @@ class TkSettingsWindow:
             self.developer_options_frame.pack_forget()
 
     def _build_buttons(self):
-        """Build the bottom action row."""
         btn_frame = tk.Frame(self.main, bg=self.BG)
         btn_frame.pack(fill="x", pady=(14, 0))
         self.connection_btn = ttk.Button(
@@ -590,7 +568,6 @@ class TkSettingsWindow:
         self.quit_btn.pack(side="right")
 
     def _build_footer(self):
-        """Build the footer link row."""
         footer = tk.Frame(self.main, bg=self.BG)
         footer.pack(fill="x", pady=(12, 0))
         version_group = tk.Frame(footer, bg=self.BG)
@@ -643,7 +620,6 @@ class TkSettingsWindow:
             label.bind("<Leave>", lambda e, l=label: l.configure(fg=self.MUTED))
 
     def _open_log_folder(self):
-        """Open the runtime log folder in the OS file manager."""
         # The settings window always runs on the local machine, so resolve the
         # real platform services here rather than the IPC platform proxy.
         platform = get_platform_services()
@@ -661,7 +637,6 @@ class TkSettingsWindow:
             messagebox.showinfo("Logs", f"Log folder:\n{log_dir}")
 
     def _center_window(self):
-        """Center the finished window and lock in its minimum size."""
         self.root.update_idletasks()
         width = max(680, self.root.winfo_reqwidth() + 60)
         height = self.root.winfo_reqheight() + 10
@@ -675,7 +650,6 @@ class TkSettingsWindow:
             self.root.maxsize(width + 200, height)
 
     def _card(self, parent):
-        """Create a bordered panel container for grouped settings."""
         return tk.Frame(
             parent,
             bg=self.SURFACE,
@@ -687,7 +661,6 @@ class TkSettingsWindow:
         )
 
     def _entry(self, parent, var, show=None):
-        """Build a themed entry field bound to a Tk variable."""
         return tk.Entry(
             parent,
             textvariable=var,
@@ -706,7 +679,6 @@ class TkSettingsWindow:
         )
 
     def _spinbox(self, parent, var, from_, to, increment=1):
-        """Build a themed numeric spinbox for integer settings."""
         return tk.Spinbox(
             parent,
             from_=from_,
@@ -728,7 +700,6 @@ class TkSettingsWindow:
         )
 
     def _poll_controller_state(self):
-        """Refresh controller-owned runtime state when using a remote bridge."""
         poll_state = getattr(self.controller, "poll_runtime_state", None)
         if not callable(poll_state):
             return True
@@ -753,7 +724,6 @@ class TkSettingsWindow:
             return False
 
     def _worker_state(self):
-        """Return a snapshot-like worker state for UI decisions."""
         get_state = getattr(self.worker, "get_state", None)
         if callable(get_state):
             return get_state()
@@ -771,7 +741,6 @@ class TkSettingsWindow:
         )
 
     def _refresh_role_badge(self):
-        """Show or hide the connected RetroAchievements account role badge."""
         worker_state = self._worker_state()
         role_label = getattr(worker_state, "ra_role_label", "")
         role_tier = getattr(worker_state, "ra_role_tier", "")
@@ -786,7 +755,6 @@ class TkSettingsWindow:
             self.role_badge_tooltip.text = ""
 
     def _on_window_close(self):
-        """Dispose the window and notify the tray host that it closed."""
         if self._destroyed:
             return
         self._destroyed = True
@@ -795,7 +763,6 @@ class TkSettingsWindow:
         self.root.destroy()
 
     def request_close(self):
-        """Ask the Tk thread to close the window."""
         if self._destroyed:
             return False
         try:
@@ -805,7 +772,6 @@ class TkSettingsWindow:
             return False
 
     def _queue_ui(self, callback):
-        """Queue a callback on the Tk thread if the window still exists."""
         if self._destroyed:
             return False
         try:
@@ -815,7 +781,6 @@ class TkSettingsWindow:
             return False
 
     def _set_inputs_enabled(self, enabled):
-        """Lock or unlock editable controls based on runtime state."""
         state = "normal" if enabled else "disabled"
         for widget in (
             self.username_entry,
@@ -836,7 +801,6 @@ class TkSettingsWindow:
             self.lock_hint.pack(side="left", padx=(12, 0))
 
     def _refresh_connection_button(self):
-        """Refresh the connect button label and style from worker state."""
         worker_state = self._worker_state()
         if self._is_connecting:
             self.connection_btn.configure(
@@ -864,7 +828,6 @@ class TkSettingsWindow:
             )
 
     def _poll_status(self):
-        """Mirror worker status into the settings window every second."""
         if self._destroyed:
             return
         try:
@@ -897,7 +860,6 @@ class TkSettingsWindow:
             pass
 
     def _refresh_update_notice(self):
-        """Refresh the footer version label based on the cached update state."""
         if self._is_installing_update:
             return
         update_status = self.controller.get_update_status()
@@ -932,11 +894,9 @@ class TkSettingsWindow:
                 self.update_label.pack_forget()
 
     def _on_manual_update_click(self, _event=None):
-        """Open the GitHub releases page for updates that cannot self-install."""
         webbrowser.open(self.controller.get_update_status().release_url)
 
     def _on_update_click(self, _event=None):
-        """Download and stage the latest packaged release for automatic restart."""
         if self._is_installing_update:
             return
         if not self.controller.get_update_status().can_self_install:
@@ -967,7 +927,6 @@ class TkSettingsWindow:
         threading.Thread(target=do_install, daemon=True).start()
 
     def _toggle_connection(self):
-        """Start or stop monitoring after validating the current form data."""
         worker_state = self._worker_state()
         if self._is_connecting or worker_state.is_stopping:
             return
@@ -1052,7 +1011,6 @@ class TkSettingsWindow:
         threading.Thread(target=do_toggle, daemon=True).start()
 
     def _exit_app(self):
-        """Close the window and delegate the full app shutdown if requested."""
         self.connection_btn.configure(state="disabled")
         self.quit_btn.configure(state="disabled")
         self._on_window_close()
