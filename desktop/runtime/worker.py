@@ -15,7 +15,11 @@ from desktop.core.api import (
     ra_get_user_progress,
     ra_get_user_summary,
 )
-from desktop.core.roles import is_elevated_permission, role_from_permissions
+from desktop.core.roles import (
+    debug_forced_role_permission,
+    is_elevated_permission,
+    role_from_permissions,
+)
 from desktop.core.settings import normalize_config
 from desktop.runtime.backoff import BackoffPolicy
 from desktop.runtime.discord_gateway import (
@@ -104,12 +108,16 @@ class RPCWorker:
                 self.mirrored_presence = None
 
     def set_ra_role(self, permissions):
-        role = role_from_permissions(permissions)
+        forced_permission = debug_forced_role_permission()
+        role = role_from_permissions(permissions, forced_permission=forced_permission)
         with self._state_lock:
             self.ra_permissions = role.permissions if role else None
             self.ra_role_label = role.label if role else ""
             self.ra_role_tier = role.tier if role else ""
-            self.config["dev_mode"] = is_elevated_permission(permissions)
+            self.config["dev_mode"] = is_elevated_permission(
+                permissions,
+                forced_permission=forced_permission,
+            )
 
     def get_state(self):
         with self._state_lock:

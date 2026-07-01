@@ -58,6 +58,12 @@ ROLE_BADGE_STYLES = {
         "border": "rgba(86,184,206,.45)",
         "icon": "shield",
     },
+    "admin": {
+        "accent": "#e86666",
+        "fill": "rgba(232,102,102,.13)",
+        "border": "rgba(232,102,102,.45)",
+        "icon": "star",
+    },
 }
 DEFAULT_ROLE_BADGE_STYLE = ROLE_BADGE_STYLES["junior_developer"]
 

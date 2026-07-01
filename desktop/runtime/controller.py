@@ -10,7 +10,7 @@ import requests
 
 from desktop.core.api import APIResponseError, format_api_error
 from desktop.core.ra_client import RAClient
-from desktop.core.roles import is_elevated_permission
+from desktop.core.roles import debug_forced_role_permission, is_elevated_permission
 from desktop.core.settings import normalize_config
 from desktop.platform import get_platform_services
 from desktop.runtime.storage import (
@@ -202,7 +202,10 @@ class AppController:
                     error_message="Unexpected error",
                 )
 
-            derived_dev_mode = is_elevated_permission(user_summary.get("Permissions"))
+            derived_dev_mode = is_elevated_permission(
+                user_summary.get("Permissions"),
+                forced_permission=debug_forced_role_permission(),
+            )
             if self.config.get("dev_mode", False) != derived_dev_mode:
                 self.config["dev_mode"] = derived_dev_mode
                 try:

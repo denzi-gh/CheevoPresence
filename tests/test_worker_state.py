@@ -1,6 +1,8 @@
 import threading
 import unittest
+from unittest.mock import patch
 
+from desktop.core.roles import DEBUG_FORCE_ROLE_PERMISSION_ENV
 from desktop.runtime.presence_builder import PresenceBuilder
 from desktop.runtime.state import MirroredPresence, WorkerState
 from desktop.runtime.worker import RPCWorker
@@ -70,6 +72,30 @@ class WorkerStateTests(unittest.TestCase):
 
         worker.set_ra_role(1)
 
+        self.assertFalse(worker.config["dev_mode"])
+
+    def test_debug_forced_permission_displays_selected_role(self):
+        worker = RPCWorker(initial_config={"dev_mode": False}, console_icons={})
+
+        with patch.dict("os.environ", {DEBUG_FORCE_ROLE_PERMISSION_ENV: "5"}):
+            worker.set_ra_role(1)
+
+        state = worker.get_state()
+        self.assertEqual(5, state.ra_permissions)
+        self.assertEqual("Admin", state.ra_role_label)
+        self.assertEqual("admin", state.ra_role_tier)
+        self.assertTrue(worker.config["dev_mode"])
+
+    def test_debug_forced_registered_permission_clears_role(self):
+        worker = RPCWorker(initial_config={"dev_mode": True}, console_icons={})
+
+        with patch.dict("os.environ", {DEBUG_FORCE_ROLE_PERMISSION_ENV: "1"}):
+            worker.set_ra_role(2)
+
+        state = worker.get_state()
+        self.assertIsNone(state.ra_permissions)
+        self.assertEqual("", state.ra_role_label)
+        self.assertEqual("", state.ra_role_tier)
         self.assertFalse(worker.config["dev_mode"])
 
     def test_ra_connected_status_uses_generic_text_without_username(self):

@@ -2,6 +2,7 @@ import threading
 import unittest
 from unittest.mock import patch
 
+from desktop.core.roles import DEBUG_FORCE_ROLE_PERMISSION_ENV
 from desktop.runtime.controller import AppController
 
 
@@ -34,6 +35,13 @@ class FakeWorker:
 
 
 class ControllerRoleTests(unittest.TestCase):
+    def setUp(self):
+        self._env_patch = patch.dict("os.environ", {DEBUG_FORCE_ROLE_PERMISSION_ENV: ""})
+        self._env_patch.start()
+
+    def tearDown(self):
+        self._env_patch.stop()
+
     def _controller(self, permissions):
         controller = object.__new__(AppController)
         controller.platform = FakePlatform()
@@ -91,6 +99,25 @@ class ControllerRoleTests(unittest.TestCase):
         self.assertTrue(result.success)
         self.assertFalse(result.config["dev_mode"])
         self.assertFalse(controller.worker.started_config["dev_mode"])
+
+    def test_debug_forced_permission_enables_dev_mode_for_normal_permissions(self):
+        controller = self._controller(1)
+        config = {
+            "username": "user",
+            "apikey": "key",
+            "dev_mode": False,
+        }
+
+        with (
+            patch.dict("os.environ", {DEBUG_FORCE_ROLE_PERMISSION_ENV: "2"}),
+            patch("desktop.runtime.controller.save_config") as save_config,
+        ):
+            result = controller.connect(config)
+
+        self.assertTrue(result.success)
+        self.assertTrue(result.config["dev_mode"])
+        self.assertTrue(controller.worker.started_config["dev_mode"])
+        self.assertEqual(2, save_config.call_count)
 
 
 if __name__ == "__main__":

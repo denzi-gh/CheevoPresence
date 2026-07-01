@@ -67,6 +67,12 @@ ROLE_BADGE_STYLES = {
         "border": "#457380",
         "icon": "shield",
     },
+    "admin": {
+        "accent": "#EF6461",
+        "fill": "#351F23",
+        "border": "#874244",
+        "icon": "star",
+    },
 }
 DEFAULT_ROLE_BADGE_STYLE = ROLE_BADGE_STYLES["junior_developer"]
 
@@ -125,6 +131,8 @@ class RoleBadge(tk.Canvas):
             self._draw_shield(icon_x, icon_y, style["accent"])
         elif style["icon"] == "search":
             self._draw_search(icon_x, icon_y, style["accent"])
+        elif style["icon"] == "star":
+            self._draw_star(icon_x, icon_y, style["accent"])
         else:
             self._draw_code(icon_x, icon_y, style["accent"])
 
@@ -200,4 +208,26 @@ class RoleBadge(tk.Canvas):
             fill=color,
             width=1.2,
             capstyle="round",
+        )
+
+    def _draw_star(self, x, y, color):
+        points = [
+            (12, 3),
+            (14.7, 8.5),
+            (21, 9.2),
+            (16.3, 13.5),
+            (17.6, 20),
+            (12, 16.8),
+            (6.4, 20),
+            (7.7, 13.5),
+            (3, 9.2),
+            (9.3, 8.5),
+            (12, 3),
+        ]
+        self.create_line(
+            *self._flatten_points(self._scale_points(points, x, y)),
+            fill=color,
+            width=1.15,
+            capstyle="round",
+            joinstyle="round",
         )

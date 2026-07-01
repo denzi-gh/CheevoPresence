@@ -423,6 +423,7 @@ class WebSettingsTests(unittest.TestCase):
         self.assertEqual("#5cc081", role_badge_style("developer")["accent"])
         self.assertEqual("#b0a0f0", role_badge_style("code_reviewer")["accent"])
         self.assertEqual("#6fcfe2", role_badge_style("moderator")["accent"])
+        self.assertEqual("#e86666", role_badge_style("admin")["accent"])
         self.assertEqual("#e0a93c", role_badge_style("unknown")["accent"])
 
 
