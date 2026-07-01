@@ -1,0 +1,4 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="50" height="26" viewBox="0 0 50 26" font-family="'Segoe UI',Roboto,Helvetica,Arial,sans-serif">
+  <rect x="0.5" y="0.5" width="49" height="25" rx="6" fill="#2a1f18" stroke="#805238" stroke-width="1"/>
+  <text x="11" y="17.08" fill="#f28d4f" font-size="12" font-weight="600">Artist</text>
+</svg>

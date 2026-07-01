@@ -1,0 +1,5 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="95" height="26" viewBox="0 0 95 26" font-family="'Segoe UI',Roboto,Helvetica,Arial,sans-serif">
+  <rect x="0.5" y="0.5" width="94" height="25" rx="6" fill="#182b21" stroke="#3b7048" stroke-width="1"/>
+  <g transform="translate(11 7.0) scale(0.50000)" fill="none" stroke="#5cc081" stroke-width="2.3" stroke-linecap="round" stroke-linejoin="round"><polyline points="8 7 3 12 8 17"/><polyline points="16 7 21 12 16 17"/></g>
+  <text x="30" y="17.08" fill="#5cc081" font-size="12" font-weight="600">Developer</text>
+</svg>
