@@ -39,19 +39,20 @@ class FakeWorker:
 
 
 class FakeController:
-    def __init__(self, config):
+    def __init__(self, config, update_status=None):
         self.config = dict(config)
         self.worker = FakeWorker()
         self.platform = FakePlatform()
         self.connected_config = None
         self.saved_config = None
         self.disconnected = False
+        self.update_status = update_status or UpdateStatus()
 
     def load_config(self):
         return dict(self.config)
 
     def get_update_status(self):
-        return UpdateStatus()
+        return self.update_status
 
     def connect(self, config):
         self.connected_config = dict(config)
@@ -192,6 +193,24 @@ class WebSettingsTests(unittest.TestCase):
 
         self.assertNotIn("apikey", state["config"])
         self.assertTrue(state["config"]["apikey_present"])
+
+    def test_state_payload_exposes_latest_update_version(self):
+        controller = FakeController(
+            {},
+            update_status=UpdateStatus(
+                checked=True,
+                available=True,
+                current_version="1.2.0",
+                latest_version="1.3.0",
+                can_self_install=True,
+            ),
+        )
+
+        state = WebSettingsAPI(controller).get_state()
+
+        self.assertTrue(state["update_status"]["available"])
+        self.assertEqual("1.3.0", state["update_status"]["latest_version"])
+        self.assertTrue(state["update_status"]["can_self_install"])
 
     def test_disconnect_delegates_to_controller(self):
         controller = FakeController({})

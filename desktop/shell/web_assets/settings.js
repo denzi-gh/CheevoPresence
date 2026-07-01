@@ -21,7 +21,7 @@ function bindElements() {
     "mirrorTitle", "mirrorDetails", "mirrorSub", "mirrorActions",
     "connectButton", "exitButton",
     "versionText", "versionTextAbout", "versionPill",
-    "updateButton", "updateLabel",
+    "updateCard", "updateButton", "updateTitle", "updateSub",
     "navRadev", "devGroupLabel",
     "logPane", "logPath", "logLevel", "openLogsBtn", "copyDiagBtn", "aboutLogsBtn",
     "messageModal", "messageTitle", "messageBody", "messageClose"
@@ -284,14 +284,19 @@ function applyConnectionButton(state) {
 
 function applyUpdate(state) {
   var update = state.update_status || {};
-  setText(els.versionText, state.app_version || "");
+  var appVersion = state.app_version || "";
+  var latestVersion = update.latest_version || appVersion;
+  var visibleVersion = update.available ? latestVersion : appVersion;
+  setText(els.versionText, visibleVersion);
   setText(els.versionTextAbout, state.app_version || "");
   if (update.available) {
-    setText(els.updateLabel, update.can_self_install ? "Update available" : "New version available");
-    show(els.updateButton);
+    setText(els.updateTitle, "Update available — v" + latestVersion);
+    setText(els.updateSub, "You're on v" + appVersion + ". New version is ready to download.");
+    setText(els.updateButton, "Download");
+    show(els.updateCard);
     els.versionPill.classList.add("update");
   } else {
-    hide(els.updateButton);
+    hide(els.updateCard);
     els.versionPill.classList.remove("update");
   }
 }
@@ -363,7 +368,7 @@ function installUpdate() {
   if (!latestState || !latestState.update_status || !latestState.update_status.available) { return; }
   var update = latestState.update_status;
   if (!update.can_self_install && update.release_url) { request("open_url", { target: "github" }); return; }
-  setText(els.updateLabel, "Downloading update...");
+  setText(els.updateButton, "Downloading");
   request("install_update", {}, function (result) {
     if (result && !result.success) {
       showMessage(result.error_title || "Update Failed", result.error_message || "Could not install the update.");
@@ -453,7 +458,7 @@ function bindEvents() {
   });
 
   els.updateButton.addEventListener("click", installUpdate);
-  els.versionPill.addEventListener("click", installUpdate);
+  els.versionPill.addEventListener("click", function () { showScreen("about"); });
   els.messageClose.addEventListener("click", hideMessage);
 
   for (i = 0; i < els.linkButtons.length; i += 1) {

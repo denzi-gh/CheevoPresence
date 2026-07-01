@@ -43,7 +43,7 @@
 
       <div class="sidebar-foot">
         <span class="version-caption">VERSION</span>
-        <span class="version-pill" id="versionPill">v<span id="versionText"></span></span>
+        <button class="version-pill" id="versionPill" type="button">v<span id="versionText"></span><span class="version-arrow">↑</span></button>
       </div>
     </nav>
 
@@ -195,13 +195,23 @@
           <span class="ver-chip">v<span id="versionTextAbout"></span></span>
         </div>
 
+        <div class="about-update-card hidden" id="updateCard">
+          <span class="about-update-icon">
+            <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 19V5"></path><path d="m5 12 7-7 7 7"></path></svg>
+          </span>
+          <span class="about-update-copy">
+            <span class="about-update-title" id="updateTitle">Update available</span>
+            <span class="about-update-sub" id="updateSub"></span>
+          </span>
+          <button class="about-update-download" id="updateButton" type="button">Download</button>
+        </div>
+
         <div class="about-list">
           <button class="about-row" data-link="api_key" type="button"><span>Get API Key</span><span class="chev">›</span></button>
           <button class="about-row" data-link="retroachievements" type="button"><span>RetroAchievements</span><span class="chev">›</span></button>
           <button class="about-row" data-link="github" type="button"><span>GitHub</span><span class="chev">›</span></button>
           <button class="about-row kofi" data-link="kofi" type="button"><span>Support on Ko-fi</span><span class="chev">›</span></button>
           <button class="about-row" id="aboutLogsBtn" type="button"><span>Open Logs</span><span class="chev">›</span></button>
-          <button class="about-row update hidden" id="updateButton" type="button"><span id="updateLabel">Update available</span><span class="chev">›</span></button>
         </div>
 
         <div class="about-foot">Made by Denzi · GPL-3.0 License</div>
