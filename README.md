@@ -2,18 +2,20 @@
 
 CheevoPresence is a desktop app for Windows, macOS, and Linux that mirrors your RetroAchievements activity to Discord Rich Presence.
 
-It watches your current RetroAchievements session, detects whether you are actively playing, and updates Discord with your game, platform, achievement progress, and quick links to your RetroAchievements profile and game page.
+It watches your current RetroAchievements session, detects whether you are actively playing, and updates Discord with your game, platform, achievement progress, and quick links to your RetroAchievements profile, created sets, or game page.
 
-![CheevoPresence settings window](./.github/assets/cheevopresence-settings-window.png)
+![CheevoPresence settings window](./.github/assets/cheevopresence1.3.0.png)
 
 ## What It Does
 
 - Shows your current RetroAchievements session as a live Discord Rich Presence with the actual game you are playing
+- Shows a live in-app preview of what is currently being mirrored to Discord
 - Detects when you are no longer actively playing and clears the Discord presence
 - Supports profile and game-page buttons in Discord
+- Detects RetroAchievements developer and staff roles, with optional developer activity titles
 - Runs quietly in the background
 
-This app was made with the intent to be as easy and lightweight as possible. You start the app, put in your RetroAchievements Username and your Web API Key and it works. Close the Window and youre gucci.
+This app was made with the intent to be as easy and lightweight as possible. You start the app, put in your RetroAchievements username and Web API key, click `Connect`, and it works. Close the settings window and CheevoPresence keeps running in the tray/menu bar.
 
 ![CheevoPresence settings window](./.github/assets/discordquickinfo.png)
 
@@ -38,6 +40,9 @@ To use CheevoPresence, you need:
 
 If everything is set up correctly, CheevoPresence will begin updating your Discord Rich Presence automatically.
 
+The settings window also shows your current Discord/RetroAchievements status, a live preview of the presence being sent to Discord, logs, diagnostics, and update notices.
+
+RetroAchievements developer options unlock automatically for accounts with a detected developer-capable role. They can show developer activity titles and optionally link to your created sets while developing achievements.
 
 > Make sure to close the Settings Window normally, pressing the "Exit App" Button will end the process entirely.
 
