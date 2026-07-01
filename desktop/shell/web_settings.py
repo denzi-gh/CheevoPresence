@@ -14,7 +14,6 @@ from types import SimpleNamespace
 from urllib.parse import urlparse
 
 from desktop.core.constants import APP_NAME, APP_VERSION, RA_SETTINGS_URL
-from desktop.core.roles import is_elevated_permission
 from desktop.core.settings import normalize_config
 from desktop.platform import get_platform_services
 from desktop.runtime.log_events import AREA_SETTINGS, log_event
@@ -52,6 +51,30 @@ ROLE_BADGE_STYLES = {
         "border": "rgba(156,134,234,.45)",
         "icon": "search",
     },
+    "event_manager": {
+        "accent": "#d98fe6",
+        "fill": "rgba(217,143,230,.13)",
+        "border": "rgba(217,143,230,.45)",
+        "icon": "star",
+    },
+    "artist": {
+        "accent": "#f28d4f",
+        "fill": "rgba(242,141,79,.13)",
+        "border": "rgba(242,141,79,.45)",
+        "icon": "palette",
+    },
+    "play_tester": {
+        "accent": "#f2d35c",
+        "fill": "rgba(242,211,92,.13)",
+        "border": "rgba(242,211,92,.45)",
+        "icon": "controller",
+    },
+    "writer": {
+        "accent": "#7dc5ff",
+        "fill": "rgba(125,197,255,.13)",
+        "border": "rgba(125,197,255,.45)",
+        "icon": "pen",
+    },
     "moderator": {
         "accent": "#6fcfe2",
         "fill": "rgba(86,184,206,.13)",
@@ -62,10 +85,11 @@ ROLE_BADGE_STYLES = {
         "accent": "#e86666",
         "fill": "rgba(232,102,102,.13)",
         "border": "rgba(232,102,102,.45)",
-        "icon": "star",
     },
 }
-DEFAULT_ROLE_BADGE_STYLE = ROLE_BADGE_STYLES["junior_developer"]
+DEFAULT_ROLE_BADGE_STYLE = {
+    key: value for key, value in ROLE_BADGE_STYLES["junior_developer"].items() if key != "icon"
+}
 
 
 def role_badge_style(tier):
@@ -137,8 +161,7 @@ def _public_config(config):
 
 def _developer_settings_unlocked(worker_payload, config):
     if worker_payload.get("ra_connected"):
-        permissions = worker_payload.get("ra_permissions")
-        return permissions is not None and is_elevated_permission(permissions)
+        return bool(worker_payload.get("ra_dev_mode", False))
     return bool((config or {}).get("dev_mode", False))
 
 
@@ -180,6 +203,7 @@ class WebSettingsAPI:
             ra_permissions=getattr(self.worker, "ra_permissions", None),
             ra_role_label=getattr(self.worker, "ra_role_label", ""),
             ra_role_tier=getattr(self.worker, "ra_role_tier", ""),
+            ra_dev_mode=getattr(self.worker, "ra_dev_mode", False),
             mirrored_presence=getattr(self.worker, "mirrored_presence", None),
         )
 

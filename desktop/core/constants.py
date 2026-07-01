@@ -2,6 +2,7 @@
 
 DISCORD_APP_ID = "1485964205713788958"
 RA_API_BASE = "https://retroachievements.org/API"
+RA_API_V2_BASE = "https://api.retroachievements.org/v2"
 APP_NAME = "CheevoPresence"
 APP_VERSION = "1.2.0-dev"
 RA_SETTINGS_URL = "https://retroachievements.org/settings"

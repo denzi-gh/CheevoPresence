@@ -13,12 +13,14 @@ from desktop.core.api import (
     format_api_error,
     ra_get_game,
     ra_get_user_progress,
+    ra_get_user_profile_v2,
     ra_get_user_summary,
 )
 from desktop.core.roles import (
+    coerce_permissions,
     debug_forced_role_permission,
-    is_elevated_permission,
-    role_from_permissions,
+    resolve_dev_mode,
+    role_from_api,
 )
 from desktop.core.settings import normalize_config
 from desktop.runtime.backoff import BackoffPolicy
@@ -38,6 +40,7 @@ from desktop.runtime.state import MirroredPresence, WorkerState
 from desktop.runtime.storage import load_config, load_console_icons
 
 logger = logging.getLogger(__name__)
+ROLE_REFRESH_INTERVAL_SECONDS = 15 * 60
 
 
 class RPCWorker:
@@ -76,6 +79,11 @@ class RPCWorker:
         self.ra_permissions = None
         self.ra_role_label = ""
         self.ra_role_tier = ""
+        self.ra_dev_mode = False
+        self._ra_role_cache_username = None
+        self._ra_role_cache_visible_role = None
+        self._ra_role_cache_displayable_roles = None
+        self._ra_role_cache_at = 0.0
         self.mirrored_presence = None
 
     def set_status_callback(self, callback):
@@ -105,19 +113,37 @@ class RPCWorker:
                 self.ra_permissions = None
                 self.ra_role_label = ""
                 self.ra_role_tier = ""
+                self.ra_dev_mode = False
+                self._ra_role_cache_username = None
+                self._ra_role_cache_visible_role = None
+                self._ra_role_cache_displayable_roles = None
+                self._ra_role_cache_at = 0.0
                 self.mirrored_presence = None
 
-    def set_ra_role(self, permissions):
+    def set_ra_role(self, permissions, visible_role=None, displayable_roles=None):
         forced_permission = debug_forced_role_permission()
-        role = role_from_permissions(permissions, forced_permission=forced_permission)
+        role = role_from_api(
+            permissions,
+            visible_role=visible_role,
+            forced_permission=forced_permission,
+        )
+        dev_mode = resolve_dev_mode(
+            permissions,
+            displayable_roles,
+            forced_permission=forced_permission,
+        )
         with self._state_lock:
-            self.ra_permissions = role.permissions if role else None
+            self.ra_permissions = (
+                role.permissions
+                if role and role.permissions is not None
+                else coerce_permissions(permissions)
+                if role
+                else None
+            )
             self.ra_role_label = role.label if role else ""
             self.ra_role_tier = role.tier if role else ""
-            self.config["dev_mode"] = is_elevated_permission(
-                permissions,
-                forced_permission=forced_permission,
-            )
+            self.ra_dev_mode = dev_mode
+            self.config["dev_mode"] = dev_mode
 
     def get_state(self):
         with self._state_lock:
@@ -133,6 +159,7 @@ class RPCWorker:
                 ra_permissions=self.ra_permissions,
                 ra_role_label=self.ra_role_label,
                 ra_role_tier=self.ra_role_tier,
+                ra_dev_mode=self.ra_dev_mode,
                 mirrored_presence=self.mirrored_presence,
             )
 
@@ -296,6 +323,50 @@ class RPCWorker:
     def _presence_builder(self):
         return PresenceBuilder(dict(self.config), self.console_icons)
 
+    def _roles_for_user(self, username, apikey):
+        now = time.monotonic()
+        if (
+            self._ra_role_cache_username == username
+            and now - self._ra_role_cache_at < ROLE_REFRESH_INTERVAL_SECONDS
+        ):
+            return (
+                self._ra_role_cache_visible_role,
+                self._ra_role_cache_displayable_roles,
+            )
+
+        try:
+            profile = ra_get_user_profile_v2(username, apikey)
+            visible_role = profile.get("visibleRole")
+            displayable_roles = profile.get("displayableRoles")
+        except requests.RequestException as exc:
+            visible_role = None
+            displayable_roles = None
+            log_event(
+                logger,
+                AREA_RA,
+                "v2_role_lookup_failed",
+                level=logging.WARNING,
+                error_type=exc.__class__.__name__,
+                detail=format_api_error(exc),
+            )
+        except APIResponseError:
+            visible_role = None
+            displayable_roles = None
+            log_event(
+                logger,
+                AREA_RA,
+                "v2_role_lookup_failed",
+                level=logging.WARNING,
+                error_type="APIResponseError",
+                reason="unexpected_payload",
+            )
+
+        self._ra_role_cache_username = username
+        self._ra_role_cache_visible_role = visible_role
+        self._ra_role_cache_displayable_roles = displayable_roles
+        self._ra_role_cache_at = now
+        return visible_role, displayable_roles
+
     def _loop(self):
         try:
             log_event(logger, AREA_WORKER, "loop_started")
@@ -317,7 +388,12 @@ class RPCWorker:
 
                     was_ra_connected = self.ra_connected
                     self.set_ra_status(True)
-                    self.set_ra_role(user_data.get("Permissions"))
+                    visible_role, displayable_roles = self._roles_for_user(username, apikey)
+                    self.set_ra_role(
+                        user_data.get("Permissions"),
+                        visible_role=visible_role,
+                        displayable_roles=displayable_roles,
+                    )
                     if not was_ra_connected:
                         log_event(logger, AREA_RA, "connection_succeeded")
                     last_game_id = coerce_progress_int(user_data.get("LastGameID", 0))

@@ -156,7 +156,13 @@ function applyRoleBadge(badge, icon, label, worker, style) {
   badge.style.color = style.accent || "#f0b450";
   badge.style.background = style.fill || "rgba(231,163,58,.13)";
   badge.style.borderColor = style.border || "rgba(231,163,58,.4)";
-  icon.className = "role-icon " + (style.icon || "code");
+  if (style.icon) {
+    icon.className = "role-icon " + style.icon;
+    show(icon);
+  } else {
+    icon.className = "role-icon";
+    hide(icon);
+  }
   show(badge);
 }
 

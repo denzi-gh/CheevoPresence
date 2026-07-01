@@ -28,6 +28,10 @@ def ra_get_user_summary(username, apikey):
     return _DEFAULT_CLIENT.get_user_summary(username, apikey)
 
 
+def ra_get_user_profile_v2(username, apikey):
+    return _DEFAULT_CLIENT.get_user_profile_v2(username, apikey)
+
+
 def ra_get_game(username, apikey, game_id):
     return _DEFAULT_CLIENT.get_game(username, apikey, game_id)
 

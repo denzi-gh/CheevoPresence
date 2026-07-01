@@ -222,7 +222,7 @@ class WebSettingsTests(unittest.TestCase):
 
         self.assertTrue(state["developer_settings_unlocked"])
 
-    def test_connected_elevated_permissions_unlock_developer_settings(self):
+    def test_connected_dev_mode_role_unlocks_developer_settings(self):
         controller = FakeController({"dev_mode": False})
         controller.worker.state = WorkerState(
             running=True,
@@ -235,13 +235,14 @@ class WebSettingsTests(unittest.TestCase):
             ra_permissions=2,
             ra_role_label="Junior Developer",
             ra_role_tier="junior_developer",
+            ra_dev_mode=True,
         )
 
         state = WebSettingsAPI(controller).get_state()
 
         self.assertTrue(state["developer_settings_unlocked"])
 
-    def test_connected_normal_permissions_ignore_stale_dev_mode_unlock(self):
+    def test_connected_without_dev_mode_role_ignores_stale_dev_mode_unlock(self):
         controller = FakeController({"dev_mode": True})
         controller.worker.state = WorkerState(
             running=True,
@@ -252,6 +253,7 @@ class WebSettingsTests(unittest.TestCase):
             ra_connected=True,
             ra_status_text="Connected to RetroAchievements",
             ra_permissions=1,
+            ra_dev_mode=False,
         )
 
         state = WebSettingsAPI(controller).get_state()
@@ -421,10 +423,33 @@ class WebSettingsTests(unittest.TestCase):
     def test_role_badge_style_supports_reference_tiers(self):
         self.assertEqual("#e0a93c", role_badge_style("junior_developer")["accent"])
         self.assertEqual("#5cc081", role_badge_style("developer")["accent"])
+        self.assertEqual("#d98fe6", role_badge_style("event_manager")["accent"])
+        self.assertEqual("#f28d4f", role_badge_style("artist")["accent"])
+        self.assertEqual("#f2d35c", role_badge_style("play_tester")["accent"])
+        self.assertEqual("#7dc5ff", role_badge_style("writer")["accent"])
         self.assertEqual("#b0a0f0", role_badge_style("code_reviewer")["accent"])
         self.assertEqual("#6fcfe2", role_badge_style("moderator")["accent"])
         self.assertEqual("#e86666", role_badge_style("admin")["accent"])
         self.assertEqual("#e0a93c", role_badge_style("unknown")["accent"])
+
+    def test_role_badge_icons_match_expected_tiers(self):
+        expected = {
+            "junior_developer": "code",
+            "developer": "code",
+            "code_reviewer": "search",
+            "moderator": "shield",
+            "event_manager": "star",
+            "artist": "palette",
+            "play_tester": "controller",
+            "writer": "pen",
+        }
+        for tier, icon in expected.items():
+            with self.subTest(tier=tier):
+                self.assertEqual(icon, role_badge_style(tier).get("icon"))
+
+        for tier in ("admin", "unknown"):
+            with self.subTest(tier=tier):
+                self.assertIsNone(role_badge_style(tier).get("icon"))
 
 
 if __name__ == "__main__":

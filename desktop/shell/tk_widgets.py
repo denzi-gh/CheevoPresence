@@ -61,6 +61,30 @@ ROLE_BADGE_STYLES = {
         "border": "#5D528F",
         "icon": "search",
     },
+    "event_manager": {
+        "accent": "#D98FE6",
+        "fill": "#30243A",
+        "border": "#7A4A85",
+        "icon": "star",
+    },
+    "artist": {
+        "accent": "#F28D4F",
+        "fill": "#34281F",
+        "border": "#805238",
+        "icon": "palette",
+    },
+    "play_tester": {
+        "accent": "#F2D35C",
+        "fill": "#332F1E",
+        "border": "#7D6E35",
+        "icon": "controller",
+    },
+    "writer": {
+        "accent": "#7DC5FF",
+        "fill": "#1D2D3A",
+        "border": "#4B7598",
+        "icon": "pen",
+    },
     "moderator": {
         "accent": "#6FCFE2",
         "fill": "#1C323B",
@@ -71,10 +95,11 @@ ROLE_BADGE_STYLES = {
         "accent": "#EF6461",
         "fill": "#351F23",
         "border": "#874244",
-        "icon": "star",
     },
 }
-DEFAULT_ROLE_BADGE_STYLE = ROLE_BADGE_STYLES["junior_developer"]
+DEFAULT_ROLE_BADGE_STYLE = {
+    key: value for key, value in ROLE_BADGE_STYLES["junior_developer"].items() if key != "icon"
+}
 
 
 def role_badge_style(tier):
@@ -113,10 +138,11 @@ class RoleBadge(tk.Canvas):
 
         style = role_badge_style(self.tier)
         text_width = self.badge_font.measure(self.label)
+        icon = style.get("icon")
+        icon_width = self.ICON_SIZE + self.GAP if icon else 0
         width = (
             self.PADDING_LEFT
-            + self.ICON_SIZE
-            + self.GAP
+            + icon_width
             + text_width
             + self.PADDING_RIGHT
             + 2
@@ -126,18 +152,25 @@ class RoleBadge(tk.Canvas):
         self._rounded_rect(1, 1, width - 1, height - 1, height // 2, style["fill"], style["border"])
 
         icon_x = self.PADDING_LEFT
-        icon_y = (height - self.ICON_SIZE) / 2
-        if style["icon"] == "shield":
-            self._draw_shield(icon_x, icon_y, style["accent"])
-        elif style["icon"] == "search":
-            self._draw_search(icon_x, icon_y, style["accent"])
-        elif style["icon"] == "star":
-            self._draw_star(icon_x, icon_y, style["accent"])
-        else:
-            self._draw_code(icon_x, icon_y, style["accent"])
+        if icon:
+            icon_y = (height - self.ICON_SIZE) / 2
+            if icon == "shield":
+                self._draw_shield(icon_x, icon_y, style["accent"])
+            elif icon == "search":
+                self._draw_search(icon_x, icon_y, style["accent"])
+            elif icon == "star":
+                self._draw_star(icon_x, icon_y, style["accent"])
+            elif icon == "palette":
+                self._draw_palette(icon_x, icon_y, style["accent"])
+            elif icon == "controller":
+                self._draw_controller(icon_x, icon_y, style["accent"])
+            elif icon == "pen":
+                self._draw_pen(icon_x, icon_y, style["accent"])
+            else:
+                self._draw_code(icon_x, icon_y, style["accent"])
 
         self.create_text(
-            icon_x + self.ICON_SIZE + self.GAP,
+            icon_x + icon_width,
             height / 2,
             anchor="w",
             text=self.label,
@@ -230,4 +263,77 @@ class RoleBadge(tk.Canvas):
             width=1.15,
             capstyle="round",
             joinstyle="round",
+        )
+
+    def _draw_dot(self, x, y, cx, cy, color, radius=1.0):
+        scale = self.ICON_SIZE / 24
+        self.create_oval(
+            x + (cx - radius) * scale,
+            y + (cy - radius) * scale,
+            x + (cx + radius) * scale,
+            y + (cy + radius) * scale,
+            fill=color,
+            outline=color,
+        )
+
+    def _draw_palette(self, x, y, color):
+        scale = self.ICON_SIZE / 24
+        self.create_oval(
+            x + 2.5 * scale,
+            y + 2.5 * scale,
+            x + 21.5 * scale,
+            y + 21.5 * scale,
+            outline=color,
+            width=1.2,
+        )
+        for cx, cy in ((13.5, 6.5), (17.5, 10.5), (8.5, 7.5), (6.5, 12.5)):
+            self._draw_dot(x, y, cx, cy, color, radius=0.95)
+
+    def _draw_controller(self, x, y, color):
+        scale = self.ICON_SIZE / 24
+        self.create_oval(
+            x + 2 * scale,
+            y + 8 * scale,
+            x + 22 * scale,
+            y + 19 * scale,
+            outline=color,
+            width=1.2,
+        )
+        self.create_line(
+            *self._flatten_points(self._scale_points([(5.5, 13), (9.5, 13)], x, y)),
+            fill=color,
+            width=1.2,
+            capstyle="round",
+        )
+        self.create_line(
+            *self._flatten_points(self._scale_points([(7.5, 11), (7.5, 15)], x, y)),
+            fill=color,
+            width=1.2,
+            capstyle="round",
+        )
+        self._draw_dot(x, y, 16, 14, color, radius=0.9)
+        self._draw_dot(x, y, 18.5, 11.5, color, radius=0.9)
+
+    def _draw_pen(self, x, y, color):
+        self.create_line(
+            *self._flatten_points(self._scale_points([(3, 21), (5.5, 18.5)], x, y)),
+            fill=color,
+            width=1.3,
+            capstyle="round",
+            joinstyle="round",
+        )
+        self.create_line(
+            *self._flatten_points(
+                self._scale_points([(5.5, 18.5), (18, 6), (20, 4), (18, 6)], x, y)
+            ),
+            fill=color,
+            width=1.3,
+            capstyle="round",
+            joinstyle="round",
+        )
+        self.create_line(
+            *self._flatten_points(self._scale_points([(14.5, 5.5), (18.5, 9.5)], x, y)),
+            fill=color,
+            width=1.2,
+            capstyle="round",
         )

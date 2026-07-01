@@ -310,6 +310,7 @@ class RemoteWorkerProxy:
         self.ra_permissions = None
         self.ra_role_label = ""
         self.ra_role_tier = ""
+        self.ra_dev_mode = False
         self.mirrored_presence = None
         self._is_busy = False
         self._is_stopping = False
@@ -327,6 +328,7 @@ class RemoteWorkerProxy:
             self.ra_permissions = None
         self.ra_role_label = str(payload.get("ra_role_label") or "")
         self.ra_role_tier = str(payload.get("ra_role_tier") or "")
+        self.ra_dev_mode = bool(payload.get("ra_dev_mode", False))
         self.mirrored_presence = _coerce_mirrored_presence(
             payload.get("mirrored_presence")
         )
@@ -351,6 +353,7 @@ class RemoteWorkerProxy:
             ra_permissions=self.ra_permissions,
             ra_role_label=self.ra_role_label,
             ra_role_tier=self.ra_role_tier,
+            ra_dev_mode=self.ra_dev_mode,
             mirrored_presence=self.mirrored_presence,
         )
 

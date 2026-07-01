@@ -10,7 +10,7 @@ import requests
 
 from desktop.core.api import APIResponseError, format_api_error
 from desktop.core.ra_client import RAClient
-from desktop.core.roles import debug_forced_role_permission, is_elevated_permission
+from desktop.core.roles import debug_forced_role_permission, resolve_dev_mode
 from desktop.core.settings import normalize_config
 from desktop.platform import get_platform_services
 from desktop.runtime.storage import (
@@ -202,8 +202,22 @@ class AppController:
                     error_message="Unexpected error",
                 )
 
-            derived_dev_mode = is_elevated_permission(
+            try:
+                profile = self.ra_client.get_user_profile_v2(
+                    self.config["username"],
+                    self.config["apikey"],
+                )
+                displayable_roles = profile.get("displayableRoles")
+            except (requests.RequestException, APIResponseError) as exc:
+                displayable_roles = None
+                logger.warning(
+                    "RetroAchievements role lookup failed error=%s",
+                    format_api_error(exc),
+                )
+
+            derived_dev_mode = resolve_dev_mode(
                 user_summary.get("Permissions"),
+                displayable_roles,
                 forced_permission=debug_forced_role_permission(),
             )
             if self.config.get("dev_mode", False) != derived_dev_mode:

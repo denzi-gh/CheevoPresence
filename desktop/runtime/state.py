@@ -33,4 +33,5 @@ class WorkerState:
     ra_permissions: int | None = None
     ra_role_label: str = ""
     ra_role_tier: str = ""
+    ra_dev_mode: bool = False
     mirrored_presence: MirroredPresence | None = None

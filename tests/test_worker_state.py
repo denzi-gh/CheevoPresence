@@ -2,6 +2,8 @@ import threading
 import unittest
 from unittest.mock import patch
 
+import requests
+
 from desktop.core.roles import DEBUG_FORCE_ROLE_PERMISSION_ENV
 from desktop.runtime.presence_builder import PresenceBuilder
 from desktop.runtime.state import MirroredPresence, WorkerState
@@ -52,6 +54,7 @@ class WorkerStateTests(unittest.TestCase):
         self.assertEqual(2, state.ra_permissions)
         self.assertEqual("Junior Developer", state.ra_role_label)
         self.assertEqual("junior_developer", state.ra_role_tier)
+        self.assertTrue(state.ra_dev_mode)
         self.assertTrue(worker.config["dev_mode"])
 
     def test_ra_status_clear_removes_role_snapshot(self):
@@ -74,7 +77,92 @@ class WorkerStateTests(unittest.TestCase):
 
         self.assertFalse(worker.config["dev_mode"])
 
-    def test_debug_forced_permission_displays_selected_role(self):
+    def test_visible_role_overrides_display_but_permissions_control_dev_mode(self):
+        worker = RPCWorker(initial_config={"dev_mode": True}, console_icons={})
+
+        worker.set_ra_role(1, visible_role="artist")
+
+        state = worker.get_state()
+        self.assertEqual(1, state.ra_permissions)
+        self.assertEqual("Artist", state.ra_role_label)
+        self.assertEqual("artist", state.ra_role_tier)
+        self.assertFalse(worker.config["dev_mode"])
+
+    def test_unsupported_visible_role_falls_back_to_permissions(self):
+        worker = RPCWorker(initial_config={"dev_mode": False}, console_icons={})
+
+        worker.set_ra_role(3, visible_role="set-designer")
+
+        state = worker.get_state()
+        self.assertEqual(3, state.ra_permissions)
+        self.assertEqual("Developer", state.ra_role_label)
+        self.assertEqual("developer", state.ra_role_tier)
+        self.assertTrue(worker.config["dev_mode"])
+
+    def test_displayable_developer_role_enables_dev_mode_regardless_of_badge(self):
+        worker = RPCWorker(initial_config={"dev_mode": False}, console_icons={})
+
+        worker.set_ra_role(
+            1,
+            visible_role="artist",
+            displayable_roles=["artist", "developer"],
+        )
+
+        state = worker.get_state()
+        self.assertEqual("Artist", state.ra_role_label)
+        self.assertEqual("artist", state.ra_role_tier)
+        self.assertTrue(state.ra_dev_mode)
+        self.assertTrue(worker.config["dev_mode"])
+
+    def test_displayable_non_developer_roles_disable_dev_mode(self):
+        worker = RPCWorker(initial_config={"dev_mode": True}, console_icons={})
+
+        worker.set_ra_role(
+            6,
+            visible_role="artist",
+            displayable_roles=["artist", "writer"],
+        )
+
+        state = worker.get_state()
+        self.assertFalse(state.ra_dev_mode)
+        self.assertFalse(worker.config["dev_mode"])
+
+    def test_roles_fetch_is_cached(self):
+        worker = RPCWorker(initial_config={}, console_icons={})
+
+        with patch(
+            "desktop.runtime.worker.ra_get_user_profile_v2",
+            return_value={
+                "visibleRole": "code-reviewer",
+                "displayableRoles": ["code-reviewer", "developer"],
+            },
+        ) as get_profile:
+            first = worker._roles_for_user("SomeUser", "key")
+            second = worker._roles_for_user("SomeUser", "key")
+
+        self.assertEqual(("code-reviewer", ["code-reviewer", "developer"]), first)
+        self.assertEqual(("code-reviewer", ["code-reviewer", "developer"]), second)
+        get_profile.assert_called_once_with("SomeUser", "key")
+
+    def test_roles_fetch_failure_falls_back_to_permissions(self):
+        worker = RPCWorker(initial_config={"dev_mode": False}, console_icons={})
+
+        with patch(
+            "desktop.runtime.worker.ra_get_user_profile_v2",
+            side_effect=requests.HTTPError("nope"),
+        ):
+            visible_role, displayable_roles = worker._roles_for_user("SomeUser", "key")
+
+        self.assertIsNone(visible_role)
+        self.assertIsNone(displayable_roles)
+        worker.set_ra_role(3, visible_role=visible_role, displayable_roles=displayable_roles)
+        state = worker.get_state()
+        self.assertEqual(3, state.ra_permissions)
+        self.assertEqual("Developer", state.ra_role_label)
+        self.assertEqual("developer", state.ra_role_tier)
+        self.assertTrue(worker.config["dev_mode"])
+
+    def test_debug_forced_admin_permission_displays_role_without_dev_mode(self):
         worker = RPCWorker(initial_config={"dev_mode": False}, console_icons={})
 
         with patch.dict("os.environ", {DEBUG_FORCE_ROLE_PERMISSION_ENV: "5"}):
@@ -84,7 +172,31 @@ class WorkerStateTests(unittest.TestCase):
         self.assertEqual(5, state.ra_permissions)
         self.assertEqual("Admin", state.ra_role_label)
         self.assertEqual("admin", state.ra_role_tier)
+        self.assertFalse(state.ra_dev_mode)
+        self.assertFalse(worker.config["dev_mode"])
+
+    def test_debug_forced_developer_permission_enables_dev_mode(self):
+        worker = RPCWorker(initial_config={"dev_mode": False}, console_icons={})
+
+        with patch.dict("os.environ", {DEBUG_FORCE_ROLE_PERMISSION_ENV: "3"}):
+            worker.set_ra_role(1)
+
+        state = worker.get_state()
+        self.assertEqual("Developer", state.ra_role_label)
+        self.assertTrue(state.ra_dev_mode)
         self.assertTrue(worker.config["dev_mode"])
+
+    def test_debug_forced_role_tier_displays_selected_role(self):
+        worker = RPCWorker(initial_config={"dev_mode": True}, console_icons={})
+
+        with patch.dict("os.environ", {DEBUG_FORCE_ROLE_PERMISSION_ENV: "play_tester"}):
+            worker.set_ra_role(1)
+
+        state = worker.get_state()
+        self.assertEqual(1, state.ra_permissions)
+        self.assertEqual("Play Tester", state.ra_role_label)
+        self.assertEqual("play_tester", state.ra_role_tier)
+        self.assertFalse(worker.config["dev_mode"])
 
     def test_debug_forced_registered_permission_clears_role(self):
         worker = RPCWorker(initial_config={"dev_mode": True}, console_icons={})
