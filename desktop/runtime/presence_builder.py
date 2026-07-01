@@ -7,15 +7,16 @@ from pypresence import ActivityType
 
 from desktop.core.api import APIResponseError, trimmer
 
-DEVELOPER_ACTIVITY_MESSAGES = {
-    "inspecting memory",
-    "developing achievements",
+DEVELOPER_ACTIVITY_TITLES = {
+    "developing achievements": "Developing RetroAchievements",
+    "fixing achievements": "Fixing RetroAchievements",
+    "inspecting memory": "Inspecting Memory for RetroAchievements",
 }
+DEVELOPER_ACTIVITY_MESSAGES = frozenset(DEVELOPER_ACTIVITY_TITLES)
 
 
 @dataclass(frozen=True)
 class PresenceBuildResult:
-    """Discord payload plus metadata used for status text and safe logging."""
 
     update_kwargs: dict
     game_title: str
@@ -28,7 +29,6 @@ class PresenceBuildResult:
 
 
 def coerce_progress_int(value):
-    """Coerce loose API progress values into non-negative integers."""
     try:
         return max(0, int(value))
     except (TypeError, ValueError):
@@ -36,7 +36,6 @@ def coerce_progress_int(value):
 
 
 def build_achievement_state(total, achieved, achieved_hc):
-    """Translate raw progress counts into the Discord state label."""
     if total <= 0:
         return "No achievements available", 0
     if achieved <= 0:
@@ -47,34 +46,47 @@ def build_achievement_state(total, achieved, achieved_hc):
 
 
 def is_developer_activity(rich_presence_message):
-    """Return whether the RA rich presence text means achievement dev work."""
+    return _normalize_developer_activity(rich_presence_message) in DEVELOPER_ACTIVITY_MESSAGES
+
+
+def _normalize_developer_activity(rich_presence_message):
     if not isinstance(rich_presence_message, str):
-        return False
-    return rich_presence_message.strip().casefold() in DEVELOPER_ACTIVITY_MESSAGES
+        return ""
+    return rich_presence_message.strip().casefold()
 
 
 def build_display_game_title(game_title, developer_activity):
-    """Decorate the Discord game title when the user is developing achievements."""
     if developer_activity:
         return f"\U0001F6E0\ufe0f {game_title} \U0001F6E0\ufe0f"
     return game_title
 
 
+def build_activity_fields(game_title, rich_presence_message, use_developer_titles):
+    developer_key = _normalize_developer_activity(rich_presence_message)
+    developer_activity = developer_key in DEVELOPER_ACTIVITY_MESSAGES
+    if developer_activity and use_developer_titles:
+        return DEVELOPER_ACTIVITY_TITLES[developer_key], game_title, developer_activity
+    display_game_title = build_display_game_title(game_title, developer_activity)
+    details = rich_presence_message if rich_presence_message else None
+    return display_game_title, details, developer_activity
+
+
 class PresenceBuilder:
-    """Translate validated RA payloads into pypresence update arguments."""
 
     def __init__(self, config, console_icons):
         self.config = config
         self.console_icons = console_icons
 
     def build(self, username, last_game_id, rich_presence_message, game_data, progress_data, start_time):
-        """Build the Discord presence payload for the active game session."""
         game_title = game_data.get("GameTitle", "Unknown")
         if not isinstance(game_title, str):
             raise APIResponseError
 
-        developer_activity = is_developer_activity(rich_presence_message)
-        display_game_title = build_display_game_title(game_title, developer_activity)
+        display_name, details, developer_activity = build_activity_fields(
+            game_title,
+            rich_presence_message,
+            self.config.get("use_retroachievements_developer_titles", True),
+        )
 
         console_name = game_data.get("ConsoleName", "Unknown")
         if not isinstance(console_name, str):
@@ -111,13 +123,23 @@ class PresenceBuilder:
             large_tooltip = game_title
 
         game_url = f"https://retroachievements.org/game/{last_game_id}"
-        profile_url = f"https://retroachievements.org/user/{quote(username)}"
+        quoted_username = quote(username)
+        profile_url = f"https://retroachievements.org/user/{quoted_username}"
+        developer_sets_url = f"{profile_url}/developer/sets"
 
         buttons = []
         if self.config.get("show_gamepage_button", True):
             buttons.append({"label": "View on RetroAchievements", "url": game_url})
         if self.config.get("show_profile_button", True):
-            buttons.append({"label": f"{username}'s RA Page", "url": profile_url})
+            if developer_activity and self.config.get("show_developer_sets_button", True):
+                buttons.append(
+                    {
+                        "label": f"View {username}'s Created Sets",
+                        "url": developer_sets_url,
+                    }
+                )
+            else:
+                buttons.append({"label": f"{username}'s RA Page", "url": profile_url})
         if not buttons:
             buttons = None
 
@@ -130,8 +152,8 @@ class PresenceBuilder:
 
         update_kwargs = dict(
             activity_type=ActivityType.PLAYING,
-            name=trimmer(display_game_title),
-            details=trimmer(rich_presence_message) if rich_presence_message else None,
+            name=trimmer(display_name),
+            details=trimmer(details) if details else None,
             state=state_str,
             start=start_time,
             large_image=large_img,

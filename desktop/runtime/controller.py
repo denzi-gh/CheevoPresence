@@ -10,6 +10,7 @@ import requests
 
 from desktop.core.api import APIResponseError, format_api_error
 from desktop.core.ra_client import RAClient
+from desktop.core.roles import debug_forced_role_permission, resolve_dev_mode
 from desktop.core.settings import normalize_config
 from desktop.platform import get_platform_services
 from desktop.runtime.storage import (
@@ -30,7 +31,6 @@ logger = logging.getLogger(__name__)
 
 @dataclass
 class ConnectResult:
-    """Describe the outcome of a controller-managed connect attempt."""
 
     success: bool
     config: dict | None = None
@@ -41,7 +41,6 @@ class ConnectResult:
 
 
 class AppController:
-    """Coordinate config, platform hooks, and the background worker."""
 
     def __init__(self, platform=None, ra_client=None):
         self.platform = platform or get_platform_services()
@@ -60,25 +59,58 @@ class AppController:
         self.start_update_check()
 
     def set_status_callback(self, callback):
-        """Attach a runtime status callback used by the tray host."""
         self.worker.set_status_callback(callback)
 
     def load_config(self):
-        """Reload the persisted config and keep the worker in sync."""
         self.config = load_config(self.platform)
         self.worker.config = dict(self.config)
         return dict(self.config)
 
+    def save_config(self, config):
+        with self._action_lock:
+            previous_start_on_boot = bool(self.config.get("start_on_boot", False))
+            self.config = normalize_config(config)
+            warning_title = None
+            warning_message = None
+
+            autostart_error = None
+            if bool(self.config["start_on_boot"]) != previous_start_on_boot:
+                autostart_error = self.platform.set_autostart(self.config["start_on_boot"])
+                if autostart_error:
+                    logger.warning("Autostart update failed error=%s", autostart_error)
+                    self.config["start_on_boot"] = self.platform.is_autostart_enabled()
+                    warning_title = "Startup Setting Failed"
+                    warning_message = autostart_error
+
+            try:
+                save_config(self.config, self.platform)
+                logger.info("Configuration saved")
+            except OSError:
+                logger.exception("Configuration save failed")
+                return {
+                    "success": False,
+                    "config": dict(self.config),
+                    "error_title": "Save Failed",
+                    "error_message": "Could not write the configuration file.",
+                    "warning_title": warning_title,
+                    "warning_message": warning_message,
+                }
+
+            self.worker.config = dict(self.config)
+            return {
+                "success": autostart_error is None,
+                "config": dict(self.config),
+                "warning_title": warning_title,
+                "warning_message": warning_message,
+            }
+
     def get_update_status(self):
-        """Return the latest cached update-check result."""
         return self.update_service.get_status()
 
     def start_update_check(self):
-        """Kick off a one-shot background check for a newer app version."""
         self.update_service.start_check()
 
     def start_saved_session(self):
-        """Start monitoring immediately if stored credentials are present."""
         with self._action_lock:
             config = self.load_config()
             if not config["username"] or not config["apikey"]:
@@ -95,7 +127,6 @@ class AppController:
             return self.worker.start(config)
 
     def connect(self, config):
-        """Persist settings, validate credentials, and start monitoring."""
         with self._action_lock:
             self.config = normalize_config(config)
             logger.info(
@@ -130,7 +161,7 @@ class AppController:
                 warning_message = autostart_error
 
             try:
-                self.ra_client.get_user_summary(
+                user_summary = self.ra_client.get_user_summary(
                     self.config["username"],
                     self.config["apikey"],
                 )
@@ -171,6 +202,43 @@ class AppController:
                     error_message="Unexpected error",
                 )
 
+            try:
+                profile = self.ra_client.get_user_profile_v2(
+                    self.config["username"],
+                    self.config["apikey"],
+                )
+                displayable_roles = profile.get("displayableRoles")
+            except (requests.RequestException, APIResponseError) as exc:
+                displayable_roles = None
+                logger.warning(
+                    "RetroAchievements role lookup failed error=%s",
+                    format_api_error(exc),
+                )
+
+            derived_dev_mode = resolve_dev_mode(
+                user_summary.get("Permissions"),
+                displayable_roles,
+                forced_permission=debug_forced_role_permission(),
+            )
+            if self.config.get("dev_mode", False) != derived_dev_mode:
+                self.config["dev_mode"] = derived_dev_mode
+                try:
+                    save_config(self.config, self.platform)
+                    logger.info(
+                        "Dev Mode derived from RetroAchievements permissions enabled=%s",
+                        derived_dev_mode,
+                    )
+                except OSError:
+                    logger.exception("Configuration save failed after role detection")
+                    return ConnectResult(
+                        success=False,
+                        config=dict(self.config),
+                        warning_title=warning_title,
+                        warning_message=warning_message,
+                        error_title="Save Failed",
+                        error_message="Could not write the configuration file.",
+                    )
+
             started = self.worker.start(self.config)
             if not started:
                 logger.warning("Worker did not start after successful credential validation")
@@ -192,7 +260,6 @@ class AppController:
             )
 
     def disconnect(self, timeout=35):
-        """Stop the active monitoring worker."""
         with self._action_lock:
             logger.info("Disconnect requested timeout=%s", timeout)
             stopped = self.worker.stop(timeout=timeout)
@@ -200,10 +267,8 @@ class AppController:
             return stopped
 
     def shutdown(self, timeout=35):
-        """Shut the controller down before the app exits."""
         logger.info("Controller shutdown requested timeout=%s", timeout)
         return self.disconnect(timeout=timeout)
 
     def install_update(self):
-        """Download and stage the latest release asset for automatic restart."""
         return install_update_for_current_process(self.update_service)

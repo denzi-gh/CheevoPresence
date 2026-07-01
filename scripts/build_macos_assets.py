@@ -32,14 +32,12 @@ ICONSET_SIZES = {
 
 
 def _load_source_image():
-    """Load the base project icon used for all macOS asset variants."""
     if not SOURCE_ICON.exists():
         raise FileNotFoundError(f"Missing source icon: {SOURCE_ICON}")
     return Image.open(SOURCE_ICON).convert("RGBA")
 
 
 def build_iconset(image):
-    """Render the full iconset folder and compile it into a .icns file."""
     if ICONSET_DIR.exists():
         shutil.rmtree(ICONSET_DIR)
     ICONSET_DIR.mkdir(parents=True, exist_ok=True)
@@ -55,27 +53,23 @@ def build_iconset(image):
 
 
 def _build_menu_trophy_mask(size):
-    """Draw a pixel trophy silhouette centered for the macOS menu bar."""
     grid_size = 24
     pixel = size // grid_size
 
     mask = Image.new("L", (grid_size, grid_size), 0)
     draw = ImageDraw.Draw(mask)
 
-    # Bowl
     draw.rectangle((7, 3, 16, 4), fill=255)
     draw.rectangle((5, 5, 18, 6), fill=255)
     draw.rectangle((6, 7, 17, 10), fill=255)
     draw.rectangle((7, 11, 16, 11), fill=255)
     draw.rectangle((8, 12, 15, 12), fill=255)
 
-    # Handles with hollow centers
     draw.rectangle((1, 5, 5, 9), fill=255)
     draw.rectangle((2, 6, 4, 8), fill=0)
     draw.rectangle((18, 5, 22, 9), fill=255)
     draw.rectangle((19, 6, 21, 8), fill=0)
 
-    # Stem and stepped base
     draw.rectangle((10, 13, 13, 16), fill=255)
     draw.rectangle((9, 17, 14, 18), fill=255)
     draw.rectangle((7, 19, 16, 20), fill=255)
@@ -88,7 +82,6 @@ def _build_menu_trophy_mask(size):
 
 
 def build_menu_template(_image):
-    """Generate a dedicated monochrome template image for the menu bar."""
     alpha = _build_menu_trophy_mask(256).resize((64, 64), Image.LANCZOS)
     template = Image.new("RGBA", alpha.size, (0, 0, 0, 255))
     template.putalpha(alpha)
@@ -96,7 +89,6 @@ def build_menu_template(_image):
 
 
 def main():
-    """Generate both macOS icon outputs used by the build script."""
     OUTPUT_DIR.mkdir(parents=True, exist_ok=True)
     source = _load_source_image()
     build_iconset(source)

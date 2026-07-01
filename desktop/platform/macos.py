@@ -43,34 +43,28 @@ _exit_listener_stop_event = None
 
 
 def get_exe_path():
-    """Return the active executable path for the packaged app or source run."""
     if getattr(sys, "frozen", False):
         return os.path.abspath(sys.executable)
     return os.path.abspath(sys.argv[0])
 
 
 def get_app_support_dir(app_name=APP_NAME):
-    """Return the standard Application Support directory for this app."""
     return os.path.join(os.path.expanduser("~/Library/Application Support"), app_name)
 
 
 def get_cache_dir(app_name=APP_NAME):
-    """Return the standard per-user cache directory used for runtime locks."""
     return os.path.join(os.path.expanduser("~/Library/Caches"), app_name)
 
 
 def get_launch_agent_path():
-    """Return the per-user launch agent plist path."""
     return os.path.join(os.path.expanduser("~/Library/LaunchAgents"), LAUNCH_AGENT_FILE)
 
 
 def get_exit_socket_path():
-    """Return the local socket path used for external shutdown requests."""
     return os.path.join(get_cache_dir(), EXIT_SOCKET_NAME)
 
 
 def _run_launchctl(args):
-    """Run a launchctl command and return the completed process."""
     return subprocess.run(
         args,
         check=False,
@@ -80,7 +74,6 @@ def _run_launchctl(args):
 
 
 def _launchctl_job_is_loaded():
-    """Return whether launchd reports the app's LaunchAgent as loaded."""
     try:
         result = _run_launchctl(["launchctl", "print", f"gui/{os.getuid()}/{LAUNCH_AGENT_ID}"])
     except OSError:
@@ -89,7 +82,6 @@ def _launchctl_job_is_loaded():
 
 
 def _launchctl_reload(plist_path):
-    """Refresh the user launch agent if launchctl is available."""
     user_id = str(os.getuid())
     for args in (
         ["launchctl", "bootout", f"gui/{user_id}", plist_path],
@@ -108,7 +100,6 @@ def _launchctl_reload(plist_path):
 
 
 def _find_app_bundle(path):
-    """Resolve the enclosing .app bundle from an executable path if present."""
     if not path:
         return None
     current = Path(path).resolve()
@@ -119,7 +110,6 @@ def _find_app_bundle(path):
 
 
 def _is_bundle_executable(path):
-    """Return whether the provided path lives inside a macOS app bundle."""
     bundle_path = _find_app_bundle(path)
     if not bundle_path:
         return False
@@ -128,7 +118,6 @@ def _is_bundle_executable(path):
 
 
 def _has_stable_install_path(bundle_path=None):
-    """Return whether the app bundle sits in a writable install location."""
     bundle_path = bundle_path or _find_app_bundle(get_exe_path())
     if not bundle_path:
         return False
@@ -142,7 +131,6 @@ def _has_stable_install_path(bundle_path=None):
 
 
 def _build_launch_agent_payload(program_arguments):
-    """Create the LaunchAgent plist payload for launch-at-login."""
     return {
         "Label": LAUNCH_AGENT_ID,
         "ProgramArguments": list(program_arguments),
@@ -152,7 +140,6 @@ def _build_launch_agent_payload(program_arguments):
 
 
 def _get_launch_command():
-    """Return the best launch-at-login command for this runtime."""
     exe_path = get_exe_path()
     bundle_path = _find_app_bundle(exe_path)
     if getattr(sys, "frozen", False) and bundle_path:
@@ -163,7 +150,6 @@ def _get_launch_command():
 
 
 def _write_launch_agent(path, payload):
-    """Write the launch agent plist atomically."""
     os.makedirs(os.path.dirname(path), exist_ok=True)
     fd, tmp_path = tempfile.mkstemp(prefix="cheevopresence-launchagent-", suffix=".plist")
     try:
@@ -176,7 +162,6 @@ def _write_launch_agent(path, payload):
 
 
 def _find_staged_app(root_dir, app_name=APP_NAME):
-    """Locate the extracted replacement app bundle inside an update staging dir."""
     direct = os.path.join(root_dir, f"{app_name}.app")
     if os.path.isdir(direct):
         return direct
@@ -188,14 +173,12 @@ def _find_staged_app(root_dir, app_name=APP_NAME):
 
 
 def _quote_args(values):
-    """Return a shell-safe argument suffix for `open --args`."""
     if not values:
         return ""
     return " ".join(shlex.quote(str(value)) for value in values)
 
 
 def _build_update_helper_script(target_app, staged_app, relaunch_args, parent_pid, cleanup_dir):
-    """Render the detached shell helper that swaps in a new .app bundle."""
     args_suffix = _quote_args(relaunch_args)
     relaunch_line = f"/usr/bin/open {shlex.quote(target_app)}"
     if args_suffix:
@@ -270,7 +253,6 @@ completed=1
 
 
 def _unpack_update_archive(archive_path, parent_dir=None):
-    """Extract a downloaded macOS update archive into a staging directory."""
     staging_dir = tempfile.mkdtemp(prefix="CheevoPresence-macos-update-", dir=parent_dir)
     extracted_dir = os.path.join(staging_dir, "extracted")
     os.makedirs(extracted_dir, exist_ok=True)
@@ -287,7 +269,6 @@ def _unpack_update_archive(archive_path, parent_dir=None):
 
 
 def acquire_single_instance():
-    """Acquire a non-blocking advisory file lock for the running app."""
     global _single_instance_handle
 
     if sys.platform != "darwin":
@@ -310,7 +291,6 @@ def acquire_single_instance():
 
 
 def notify_already_running():
-    """Show a small native alert when another instance is launched."""
     message = f"{APP_NAME} is already running in the menu bar."
     try:
         subprocess.run(
@@ -328,7 +308,6 @@ def notify_already_running():
 
 
 def request_running_app_exit():
-    """Ask the running menu-bar instance to shut itself down."""
     if sys.platform != "darwin":
         return False
 
@@ -343,7 +322,6 @@ def request_running_app_exit():
 
 
 def start_exit_listener(callback):
-    """Listen on a local socket for `--exit` shutdown requests."""
     global _exit_listener_socket, _exit_listener_thread, _exit_listener_stop_event
 
     if sys.platform != "darwin" or not callable(callback):
@@ -415,7 +393,6 @@ def start_exit_listener(callback):
 
 
 def set_autostart(enable):
-    """Enable or disable launch-at-login through a per-user LaunchAgent plist."""
     plist_path = get_launch_agent_path()
     try:
         if enable:
@@ -478,7 +455,6 @@ def set_autostart(enable):
 
 
 def is_autostart_enabled():
-    """Return whether launchd currently reports the agent as loaded."""
     enabled = _launchctl_job_is_loaded()
     # Polled every second by the settings UI, so keep this off the INFO log.
     log_event(logger, AREA_AUTOSTART, "read", level=logging.DEBUG, enabled=enabled)
@@ -486,7 +462,6 @@ def is_autostart_enabled():
 
 
 def supports_self_update():
-    """Return whether the current macOS runtime can replace its own app bundle."""
     exe_path = get_exe_path()
     return (
         sys.platform == "darwin"
@@ -497,7 +472,6 @@ def supports_self_update():
 
 
 def select_update_asset(assets):
-    """Pick the preferred macOS zip asset from a GitHub release."""
     preferred = None
     for asset in assets or []:
         if not isinstance(asset, dict):
@@ -514,7 +488,6 @@ def select_update_asset(assets):
 
 
 def stage_update_install(download_path, relaunch_args, source_pid):
-    """Extract the new app bundle and launch a detached helper to replace it."""
     if not supports_self_update():
         return "Automatic updates only work in the packaged macOS .app build installed in a writable location."
 
@@ -550,59 +523,45 @@ def stage_update_install(download_path, relaunch_args, source_pid):
 
 
 class MacOSPlatformServices(GenericPlatformServices):
-    """Bundle the macOS-specific hooks needed by the desktop runtime."""
 
     startup_toggle_label = "Launch on macOS login"
     settings_menu_default = True
 
     def get_config_dir(self, app_name, runtime_root_dir):
-        """Store config in Application Support on macOS."""
         return get_app_support_dir(app_name)
 
     def protect_api_key(self, value):
-        """Store the API key in Keychain and return its config token."""
         return protect_api_key(value)
 
     def unprotect_api_key(self, value):
-        """Resolve a stored keychain token back into the plaintext API key."""
         return unprotect_api_key(value)
 
     def acquire_single_instance(self):
-        """Acquire the shared macOS single-instance file lock."""
         return acquire_single_instance()
 
     def notify_already_running(self):
-        """Show the duplicate-launch notice."""
         return notify_already_running()
 
     def request_running_app_exit(self):
-        """Ask the running menu-bar instance to exit."""
         return request_running_app_exit()
 
     def start_exit_listener(self, callback):
-        """Start listening for external shutdown requests."""
         return start_exit_listener(callback)
 
     def set_autostart(self, enable):
-        """Write or remove the per-user LaunchAgent."""
         return set_autostart(enable)
 
     def is_autostart_enabled(self):
-        """Return whether launch-at-login is currently configured."""
         return is_autostart_enabled()
 
     def supports_self_update(self):
-        """Report whether the current packaged app can self-update."""
         return supports_self_update()
 
     def select_update_asset(self, assets):
-        """Pick the preferred .zip release asset for macOS."""
         return select_update_asset(assets)
 
     def stage_update_install(self, download_path, relaunch_args, source_pid):
-        """Stage a detached helper to replace the current .app bundle."""
         return stage_update_install(download_path, relaunch_args, source_pid)
 
     def handle_special_args(self, argv):
-        """macOS uses an external shell helper for updates, so there are no special args."""
         return False

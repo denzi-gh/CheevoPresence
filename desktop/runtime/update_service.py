@@ -30,7 +30,6 @@ logger = logging.getLogger(__name__)
 
 @dataclass
 class UpdateStatus:
-    """Describe the most recent update-check result for the desktop app."""
 
     checked: bool = False
     available: bool = False
@@ -46,7 +45,6 @@ class UpdateStatus:
 
 @dataclass
 class UpdateInstallResult:
-    """Describe the result of an attempted self-update installation."""
 
     success: bool
     error_title: str | None = None
@@ -54,7 +52,6 @@ class UpdateInstallResult:
 
 
 def copy_update_status(status):
-    """Return a detached copy of an update status dataclass."""
     return UpdateStatus(
         checked=status.checked,
         available=status.available,
@@ -70,7 +67,6 @@ def copy_update_status(status):
 
 
 class UpdateService:
-    """Coordinate GitHub release checks and platform update staging."""
 
     def __init__(
         self,
@@ -92,12 +88,10 @@ class UpdateService:
         self._thread = None
 
     def get_status(self):
-        """Return the latest cached update-check result."""
         with self._lock:
             return copy_update_status(self._status)
 
     def start_check(self):
-        """Kick off a one-shot background check for a newer app version."""
         with self._lock:
             if self._thread and self._thread.is_alive():
                 log_event(logger, AREA_UPDATE, "check_skipped", reason="already_running")
@@ -107,7 +101,6 @@ class UpdateService:
             self._thread.start()
 
     def check_for_updates(self):
-        """Fetch the latest release metadata and cache whether an update exists."""
         status = self._build_update_status()
         with self._lock:
             self._status = status
@@ -122,7 +115,6 @@ class UpdateService:
         return copy_update_status(status)
 
     def install_update(self, relaunch_args=None, source_pid=None):
-        """Download and stage the latest release asset for automatic restart."""
         status = self.get_status()
         if not status.available:
             log_event(logger, AREA_UPDATE, "install_skipped", reason="no_update_available")
@@ -315,7 +307,6 @@ class UpdateService:
         return UpdateInstallResult(success=True)
 
     def _build_update_status(self):
-        """Build an update status from override or latest GitHub release metadata."""
         override = load_update_override(self.override_file, self.current_version)
         if override:
             return UpdateStatus(
@@ -369,7 +360,6 @@ class UpdateService:
         )
 
     def _fetch_latest_release(self):
-        """Fetch the latest GitHub release metadata."""
         response = self.session.get(
             self.latest_api_url,
             timeout=10,
@@ -382,7 +372,6 @@ class UpdateService:
         return payload
 
     def _fetch_latest_update_asset(self):
-        """Fetch the latest release metadata and return the preferred asset pair."""
         payload = self._fetch_latest_release()
         asset = self.platform.select_update_asset(payload.get("assets") or [])
         if not asset:
@@ -394,7 +383,6 @@ class UpdateService:
         return asset_name, asset_url, asset_sha256, checksum_url
 
     def _download_release_asset(self, asset_url, download_path):
-        """Download a release asset to a local file using streamed writes."""
         if asset_url and os.path.exists(asset_url):
             shutil.copy2(asset_url, download_path)
             return
@@ -406,7 +394,6 @@ class UpdateService:
                     handle.write(chunk)
 
     def _asset_sha256_from_metadata(self, asset):
-        """Extract a sha256 digest from GitHub asset metadata when present."""
         digest = asset.get("digest")
         if isinstance(digest, str):
             match = re.fullmatch(r"sha256:([0-9a-fA-F]{64})", digest.strip())
@@ -418,7 +405,6 @@ class UpdateService:
         return None
 
     def _find_checksum_url(self, assets, asset_name):
-        """Find a checksum asset URL that matches the selected release asset."""
         if not asset_name:
             return None
         expected_names = {
@@ -435,7 +421,6 @@ class UpdateService:
         return None
 
     def _fetch_asset_checksum(self, checksum_url, asset_name):
-        """Fetch and parse a sha256 checksum file for the selected asset."""
         if not checksum_url:
             return None
         if os.path.exists(checksum_url):
@@ -448,7 +433,6 @@ class UpdateService:
         return self._parse_sha256_text(text, asset_name)
 
     def _parse_sha256_text(self, text, asset_name):
-        """Parse a sha256 checksum from common checksum file formats."""
         if not isinstance(text, str):
             return None
         lines = text.splitlines() or [text]
@@ -461,7 +445,6 @@ class UpdateService:
         return None
 
     def _verify_download_sha256(self, path, expected_sha256):
-        """Return whether a downloaded file matches the expected sha256."""
         digest = hashlib.sha256()
         with open(path, "rb") as handle:
             for chunk in iter(lambda: handle.read(1024 * 256), b""):
@@ -469,12 +452,10 @@ class UpdateService:
         return digest.hexdigest().lower() == expected_sha256.lower()
 
     def _cleanup_update_download(self, download_dir):
-        """Remove a temporary update download directory when staging fails."""
         shutil.rmtree(download_dir, ignore_errors=True)
 
 
 def install_update_for_current_process(service):
-    """Install an update using the current process launch context."""
     return service.install_update(
         relaunch_args=sys.argv[1:],
         source_pid=os.getpid(),

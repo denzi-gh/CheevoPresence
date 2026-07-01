@@ -2,7 +2,6 @@
 
 
 def truncate_status_text(text, limit=45):
-    """Trim long status text for compact settings labels."""
     text = str(text)
     if len(text) <= limit:
         return text

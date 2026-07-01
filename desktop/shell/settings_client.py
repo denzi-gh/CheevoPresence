@@ -10,13 +10,12 @@ import tkinter as tk
 from tkinter import messagebox
 
 from desktop.runtime.log_events import AREA_SETTINGS, log_event
-from desktop.shell.tk_settings import TkSettingsWindow
+from desktop.shell.web_settings import WebSettingsWindow
 
 logger = logging.getLogger(__name__)
 
 
 def _show_startup_error(message):
-    """Display a small native error when the settings client cannot boot."""
     try:
         root = tk.Tk()
         root.withdraw()
@@ -27,7 +26,6 @@ def _show_startup_error(message):
 
 
 def main(address=None, auth_token=None):
-    """Start the shared Tk settings window against the host app bridge."""
     from desktop.platform import get_platform_services
     from desktop.runtime.logging_setup import setup_logging
     from desktop.shell.ipc import (
@@ -45,7 +43,7 @@ def main(address=None, auth_token=None):
     auth_token = auth_token or os.environ.get(SETTINGS_AUTH_ENV)
     try:
         controller = RemoteAppController(address, auth_token)
-        TkSettingsWindow(controller, on_quit=controller.quit_app)
+        WebSettingsWindow(controller, on_quit=controller.quit_app)
     except Exception as exc:
         log_event(
             logger,

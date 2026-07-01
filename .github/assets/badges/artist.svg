@@ -1,0 +1,5 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="69" height="26" viewBox="0 0 69 26" font-family="'Segoe UI',Roboto,Helvetica,Arial,sans-serif">
+  <rect x="0.5" y="0.5" width="68" height="25" rx="6" fill="#2a1f18" stroke="#805238" stroke-width="1"/>
+  <g transform="translate(11 7.0) scale(0.50000)" fill="none" stroke="#f28d4f" stroke-width="2.3" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><circle cx="13.5" cy="6.5" r="1.1" fill="#f28d4f" stroke="none"/><circle cx="17.5" cy="10.5" r="1.1" fill="#f28d4f" stroke="none"/><circle cx="8.5" cy="7.5" r="1.1" fill="#f28d4f" stroke="none"/><circle cx="6.5" cy="12.5" r="1.1" fill="#f28d4f" stroke="none"/></g>
+  <text x="30" y="17.08" fill="#f28d4f" font-size="12" font-weight="600">Artist</text>
+</svg>

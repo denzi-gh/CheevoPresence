@@ -30,11 +30,10 @@ logger = logging.getLogger(__name__)
 
 
 class LinuxTrayUnavailable(RuntimeError):
-    """Raised when the native Linux indicator stack cannot be loaded."""
+    pass
 
 
 def _load_indicator_modules():
-    """Load Gtk and Ayatana/AppIndicator lazily so headless CI can import this file."""
     try:
         import gi
 
@@ -94,7 +93,6 @@ def _load_indicator_modules():
 
 
 def _select_linux_tray_backend(Gtk, AppIndicator, session_type=None):
-    """Choose the native Linux tray backend for this desktop session."""
     has_status_icon = hasattr(Gtk, "StatusIcon")
     has_indicator = AppIndicator is not None
 
@@ -106,7 +104,6 @@ def _select_linux_tray_backend(Gtk, AppIndicator, session_type=None):
 
 
 def _build_menu_trophy_mask(size):
-    """Draw the same monochrome trophy silhouette used for the macOS menu bar."""
     grid_size = 24
     pixel = size // grid_size
 
@@ -135,7 +132,6 @@ def _build_menu_trophy_mask(size):
 
 
 def _generate_linux_template_icon():
-    """Generate a Linux copy of the macOS monochrome tray icon when absent."""
     icon_path = os.path.join(get_runtime_dir(), "cheevoRP_menubar_template.png")
     if os.path.exists(icon_path):
         return icon_path
@@ -148,7 +144,6 @@ def _generate_linux_template_icon():
 
 
 def get_linux_tray_icon_path():
-    """Return the macOS-style monochrome icon to use for the Linux indicator."""
     for candidate in (
         MENU_BAR_TEMPLATE_ICON_FILE,
         GENERATED_MENU_BAR_TEMPLATE_ICON_FILE,
@@ -183,7 +178,6 @@ def _icon_cache_matches_source(output_path, source_path, source_marker_path):
 
 
 def _png_copy_for_icon(source_path, name):
-    """Return a PNG copy of an icon file for Linux tray APIs."""
     output_path = os.path.join(get_runtime_dir(), f"{name}.png")
     source_marker_path = f"{output_path}.source"
     expected_source = os.path.abspath(source_path)
@@ -202,14 +196,12 @@ def _png_copy_for_icon(source_path, name):
 
 
 def _indicator_icon_from_path(path):
-    """Return the icon theme directory and name for AppIndicator APIs."""
     icon_dir = os.path.dirname(path)
     icon_name = os.path.splitext(os.path.basename(path))[0]
     return icon_dir, icon_name, path
 
 
 def get_linux_status_icon_path(status):
-    """Return a Windows-like colored tray icon path for GTK StatusIcon."""
     icon_map = {
         "connected": TRAY_ACTIVE_ICON_FILE,
         "connecting": APP_ICON_PNG_FILE,
@@ -232,12 +224,10 @@ def get_linux_status_icon_path(status):
 
 
 def get_linux_indicator_icon(status):
-    """Return a named PNG icon suitable for StatusNotifier/AppIndicator."""
     return _indicator_icon_from_path(get_linux_status_icon_path(status))
 
 
 class LinuxIndicatorApp:
-    """Own the native Linux indicator, settings window, and runtime lifecycle."""
 
     def __init__(self, controller: AppController, open_settings_on_launch=True):
         self.Gtk, self.GLib, self.AppIndicator = _load_indicator_modules()
@@ -262,7 +252,6 @@ class LinuxIndicatorApp:
         self._shutdown_started = False
 
     def _new_menu_item(self, label, handler=None, sensitive=True):
-        """Create a Gtk menu item with optional activation handler."""
         item = self.Gtk.MenuItem.new_with_label(label)
         item.set_sensitive(sensitive)
         if handler is not None:
@@ -270,7 +259,6 @@ class LinuxIndicatorApp:
         return item
 
     def _build_menu(self):
-        """Create the native GTK indicator menu."""
         self.menu = self.Gtk.Menu()
         self.version_item = self._new_menu_item(
             f"{APP_NAME} v{APP_VERSION}",
@@ -292,7 +280,6 @@ class LinuxIndicatorApp:
         return self.menu
 
     def _create_indicator(self):
-        """Create and activate the StatusNotifier/AppIndicator item."""
         icon_dir, icon_name, _icon_path = get_linux_indicator_icon(self.current_status)
         category = self.AppIndicator.IndicatorCategory.APPLICATION_STATUS
         if hasattr(self.AppIndicator.Indicator, "new_with_path"):
@@ -314,7 +301,6 @@ class LinuxIndicatorApp:
         return indicator
 
     def _set_indicator_icon(self, indicator, status):
-        """Refresh the AppIndicator icon using a theme path plus icon name."""
         icon_dir, icon_name, _icon_path = get_linux_indicator_icon(status)
         if hasattr(indicator, "set_icon_theme_path"):
             indicator.set_icon_theme_path(icon_dir)
@@ -324,7 +310,6 @@ class LinuxIndicatorApp:
             indicator.set_icon(icon_name)
 
     def _log_icon_resolved(self, icon_path):
-        """Log which tray icon file was resolved for the current status."""
         log_event(
             logger,
             AREA_TRAY,
@@ -335,7 +320,6 @@ class LinuxIndicatorApp:
         )
 
     def _create_status_icon(self):
-        """Create a GTK StatusIcon tray item for classic Linux panels."""
         icon_path = get_linux_status_icon_path(self.current_status)
         self._log_icon_resolved(icon_path)
         status_icon = self.Gtk.StatusIcon.new_from_file(icon_path)
@@ -349,7 +333,6 @@ class LinuxIndicatorApp:
         return status_icon
 
     def _check_status_icon_embedded(self, status_icon):
-        """Warn when the desktop never embedded the GTK StatusIcon tray item."""
         try:
             embedded = bool(status_icon.is_embedded())
         except Exception:
@@ -367,7 +350,6 @@ class LinuxIndicatorApp:
         return False
 
     def _create_tray(self):
-        """Create the selected native Linux tray backend."""
         if self.backend == "appindicator":
             try:
                 log_event(logger, AREA_TRAY, "backend_selected", backend="appindicator")
@@ -398,19 +380,16 @@ class LinuxIndicatorApp:
         raise LinuxTrayUnavailable("No AppIndicator or GTK StatusIcon tray backend is available.")
 
     def _truncate_status(self, text, limit=72):
-        """Trim long worker status text so the menu stays readable."""
         if len(text) <= limit:
             return text
         return text[: limit - 3] + "..."
 
     def _on_status(self, status, text):
-        """Mirror worker status changes into the indicator menu."""
         if self._shutdown_started:
             return
         self.GLib.idle_add(self._apply_status, status, text)
 
     def _apply_status(self, status, text):
-        """Apply a worker status update on the GTK thread."""
         if self._shutdown_started:
             return False
         self.current_status = status
@@ -419,7 +398,6 @@ class LinuxIndicatorApp:
         return False
 
     def _update_menu_status(self):
-        """Refresh menu text and indicator title from current runtime state."""
         if self.status_item is not None:
             self.status_item.set_label(self._truncate_status(self.status_text))
         self._update_connection_item()
@@ -432,7 +410,6 @@ class LinuxIndicatorApp:
             self.status_icon.set_tooltip_text(f"{APP_NAME} - {self.status_text}")
 
     def _get_connection_action_title(self):
-        """Return the tray action label for the current worker lifecycle."""
         state = self.worker.get_state()
         if state.is_stopping:
             return "Stopping..."
@@ -441,7 +418,6 @@ class LinuxIndicatorApp:
         return "Connect"
 
     def _update_connection_item(self):
-        """Refresh the dynamic Connect/Disconnect menu item."""
         if self.connection_item is None:
             return
         state = self.worker.get_state()
@@ -449,13 +425,11 @@ class LinuxIndicatorApp:
         self.connection_item.set_sensitive(not state.is_stopping)
 
     def _on_toggle_connection(self, *_args):
-        """Connect or disconnect directly from the native indicator menu."""
         if self._shutdown_started or self.worker.get_state().is_stopping:
             return
         threading.Thread(target=self._toggle_connection, daemon=True).start()
 
     def _toggle_connection(self):
-        """Run the connect/disconnect action without blocking GTK."""
         if self.worker.get_state().running:
             log_event(logger, AREA_TRAY, "disconnect_requested")
             self.controller.disconnect()
@@ -488,11 +462,9 @@ class LinuxIndicatorApp:
             self.GLib.idle_add(self._update_menu_status)
 
     def _on_settings(self, *_args):
-        """Open the settings window once, even if clicked repeatedly."""
         self.open_settings()
 
     def open_settings(self):
-        """Launch the shared Tk settings window as a companion process."""
         if self._shutdown_started:
             return False
         if self._settings_process is not None and self._settings_process.poll() is None:
@@ -518,7 +490,6 @@ class LinuxIndicatorApp:
         return False
 
     def _settings_command(self):
-        """Return the command for the companion settings client."""
         args = [
             "--linux-settings-client",
             self._settings_service.address,
@@ -529,11 +500,9 @@ class LinuxIndicatorApp:
         return [sys.executable, os.path.abspath(sys.argv[0]), *args]
 
     def _on_settings_closed(self):
-        """Allow the settings window to be reopened after it closes."""
         self._settings_open = False
 
     def _stop_settings_client(self, timeout=2):
-        """Stop the companion settings process if it is still open."""
         process = self._settings_process
         self._settings_process = None
         self._settings_open = False
@@ -555,15 +524,12 @@ class LinuxIndicatorApp:
         )
 
     def _on_get_api_key(self, *_args):
-        """Open the RetroAchievements web settings page."""
         webbrowser.open(RA_SETTINGS_URL)
 
     def _on_quit(self, *_args):
-        """Handle the native indicator quit command."""
         self.quit_app()
 
     def _on_status_icon_popup(self, status_icon, button, activate_time):
-        """Open the classic GTK tray context menu."""
         self._update_menu_status()
         self.menu.popup(
             None,
@@ -575,7 +541,6 @@ class LinuxIndicatorApp:
         )
 
     def quit_app(self):
-        """Stop monitoring and exit the native indicator app."""
         with self._shutdown_lock:
             if self._shutdown_started:
                 return
@@ -585,7 +550,6 @@ class LinuxIndicatorApp:
         threading.Thread(target=self._shutdown_and_exit, daemon=False).start()
 
     def _shutdown_and_exit(self):
-        """Finish shutdown off the GTK thread before quitting the main loop."""
         try:
             self._stop_settings_client()
             stopped = self.controller.shutdown(timeout=SHUTDOWN_GRACE_SECONDS)
@@ -594,7 +558,6 @@ class LinuxIndicatorApp:
             self.GLib.idle_add(self._finish_quit)
 
     def _finish_quit(self):
-        """Hide the indicator and stop the GTK main loop."""
         if self.indicator is not None:
             self.indicator.set_status(self.AppIndicator.IndicatorStatus.PASSIVE)
         if self.status_icon is not None:
@@ -603,7 +566,6 @@ class LinuxIndicatorApp:
         return False
 
     def run(self):
-        """Start the native indicator loop and auto-connect if config exists."""
         self._settings_service.start()
         self._create_tray()
         self._exit_listener = self.controller.platform.start_exit_listener(self.quit_app)

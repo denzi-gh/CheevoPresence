@@ -1,0 +1,234 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>CheevoPresence</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Hanken+Grotesk:wght@400;500;600;700&family=JetBrains+Mono:wght@500;600&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="./settings.css">
+</head>
+<body>
+  <div class="window">
+    <nav class="sidebar">
+      <div class="nav" id="navList">
+        <div class="nav-group-label">MENU</div>
+        <button class="nav-item active" type="button" data-screen="status">
+          <svg viewBox="0 0 24 24" class="nav-ic"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"></polyline></svg>
+          <span>Status</span>
+        </button>
+        <button class="nav-item" type="button" data-screen="behaviour">
+          <svg viewBox="0 0 24 24" class="nav-ic"><line x1="4" y1="21" x2="4" y2="14"></line><line x1="4" y1="10" x2="4" y2="3"></line><line x1="12" y1="21" x2="12" y2="12"></line><line x1="12" y1="8" x2="12" y2="3"></line><line x1="20" y1="21" x2="20" y2="16"></line><line x1="20" y1="12" x2="20" y2="3"></line><line x1="2" y1="14" x2="6" y2="14"></line><line x1="10" y1="8" x2="14" y2="8"></line><line x1="18" y1="16" x2="22" y2="16"></line></svg>
+          <span>Behaviour</span>
+        </button>
+        <button class="nav-item" type="button" data-screen="logs">
+          <svg viewBox="0 0 24 24" class="nav-ic"><polyline points="4 17 10 11 4 5"></polyline><line x1="12" y1="19" x2="20" y2="19"></line></svg>
+          <span>Logs</span>
+        </button>
+
+        <div class="nav-group-label dev hidden" id="devGroupLabel">RA DEV</div>
+        <button class="nav-item dev hidden" type="button" data-screen="radev" id="navRadev">
+          <svg viewBox="0 0 24 24" class="nav-ic"><polyline points="16 18 22 12 16 6"></polyline><polyline points="8 6 2 12 8 18"></polyline></svg>
+          <span>RA Dev Settings</span>
+        </button>
+
+        <div class="nav-spacer"></div>
+
+        <button class="nav-item" type="button" data-screen="about">
+          <svg viewBox="0 0 24 24" class="nav-ic"><circle cx="12" cy="12" r="10"></circle><line x1="12" y1="16" x2="12" y2="12"></line><line x1="12" y1="8" x2="12.01" y2="8"></line></svg>
+          <span>About</span>
+        </button>
+      </div>
+
+      <div class="sidebar-foot">
+        <span class="version-caption">VERSION</span>
+        <button class="version-pill" id="versionPill" type="button"><span>v<span id="versionText"></span></span><span class="version-arrow">↑</span></button>
+      </div>
+    </nav>
+
+    <main class="content">
+      <section class="screen active" data-screen="status">
+        <div class="screen-head">
+          <div>
+            <h1>Status</h1>
+            <p>Your connection, account, and what Discord is showing</p>
+          </div>
+          <span class="role-badge hidden" id="roleBadge">
+            <span class="role-icon" id="roleIcon"></span>
+            <span id="roleLabel"></span>
+          </span>
+        </div>
+
+        <div class="screen-scroll">
+        <div class="status-strip">
+          <div class="status-block">
+            <div class="status-title">DISCORD</div>
+            <div class="status-value"><span class="dot" id="discordDot"></span><span id="discordStatus">Not running</span></div>
+          </div>
+          <div class="status-block ra">
+            <div class="status-title">RETROACHIEVEMENTS</div>
+            <div class="status-value"><span class="dot" id="raDot"></span><span id="raStatus">Not connected</span></div>
+          </div>
+        </div>
+
+        <div class="mirror-card" id="mirrorCard">
+          <div class="mirror-label">NOW MIRRORING TO DISCORD:</div>
+          <div class="mirror-row">
+            <div class="mirror-icon">
+              <img class="mirror-img hidden" id="mirrorIconImg" alt="">
+              <span id="mirrorIconFallback"></span>
+            </div>
+            <div class="mirror-text">
+              <div class="mirror-title" id="mirrorTitle">Not currently playing</div>
+              <div class="mirror-details" id="mirrorDetails"></div>
+              <div class="mirror-sub" id="mirrorSub">No active RetroAchievements game detected.</div>
+            </div>
+          </div>
+          <div class="mirror-actions hidden" id="mirrorActions"></div>
+        </div>
+
+        <form class="account" id="settingsForm" autocomplete="off">
+          <div class="section-label">ACCOUNT</div>
+          <div class="field-row">
+            <label class="field">
+              <span>RA Username</span>
+              <span class="username-wrap">
+                <input id="usernameInput" autocomplete="username" spellcheck="false">
+                <span class="username-check hidden" id="usernameCheck">
+                  <svg viewBox="0 0 24 24"><polyline points="20 6 9 17 4 12"></polyline></svg>
+                </span>
+              </span>
+            </label>
+            <label class="field">
+              <span>Web API Key</span>
+              <span class="apikey-wrap">
+                <input id="apikeyInput" type="password" autocomplete="off" spellcheck="false">
+                <button class="reveal" id="revealKey" type="button">Reveal</button>
+              </span>
+            </label>
+          </div>
+        </form>
+        </div>
+
+        <div class="screen-foot">
+          <button class="btn-neutral" id="connectButton" type="button">Connect</button>
+          <button class="btn-exit" id="exitButton" type="button">
+            <svg viewBox="0 0 24 24"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"></path><polyline points="16 17 21 12 16 7"></polyline><line x1="21" y1="12" x2="9" y2="12"></line></svg>
+            Exit App
+          </button>
+        </div>
+      </section>
+
+      <section class="screen" data-screen="behaviour">
+        <div class="screen-head"><div><h1>Behaviour</h1><p>How presence updates and what Discord shows</p></div><span class="locked-notice hidden" id="behaviourNotice">Disconnect to edit settings</span></div>
+
+        <div class="number-row">
+          <label class="field"><span>Poll Interval (s)</span><input id="intervalInput" type="number" min="5" max="120" step="1"></label>
+          <label class="field"><span>Timeout (s)</span><input id="timeoutInput" type="number" min="0" max="3600" step="10"></label>
+        </div>
+
+        <div class="toggles">
+          <label class="toggle-row"><span>Show profile button</span>
+            <input id="profileCheck" type="checkbox"><span class="switch"></span></label>
+          <label class="toggle-row"><span>Show game page button</span>
+            <input id="gamepageCheck" type="checkbox"><span class="switch"></span></label>
+          <label class="toggle-row"><span>Show achievement counter</span>
+            <input id="achievementCheck" type="checkbox"><span class="switch"></span></label>
+          <label class="toggle-row"><span>Start on boot</span>
+            <input id="bootCheck" type="checkbox"><span class="switch"></span></label>
+        </div>
+      </section>
+
+      <section class="screen" data-screen="logs">
+        <div class="screen-head"><div><h1>Logs &amp; Diagnostics</h1></div></div>
+
+        <pre class="log-pane" id="logPane">Loading log…</pre>
+
+        <div class="log-actions">
+          <button class="btn-neutral sm" id="openLogsBtn" type="button">Open logs folder</button>
+          <button class="btn-neutral sm" id="copyDiagBtn" type="button">Copy diagnostics</button>
+          <div class="level-wrap">
+            <span>Level</span>
+            <select id="logLevel">
+              <option value="ERROR">Error</option>
+              <option value="WARNING">Warning</option>
+              <option value="INFO" selected>Info</option>
+              <option value="DEBUG">Debug</option>
+            </select>
+          </div>
+        </div>
+        <div class="log-path" id="logPath"></div>
+      </section>
+
+      <section class="screen" data-screen="radev">
+        <div class="screen-head"><div><h1>RA Dev Settings</h1><p>Settings for users that develop RetroAchievements</p></div><span class="locked-notice hidden" id="radevNotice">Disconnect to edit settings</span></div>
+
+        <div class="dev-banner" id="devBanner">
+          <span class="role-badge inline" id="roleBadgeDev"><span class="role-icon" id="roleIconDev"></span><span id="roleLabelDev"></span></span>
+          <span class="dev-banner-text">Detected from your account</span>
+        </div>
+
+        <div class="toggles">
+          <label class="toggle-row tall"><span class="tr-main">
+              <span class="tr-title">Use Developer Activity instead of showing Game</span>
+              <span class="tr-sub">When developer activity is detected, puts your Developer Activity in the presence instead of the Game you are developing for</span>
+            </span>
+            <input id="devActivityCheck" type="checkbox"><span class="switch"></span></label>
+          <label class="toggle-row tall"><span class="tr-main">
+              <span class="tr-title">Show "View Created Sets" button</span>
+              <span class="tr-sub">When developer activity is detected, replaces the profile button with a link to your created sets. Turn off to always show the normal profile button</span>
+            </span>
+            <input id="devSetsCheck" type="checkbox"><span class="switch"></span></label>
+        </div>
+      </section>
+
+      <section class="screen" data-screen="about">
+        <div class="about-head">
+          <span class="about-badge">
+            <img class="about-logo" src="__CHEEVO_ABOUT_LOGO__" alt="CheevoPresence logo">
+          </span>
+          <div class="about-titles">
+            <div class="about-title">CheevoPresence</div>
+            <div class="about-sub">Mirror RetroAchievements Activity to Discord</div>
+          </div>
+          <span class="ver-chip">v<span id="versionTextAbout"></span></span>
+        </div>
+
+        <div class="about-update-card hidden" id="updateCard">
+          <span class="about-update-icon">
+            <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 19V5"></path><path d="m5 12 7-7 7 7"></path></svg>
+          </span>
+          <span class="about-update-copy">
+            <span class="about-update-title" id="updateTitle">Update available</span>
+            <span class="about-update-sub" id="updateSub"></span>
+          </span>
+          <button class="about-update-download" id="updateButton" type="button">Download</button>
+        </div>
+
+        <div class="about-list">
+          <button class="about-row" data-link="api_key" type="button"><span>Get API Key</span><span class="chev">›</span></button>
+          <button class="about-row" data-link="retroachievements" type="button"><span>RetroAchievements</span><span class="chev">›</span></button>
+          <button class="about-row" data-link="github" type="button"><span>GitHub</span><span class="chev">›</span></button>
+          <button class="about-row kofi" data-link="kofi" type="button"><span>Support on Ko-fi</span><span class="chev">›</span></button>
+          <button class="about-row" id="aboutLogsBtn" type="button"><span>Open Logs</span><span class="chev">›</span></button>
+        </div>
+
+        <div class="about-foot">Made by Denzi · GPL-3.0 License</div>
+      </section>
+
+    </main>
+  </div>
+
+  <div class="modal hidden" id="messageModal" role="dialog" aria-modal="true">
+    <div class="modal-panel">
+      <h3 id="messageTitle"></h3>
+      <p id="messageBody"></p>
+      <button id="messageClose" type="button">OK</button>
+    </div>
+  </div>
+
+  <script>window.CHEEVO_API_TOKEN = "__CHEEVO_API_TOKEN__";</script>
+  <script src="./settings.js"></script>
+</body>
+</html>

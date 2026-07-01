@@ -1,0 +1,5 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="74" height="26" viewBox="0 0 74 26" font-family="'Segoe UI',Roboto,Helvetica,Arial,sans-serif">
+  <rect x="0.5" y="0.5" width="73" height="25" rx="6" fill="#17232e" stroke="#4b7598" stroke-width="1"/>
+  <g transform="translate(11 7.0) scale(0.50000)" fill="none" stroke="#7dc5ff" stroke-width="2.3" stroke-linecap="round" stroke-linejoin="round"><path d="M17 3a2.83 2.83 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5Z"/><path d="m15 5 4 4"/></g>
+  <text x="30" y="17.08" fill="#7dc5ff" font-size="12" font-weight="600">Writer</text>
+</svg>

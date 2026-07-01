@@ -4,6 +4,8 @@
   "show_profile_button": true,
   "show_gamepage_button": true,
   "show_achievement_progress": true,
+  "dev_mode": false,
+  "use_retroachievements_developer_titles": true,
   "interval": 5,
   "timeout": 130,
   "start_on_boot": false

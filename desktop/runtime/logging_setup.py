@@ -18,7 +18,6 @@ LOG_LEVEL_ENV = "CHEEVO_LOG_LEVEL"
 
 
 def _resolve_level(level):
-    """Return the log level, letting CHEEVO_LOG_LEVEL override the default."""
     requested = os.environ.get(LOG_LEVEL_ENV, "").strip().upper()
     if requested:
         resolved = logging.getLevelName(requested)
@@ -28,18 +27,15 @@ def _resolve_level(level):
 
 
 def _is_runtime_handler(handler):
-    """Return whether a handler is owned by this setup helper."""
     return bool(getattr(handler, HANDLER_MARKER, False))
 
 
 def _same_log_file(handler, log_file):
-    """Return whether a rotating handler already points at the target file."""
     current = getattr(handler, "baseFilename", None)
     return bool(current and os.path.abspath(current) == os.path.abspath(log_file))
 
 
 def setup_logging(platform=None, level=logging.INFO):
-    """Configure rotating file logging once and return the target log path."""
     level = _resolve_level(level)
     logger = logging.getLogger(LOGGER_NAME)
     logger.setLevel(level)

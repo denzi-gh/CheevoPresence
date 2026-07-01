@@ -42,7 +42,6 @@ REDACTED = "<redacted>"
 
 
 def _strip_url_query(value):
-    """Return a URL without its query/fragment, or the value unchanged."""
     if "://" not in value:
         return value
     try:
@@ -55,7 +54,6 @@ def _strip_url_query(value):
 
 
 def sanitize_log_value(value):
-    """Render one field value as a single safe, parseable token."""
     if value is None:
         return "none"
     if isinstance(value, bool):
@@ -73,7 +71,6 @@ def sanitize_log_value(value):
 
 
 def sanitize_log_fields(fields):
-    """Redact sensitive keys and sanitize every value for logging."""
     safe = {}
     for key, value in fields.items():
         if key.lower() in SENSITIVE_KEYS:
@@ -84,7 +81,6 @@ def sanitize_log_fields(fields):
 
 
 def format_event(area, event, **fields):
-    """Build a ``[AREA] event key=value`` log message string."""
     safe_fields = sanitize_log_fields(fields)
     parts = [f"[{area}]", event]
     parts.extend(f"{key}={value}" for key, value in safe_fields.items())
@@ -92,5 +88,4 @@ def format_event(area, event, **fields):
 
 
 def log_event(logger, area, event, level=logging.INFO, exc_info=False, **fields):
-    """Emit a structured ``[AREA] event ...`` line on the given logger."""
     logger.log(level, format_event(area, event, **fields), exc_info=exc_info)

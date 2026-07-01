@@ -194,6 +194,7 @@ PYTHONPATH="$project_root${PYTHONPATH:+:$PYTHONPATH}" "${build_python}" -m PyIns
   --hidden-import "desktop.shell.linux.indicator" \
   --hidden-import "desktop.shell.ipc" \
   --hidden-import "desktop.shell.settings_client" \
+  --hidden-import "desktop.shell.web_settings" \
   --hidden-import "desktop.shell.tk_settings" \
   --hidden-import "gi" \
   --hidden-import "gi.repository.GLib" \
@@ -213,6 +214,7 @@ PYTHONPATH="$project_root${PYTHONPATH:+:$PYTHONPATH}" "${build_python}" -m PyIns
   --exclude-module "Quartz" \
   --exclude-module "PyObjCTools" \
   --add-data "console_icons.ini:." \
+  --add-data "desktop/shell/web_assets:desktop/shell/web_assets" \
   --add-data ".github/assets/tray-default.png:.github/assets" \
   --add-data "cheevoRP_icon.ico:." \
   --add-data "cheevoRP_inactive.ico:." \

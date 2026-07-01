@@ -13,7 +13,14 @@ from desktop.core.api import (
     format_api_error,
     ra_get_game,
     ra_get_user_progress,
+    ra_get_user_profile_v2,
     ra_get_user_summary,
+)
+from desktop.core.roles import (
+    coerce_permissions,
+    debug_forced_role_permission,
+    resolve_dev_mode,
+    role_from_api,
 )
 from desktop.core.settings import normalize_config
 from desktop.runtime.backoff import BackoffPolicy
@@ -29,14 +36,14 @@ from desktop.runtime.log_events import (
     log_event,
 )
 from desktop.runtime.presence_builder import PresenceBuilder, coerce_progress_int
-from desktop.runtime.state import WorkerState
+from desktop.runtime.state import MirroredPresence, WorkerState
 from desktop.runtime.storage import load_config, load_console_icons
 
 logger = logging.getLogger(__name__)
+ROLE_REFRESH_INTERVAL_SECONDS = 15 * 60
 
 
 class RPCWorker:
-    """Poll RetroAchievements and mirror the active session to Discord RPC."""
 
     def __init__(
         self,
@@ -69,13 +76,20 @@ class RPCWorker:
         self.status_text = "Not running"
         self.ra_connected = False
         self.ra_status_text = "Not connected to RetroAchievements"
+        self.ra_permissions = None
+        self.ra_role_label = ""
+        self.ra_role_tier = ""
+        self.ra_dev_mode = False
+        self._ra_role_cache_username = None
+        self._ra_role_cache_visible_role = None
+        self._ra_role_cache_displayable_roles = None
+        self._ra_role_cache_at = 0.0
+        self.mirrored_presence = None
 
     def set_status_callback(self, callback):
-        """Register the UI-facing status callback used by the runtime shell."""
         self._external_callback = callback
 
     def status_callback(self, status, text):
-        """Store the latest worker status and forward it to the UI if present."""
         with self._state_lock:
             self.current_status = status
             self.status_text = text
@@ -84,17 +98,54 @@ class RPCWorker:
             callback(status, text)
 
     def set_ra_status(self, connected):
-        """Track whether the RetroAchievements API is currently reachable."""
         with self._state_lock:
             self.ra_connected = connected
-            self.ra_status_text = (
-                "Connected to RetroAchievements"
-                if connected
-                else "Not connected to RetroAchievements"
+            username = str(self.config.get("username") or "").strip()
+            if connected:
+                self.ra_status_text = (
+                    f"Connected as {username}"
+                    if username
+                    else "Connected to RetroAchievements"
+                )
+            else:
+                self.ra_status_text = "Not connected to RetroAchievements"
+            if not connected:
+                self.ra_permissions = None
+                self.ra_role_label = ""
+                self.ra_role_tier = ""
+                self.ra_dev_mode = False
+                self._ra_role_cache_username = None
+                self._ra_role_cache_visible_role = None
+                self._ra_role_cache_displayable_roles = None
+                self._ra_role_cache_at = 0.0
+                self.mirrored_presence = None
+
+    def set_ra_role(self, permissions, visible_role=None, displayable_roles=None):
+        forced_permission = debug_forced_role_permission()
+        role = role_from_api(
+            permissions,
+            visible_role=visible_role,
+            forced_permission=forced_permission,
+        )
+        dev_mode = resolve_dev_mode(
+            permissions,
+            displayable_roles,
+            forced_permission=forced_permission,
+        )
+        with self._state_lock:
+            self.ra_permissions = (
+                role.permissions
+                if role and role.permissions is not None
+                else coerce_permissions(permissions)
+                if role
+                else None
             )
+            self.ra_role_label = role.label if role else ""
+            self.ra_role_tier = role.tier if role else ""
+            self.ra_dev_mode = dev_mode
+            self.config["dev_mode"] = dev_mode
 
     def get_state(self):
-        """Return an immutable snapshot of UI-facing worker state."""
         with self._state_lock:
             thread_alive = self.thread is not None and self.thread.is_alive()
             return WorkerState(
@@ -105,18 +156,20 @@ class RPCWorker:
                 status_text=self.status_text,
                 ra_connected=self.ra_connected,
                 ra_status_text=self.ra_status_text,
+                ra_permissions=self.ra_permissions,
+                ra_role_label=self.ra_role_label,
+                ra_role_tier=self.ra_role_tier,
+                ra_dev_mode=self.ra_dev_mode,
+                mirrored_presence=self.mirrored_presence,
             )
 
     def is_busy(self):
-        """Return whether the worker is active or still shutting down."""
         return self.get_state().is_busy
 
     def is_stopping(self):
-        """Return whether the worker is in its shutdown grace period."""
         return self.get_state().is_stopping
 
     def start(self, config=None):
-        """Start the polling thread if credentials are available."""
         with self._state_lock:
             if self.running or (self.thread is not None and self.thread.is_alive()):
                 log_event(logger, AREA_WORKER, "start_skipped", reason="already_running")
@@ -156,7 +209,6 @@ class RPCWorker:
             return True
 
     def stop(self, timeout=35):
-        """Request a clean worker shutdown and wait briefly for it to finish."""
         with self._state_lock:
             thread = self.thread
             if not self.running and not (thread and thread.is_alive()):
@@ -168,6 +220,7 @@ class RPCWorker:
                 return True
             self.running = False
             self._stop_event.set()
+            self.set_ra_status(False)
             log_event(
                 logger,
                 AREA_WORKER,
@@ -182,6 +235,7 @@ class RPCWorker:
         stopped = not thread or not thread.is_alive()
         if stopped:
             log_event(logger, AREA_WORKER, "stopped")
+            self.set_ra_status(False)
             self.status_callback("disconnected", "Stopped")
         else:
             log_event(
@@ -195,18 +249,15 @@ class RPCWorker:
         return stopped
 
     def _should_stop(self):
-        """Return whether the polling loop should exit on the next check."""
         return self._stop_event.is_set() or not self.running
 
     def _current_thread_done(self):
-        """Mark the current worker thread as finished in shared state."""
         with self._state_lock:
             self.running = False
             if threading.current_thread() is self.thread:
                 self.thread = None
 
     def _unexpected_api_response(self):
-        """Surface a standard unexpected-API-response error to the UI."""
         log_event(
             logger,
             AREA_RA,
@@ -218,8 +269,32 @@ class RPCWorker:
         self.set_ra_status(False)
         self.status_callback("error", "API error: unexpected response")
 
+    def _clear_mirrored_presence(self):
+        with self._state_lock:
+            self.mirrored_presence = None
+
+    def _set_mirrored_presence(self, last_game_id, presence):
+        update_kwargs = presence.update_kwargs
+        buttons = update_kwargs.get("buttons") or []
+        with self._state_lock:
+            self.mirrored_presence = MirroredPresence(
+                game_id=int(last_game_id),
+                title=update_kwargs.get("name") or presence.game_title,
+                details=update_kwargs.get("details"),
+                state=update_kwargs.get("state"),
+                console_name=presence.console_name,
+                game_icon_url=update_kwargs.get("large_image"),
+                large_text=update_kwargs.get("large_text"),
+                achievement_count=presence.achievement_count,
+                achievement_total=presence.achievement_total,
+                show_achievement_progress=bool(
+                    self.config.get("show_achievement_progress", True)
+                ),
+                buttons=[dict(button) for button in buttons],
+                developer_activity=presence.developer_activity,
+            )
+
     def _sync_gateway_from_worker(self):
-        """Keep compatibility fields in sync before delegating to the gateway."""
         self.discord_gateway.presence_factory = self._presence_factory
         self.discord_gateway.status_callback = self.status_callback
         self.discord_gateway.rpc = self.rpc
@@ -228,27 +303,71 @@ class RPCWorker:
         self.discord_gateway.start_time = self.start_time
 
     def _sync_worker_from_gateway(self):
-        """Mirror gateway-owned Discord state onto legacy worker attributes."""
         self.rpc = self.discord_gateway.rpc
         self.rpc_connected = self.discord_gateway.rpc_connected
         self.rpc_pipe = self.discord_gateway.rpc_pipe
         self.start_time = self.discord_gateway.start_time
 
     def _connect_rpc(self):
-        """Open the Discord IPC connection if it is not already active."""
         self._sync_gateway_from_worker()
         connected = self.discord_gateway.connect()
         self._sync_worker_from_gateway()
         return connected
 
     def _disconnect_rpc(self):
-        """Clear Discord presence and close the current IPC client safely."""
         self._sync_gateway_from_worker()
         self.discord_gateway.disconnect()
         self._sync_worker_from_gateway()
+        self._clear_mirrored_presence()
+
+    def _presence_builder(self):
+        return PresenceBuilder(dict(self.config), self.console_icons)
+
+    def _roles_for_user(self, username, apikey):
+        now = time.monotonic()
+        if (
+            self._ra_role_cache_username == username
+            and now - self._ra_role_cache_at < ROLE_REFRESH_INTERVAL_SECONDS
+        ):
+            return (
+                self._ra_role_cache_visible_role,
+                self._ra_role_cache_displayable_roles,
+            )
+
+        try:
+            profile = ra_get_user_profile_v2(username, apikey)
+            visible_role = profile.get("visibleRole")
+            displayable_roles = profile.get("displayableRoles")
+        except requests.RequestException as exc:
+            visible_role = None
+            displayable_roles = None
+            log_event(
+                logger,
+                AREA_RA,
+                "v2_role_lookup_failed",
+                level=logging.WARNING,
+                error_type=exc.__class__.__name__,
+                detail=format_api_error(exc),
+            )
+        except APIResponseError:
+            visible_role = None
+            displayable_roles = None
+            log_event(
+                logger,
+                AREA_RA,
+                "v2_role_lookup_failed",
+                level=logging.WARNING,
+                error_type="APIResponseError",
+                reason="unexpected_payload",
+            )
+
+        self._ra_role_cache_username = username
+        self._ra_role_cache_visible_role = visible_role
+        self._ra_role_cache_displayable_roles = displayable_roles
+        self._ra_role_cache_at = now
+        return visible_role, displayable_roles
 
     def _loop(self):
-        """Continuously poll RA, build presence data, and update Discord."""
         try:
             log_event(logger, AREA_WORKER, "loop_started")
             self.set_ra_status(False)
@@ -259,7 +378,6 @@ class RPCWorker:
             interval = self.config["interval"]
             timeout_sec = self.config["timeout"]
             backoff = BackoffPolicy(interval)
-            presence_builder = PresenceBuilder(self.config, self.console_icons)
             consecutive_errors = 0
 
             while not self._should_stop():
@@ -270,13 +388,16 @@ class RPCWorker:
 
                     was_ra_connected = self.ra_connected
                     self.set_ra_status(True)
+                    visible_role, displayable_roles = self._roles_for_user(username, apikey)
+                    self.set_ra_role(
+                        user_data.get("Permissions"),
+                        visible_role=visible_role,
+                        displayable_roles=displayable_roles,
+                    )
                     if not was_ra_connected:
                         log_event(logger, AREA_RA, "connection_succeeded")
                     last_game_id = coerce_progress_int(user_data.get("LastGameID", 0))
 
-
-                    # Test Dev Mode by forcing "Developing Achievements" activity
-                    # rp_msg = user_data.get("RichPresenceMsg", "")
                     rp_msg = user_data.get("RichPresenceMsg", "")
                     if not isinstance(rp_msg, str):
                         raise APIResponseError
@@ -342,6 +463,7 @@ class RPCWorker:
                         if self.rpc_connected:
                             self.start_time = int(time.time())
 
+                    presence_builder = self._presence_builder()
                     presence = presence_builder.build(
                         username=username,
                         last_game_id=last_game_id,
@@ -352,6 +474,7 @@ class RPCWorker:
                     )
 
                     if not self._connect_rpc():
+                        self._clear_mirrored_presence()
                         self._sleep(interval)
                         continue
                     if self._should_stop():
@@ -395,6 +518,7 @@ class RPCWorker:
                             error_type=safe_exception_name(exc),
                         )
                         raise
+                    self._set_mirrored_presence(last_game_id, presence)
                     log_event(
                         logger,
                         AREA_DISCORD,
@@ -473,7 +597,6 @@ class RPCWorker:
             )
 
     def _sleep(self, seconds):
-        """Sleep in one-second slices so shutdown stays responsive."""
         for _ in range(int(seconds)):
             if self._should_stop():
                 return

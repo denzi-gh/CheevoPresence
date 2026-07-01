@@ -1,1 +1,0 @@
-"""Linux desktop shell integration."""

@@ -1,4 +1,3 @@
-"""Desktop package skrr skrr"""
 
 import logging
 

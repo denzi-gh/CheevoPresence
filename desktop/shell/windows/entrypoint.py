@@ -2,7 +2,6 @@
 
 import logging
 import sys
-import threading
 
 from desktop.platform import get_platform_services
 from desktop.runtime.controller import AppController
@@ -10,14 +9,21 @@ from desktop.runtime.diagnostics import log_startup_diagnostics
 from desktop.runtime.log_events import AREA_STARTUP, log_event
 from desktop.runtime.logging_setup import setup_logging
 from desktop.shell.windows.tray import TrayApp
-from desktop.shell.windows.ui import SettingsWindow
 
 EXIT_APP_FLAG = "--exit"
+WINDOWS_SETTINGS_CLIENT_FLAG = "--windows-settings-client"
 logger = logging.getLogger(__name__)
 
 
 def main():
-    """Boot the tray app and optionally open the settings window on launch."""
+    if WINDOWS_SETTINGS_CLIENT_FLAG in sys.argv:
+        flag_index = sys.argv.index(WINDOWS_SETTINGS_CLIENT_FLAG)
+        from desktop.shell.settings_client import main as settings_main
+
+        if len(sys.argv) >= flag_index + 3:
+            return settings_main(sys.argv[flag_index + 1], sys.argv[flag_index + 2])
+        return settings_main()
+
     tray_mode = "--tray" in sys.argv
     mode = "tray" if tray_mode else "settings"
     platform = get_platform_services()
@@ -42,18 +48,6 @@ def main():
 
     log_event(logger, AREA_STARTUP, "single_instance_acquired", mode=mode)
     controller = AppController(platform=platform)
-    app = TrayApp(controller)
+    app = TrayApp(controller, open_settings_on_launch=not tray_mode)
 
-    if tray_mode:
-        app.run()
-    else:
-        def open_initial_settings():
-            app._settings_open = True
-            SettingsWindow(
-                controller,
-                on_close=app._on_settings_closed,
-                on_quit=app.quit_app,
-            )
-
-        threading.Thread(target=open_initial_settings, daemon=True).start()
-        app.run()
+    app.run()

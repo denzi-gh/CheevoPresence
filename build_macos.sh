@@ -167,6 +167,7 @@ PYTHONPATH="$project_root${PYTHONPATH:+:$PYTHONPATH}" "${build_python}" -m PyIns
   --hidden-import "desktop.shell.ipc" \
   --hidden-import "desktop.shell.macos.menu_bar" \
   --hidden-import "desktop.shell.settings_client" \
+  --hidden-import "desktop.shell.web_settings" \
   --hidden-import "desktop.shell.tk_settings" \
   --hidden-import "objc" \
   --hidden-import "Foundation" \
@@ -179,6 +180,8 @@ PYTHONPATH="$project_root${PYTHONPATH:+:$PYTHONPATH}" "${build_python}" -m PyIns
   --exclude-module "desktop.shell.windows.ui" \
   --exclude-module "pystray._win32" \
   --add-data "console_icons.ini:." \
+  --add-data "desktop/shell/web_assets:desktop/shell/web_assets" \
+  --add-data ".github/assets/tray-default.png:.github/assets" \
   --add-data "build/macos/generated/cheevoRP_menubar_template.png:." \
   "launch_macos.py"
 

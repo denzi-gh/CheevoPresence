@@ -1,0 +1,5 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="97" height="26" viewBox="0 0 97 26" font-family="'Segoe UI',Roboto,Helvetica,Arial,sans-serif">
+  <rect x="0.5" y="0.5" width="96" height="25" rx="6" fill="#16282f" stroke="#457380" stroke-width="1"/>
+  <g transform="translate(11 7.0) scale(0.50000)" fill="none" stroke="#6fcfe2" stroke-width="2.3" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3 5 6v5c0 4 3 7 7 9 4-2 7-5 7-9V6z"/></g>
+  <text x="30" y="17.08" fill="#6fcfe2" font-size="12" font-weight="600">Moderator</text>
+</svg>

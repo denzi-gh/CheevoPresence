@@ -6,6 +6,9 @@ DEFAULT_CONFIG = {
     "show_profile_button": True,
     "show_gamepage_button": True,
     "show_achievement_progress": True,
+    "dev_mode": False,
+    "use_retroachievements_developer_titles": True,
+    "show_developer_sets_button": True,
     "interval": 5,
     "timeout": 130,
     "start_on_boot": False,
@@ -13,7 +16,6 @@ DEFAULT_CONFIG = {
 
 
 def normalize_config(raw, decode_api_key=None):
-    """Coerce loose JSON config data into the app's validated shape."""
     cfg = dict(DEFAULT_CONFIG)
     if not isinstance(raw, dict):
         return cfg
@@ -33,6 +35,9 @@ def normalize_config(raw, decode_api_key=None):
         "show_profile_button",
         "show_gamepage_button",
         "show_achievement_progress",
+        "dev_mode",
+        "use_retroachievements_developer_titles",
+        "show_developer_sets_button",
         "start_on_boot",
     ):
         value = raw.get(key, cfg[key])

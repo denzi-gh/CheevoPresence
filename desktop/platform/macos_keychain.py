@@ -10,12 +10,10 @@ KEYCHAIN_TOKEN_PREFIX = f"keychain://{KEYCHAIN_SERVICE}/"
 
 
 def build_keychain_token(account=KEYCHAIN_ACCOUNT):
-    """Build the config token that points at the stored macOS keychain item."""
     return f"{KEYCHAIN_TOKEN_PREFIX}{account}"
 
 
 def parse_keychain_token(value):
-    """Extract the keychain account from a stored config token."""
     if not isinstance(value, str) or not value.startswith(KEYCHAIN_TOKEN_PREFIX):
         return None
     account = value[len(KEYCHAIN_TOKEN_PREFIX) :].strip()
@@ -23,7 +21,6 @@ def parse_keychain_token(value):
 
 
 def _run_command(args, input_text=None, check=True):
-    """Run a small OS command and return the completed process."""
     return subprocess.run(
         args,
         input=input_text,
@@ -34,7 +31,6 @@ def _run_command(args, input_text=None, check=True):
 
 
 def _read_keychain_password(account):
-    """Read the stored API key from the user's login keychain."""
     try:
         result = _run_command(
             [
@@ -53,7 +49,6 @@ def _read_keychain_password(account):
 
 
 def _write_keychain_password(account, value):
-    """Create or update the keychain item used for the RA API key."""
     try:
         _run_command(
             [
@@ -75,7 +70,6 @@ def _write_keychain_password(account, value):
 
 
 def _delete_keychain_password(account):
-    """Remove the stored API key from the user's keychain when cleared."""
     try:
         subprocess.run(
             [
@@ -95,7 +89,6 @@ def _delete_keychain_password(account):
 
 
 def protect_api_key(value):
-    """Store the API key in the user's macOS keychain and return a reference token."""
     if not value:
         _delete_keychain_password(KEYCHAIN_ACCOUNT)
         return ""
@@ -104,7 +97,6 @@ def protect_api_key(value):
 
 
 def unprotect_api_key(value):
-    """Resolve the stored API key token back into the plaintext secret."""
     account = parse_keychain_token(value)
     if account:
         return _read_keychain_password(account)

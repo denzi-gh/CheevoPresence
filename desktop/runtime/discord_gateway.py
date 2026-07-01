@@ -17,12 +17,10 @@ logger = logging.getLogger(__name__)
 
 
 def safe_exception_name(exc):
-    """Return a diagnostic exception label without payload details."""
     return exc.__class__.__name__
 
 
 def close_rpc_client(rpc):
-    """Best-effort cleanup for a Discord RPC client."""
     if not rpc:
         return
     try:
@@ -32,7 +30,6 @@ def close_rpc_client(rpc):
 
 
 def is_discord_unavailable_error(exc):
-    """Recognize Discord IPC errors that usually mean Discord is not running."""
     return isinstance(
         exc,
         (
@@ -51,7 +48,6 @@ def is_discord_unavailable_error(exc):
 
 
 class DiscordPresenceGateway:
-    """Own the Discord IPC client, pipe fallback, and presence updates."""
 
     def __init__(
         self,
@@ -77,7 +73,6 @@ class DiscordPresenceGateway:
             self.status_callback(status, text)
 
     def pipe_order(self):
-        """Return the Discord IPC pipe order, preferring the last working pipe."""
         if self.rpc_pipe in DISCORD_IPC_PIPES:
             return (self.rpc_pipe,) + tuple(
                 pipe for pipe in DISCORD_IPC_PIPES if pipe != self.rpc_pipe
@@ -85,7 +80,6 @@ class DiscordPresenceGateway:
         return DISCORD_IPC_PIPES
 
     def _create_presence(self, pipe):
-        """Create a pypresence client with short IPC timeouts when supported."""
         try:
             return self.presence_factory(
                 self.client_id,
@@ -97,7 +91,6 @@ class DiscordPresenceGateway:
             return self.presence_factory(self.client_id, pipe=pipe)
 
     def connect_pipe(self, pipe):
-        """Create and connect a Discord RPC client for one IPC pipe index."""
         log_event(
             logger,
             AREA_DISCORD,
@@ -144,7 +137,6 @@ class DiscordPresenceGateway:
         return rpc
 
     def connect(self):
-        """Open the Discord IPC connection if it is not already active."""
         with self._lock:
             if self.rpc_connected:
                 log_event(logger, AREA_DISCORD, "ipc_already_connected", pipe=self.rpc_pipe)
@@ -216,11 +208,9 @@ class DiscordPresenceGateway:
             return False
 
     def update(self, **kwargs):
-        """Update the active Discord Rich Presence payload."""
         self.rpc.update(**kwargs)
 
     def disconnect(self):
-        """Clear Discord presence and close the current IPC client safely."""
         with self._lock:
             if self.rpc:
                 if self.rpc_connected:

@@ -1,5 +1,5 @@
-"""Compatibility wrapper for the shared Tk settings window."""
+"""Compatibility wrapper for the shared web settings window."""
 
-from desktop.shell.tk_settings import TkSettingsWindow as SettingsWindow
+from desktop.shell.web_settings import WebSettingsWindow as SettingsWindow
 
 __all__ = ["SettingsWindow"]

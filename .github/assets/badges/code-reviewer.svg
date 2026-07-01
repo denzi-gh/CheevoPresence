@@ -1,0 +1,5 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="118" height="26" viewBox="0 0 118 26" font-family="'Segoe UI',Roboto,Helvetica,Arial,sans-serif">
+  <rect x="0.5" y="0.5" width="117" height="25" rx="6" fill="#252036" stroke="#5d528f" stroke-width="1"/>
+  <g transform="translate(11 7.0) scale(0.50000)" fill="none" stroke="#b0a0f0" stroke-width="2.3" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/></g>
+  <text x="30" y="17.08" fill="#b0a0f0" font-size="12" font-weight="600">Code Reviewer</text>
+</svg>
