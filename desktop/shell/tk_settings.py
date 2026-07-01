@@ -523,6 +523,16 @@ class TkSettingsWindow:
             style="Panel.TCheckbutton",
         )
         self.developer_titles_check.pack(anchor="w")
+        self.developer_sets_button_var = tk.BooleanVar(
+            value=self.cfg.get("show_developer_sets_button", True)
+        )
+        self.developer_sets_button_check = ttk.Checkbutton(
+            self.developer_options_frame,
+            text='Show "View Created Sets" button',
+            variable=self.developer_sets_button_var,
+            style="Panel.TCheckbutton",
+        )
+        self.developer_sets_button_check.pack(anchor="w")
         self._refresh_developer_options_visibility()
         self.autostart_var = tk.BooleanVar(value=self.platform.is_autostart_enabled())
         self.autostart_check = ttk.Checkbutton(
@@ -790,6 +800,7 @@ class TkSettingsWindow:
             self.achievement_progress_check,
             self.dev_mode_check,
             self.developer_titles_check,
+            self.developer_sets_button_check,
             self.autostart_check,
         ):
             widget.configure(state=state)
@@ -954,6 +965,7 @@ class TkSettingsWindow:
                 "show_achievement_progress": self.achievement_progress_var.get(),
                 "dev_mode": self.dev_mode_var.get(),
                 "use_retroachievements_developer_titles": self.developer_titles_var.get(),
+                "show_developer_sets_button": self.developer_sets_button_var.get(),
                 "interval": interval,
                 "timeout": timeout,
                 "start_on_boot": self.autostart_var.get(),

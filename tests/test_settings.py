@@ -33,6 +33,21 @@ class SettingsTests(unittest.TestCase):
 
         self.assertFalse(cfg["use_retroachievements_developer_titles"])
 
+    def test_developer_sets_button_defaults_to_enabled_when_missing(self):
+        cfg = normalize_config({})
+
+        self.assertTrue(cfg["show_developer_sets_button"])
+
+    def test_developer_sets_button_accepts_boolean_value(self):
+        cfg = normalize_config({"show_developer_sets_button": False})
+
+        self.assertFalse(cfg["show_developer_sets_button"])
+
+    def test_developer_sets_button_accepts_string_value(self):
+        cfg = normalize_config({"show_developer_sets_button": "off"})
+
+        self.assertFalse(cfg["show_developer_sets_button"])
+
 
 if __name__ == "__main__":
     unittest.main()

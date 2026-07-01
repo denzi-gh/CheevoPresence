@@ -12,7 +12,7 @@ function bindElements() {
     "usernameInput", "usernameCheck", "apikeyInput", "revealKey",
     "intervalInput", "timeoutInput",
     "profileCheck", "gamepageCheck", "achievementCheck", "bootCheck",
-    "devActivityCheck",
+    "devActivityCheck", "devSetsCheck",
     "discordDot", "discordStatus", "raDot", "raStatus",
     "roleBadge", "roleIcon", "roleLabel",
     "behaviourNotice", "radevNotice",
@@ -97,7 +97,8 @@ function formPayload() {
     show_gamepage_button: els.gamepageCheck.checked,
     show_achievement_progress: els.achievementCheck.checked,
     start_on_boot: els.bootCheck.checked,
-    use_retroachievements_developer_titles: els.devActivityCheck.checked
+    use_retroachievements_developer_titles: els.devActivityCheck.checked,
+    show_developer_sets_button: els.devSetsCheck.checked
   };
 }
 
@@ -112,6 +113,7 @@ function applyConfig(config) {
   els.achievementCheck.checked = !!config.show_achievement_progress;
   els.bootCheck.checked = !!config.start_on_boot;
   els.devActivityCheck.checked = !!config.use_retroachievements_developer_titles;
+  els.devSetsCheck.checked = !!config.show_developer_sets_button;
 }
 
 function scheduleSave() {
@@ -147,6 +149,7 @@ function setControlsEnabled(state) {
   ];
   for (var i = 0; i < inputs.length; i += 1) { inputs[i].disabled = !generalEnabled; }
   els.devActivityCheck.disabled = !devEnabled;
+  els.devSetsCheck.disabled = !devEnabled;
 }
 
 function applyRoleBadge(badge, icon, label, worker, style) {
@@ -435,7 +438,7 @@ function bindEvents() {
 
   var autosaveInputs = [
     els.intervalInput, els.timeoutInput, els.profileCheck, els.gamepageCheck,
-    els.achievementCheck, els.bootCheck, els.devActivityCheck
+    els.achievementCheck, els.bootCheck, els.devActivityCheck, els.devSetsCheck
   ];
   for (i = 0; i < autosaveInputs.length; i += 1) {
     autosaveInputs[i].addEventListener("change", scheduleSave);

@@ -131,7 +131,7 @@ class PresenceBuilder:
         if self.config.get("show_gamepage_button", True):
             buttons.append({"label": "View on RetroAchievements", "url": game_url})
         if self.config.get("show_profile_button", True):
-            if developer_activity:
+            if developer_activity and self.config.get("show_developer_sets_button", True):
                 buttons.append(
                     {
                         "label": f"View {username}'s Created Sets",

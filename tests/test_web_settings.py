@@ -101,6 +101,7 @@ class WebSettingsTests(unittest.TestCase):
                 "show_achievement_progress": True,
                 "dev_mode": True,
                 "use_retroachievements_developer_titles": False,
+                "show_developer_sets_button": False,
                 "interval": 5,
                 "timeout": 130,
                 "start_on_boot": True,
@@ -128,6 +129,7 @@ class WebSettingsTests(unittest.TestCase):
         self.assertFalse(
             controller.connected_config["use_retroachievements_developer_titles"]
         )
+        self.assertFalse(controller.connected_config["show_developer_sets_button"])
 
     def test_save_config_dispatch_persists_without_connecting(self):
         controller = FakeController(
@@ -139,6 +141,7 @@ class WebSettingsTests(unittest.TestCase):
                 "show_achievement_progress": True,
                 "dev_mode": True,
                 "use_retroachievements_developer_titles": True,
+                "show_developer_sets_button": True,
                 "interval": 5,
                 "timeout": 130,
                 "start_on_boot": False,
@@ -157,6 +160,7 @@ class WebSettingsTests(unittest.TestCase):
                     "show_gamepage_button": True,
                     "show_achievement_progress": False,
                     "use_retroachievements_developer_titles": False,
+                    "show_developer_sets_button": False,
                     "interval": 15,
                     "timeout": 260,
                     "start_on_boot": True,
@@ -172,6 +176,7 @@ class WebSettingsTests(unittest.TestCase):
         self.assertFalse(
             controller.saved_config["use_retroachievements_developer_titles"]
         )
+        self.assertFalse(controller.saved_config["show_developer_sets_button"])
         self.assertTrue(controller.saved_config["dev_mode"])
 
     def test_polling_state_does_not_expose_api_key(self):
@@ -267,16 +272,23 @@ class WebSettingsTests(unittest.TestCase):
                 "apikey": "key",
                 "dev_mode": False,
                 "use_retroachievements_developer_titles": False,
+                "show_developer_sets_button": False,
             }
         )
         api = WebSettingsAPI(controller)
 
-        result = api.save_config({"use_retroachievements_developer_titles": True})
+        result = api.save_config(
+            {
+                "use_retroachievements_developer_titles": True,
+                "show_developer_sets_button": True,
+            }
+        )
 
         self.assertTrue(result["success"])
         self.assertFalse(
             controller.saved_config["use_retroachievements_developer_titles"]
         )
+        self.assertFalse(controller.saved_config["show_developer_sets_button"])
 
     def test_authorized_save_preserves_developer_title_setting_while_running(self):
         controller = FakeController(
@@ -285,6 +297,7 @@ class WebSettingsTests(unittest.TestCase):
                 "apikey": "key",
                 "dev_mode": True,
                 "use_retroachievements_developer_titles": True,
+                "show_developer_sets_button": True,
             }
         )
         controller.worker.state = WorkerState(
@@ -301,12 +314,18 @@ class WebSettingsTests(unittest.TestCase):
         )
         api = WebSettingsAPI(controller)
 
-        result = api.save_config({"use_retroachievements_developer_titles": False})
+        result = api.save_config(
+            {
+                "use_retroachievements_developer_titles": False,
+                "show_developer_sets_button": False,
+            }
+        )
 
         self.assertTrue(result["success"])
         self.assertTrue(
             controller.saved_config["use_retroachievements_developer_titles"]
         )
+        self.assertTrue(controller.saved_config["show_developer_sets_button"])
 
     def test_state_payload_serializes_mirrored_presence(self):
         controller = FakeController({})

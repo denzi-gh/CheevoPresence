@@ -258,10 +258,15 @@ class WebSettingsAPI:
                 base,
             )
         developer_titles = base.get("use_retroachievements_developer_titles", True)
+        developer_sets_button = base.get("show_developer_sets_button", True)
         if developer_settings_editable:
             developer_titles = visible.get(
                 "use_retroachievements_developer_titles",
                 developer_titles,
+            )
+            developer_sets_button = visible.get(
+                "show_developer_sets_button",
+                developer_sets_button,
             )
         merged = {
             **base,
@@ -281,6 +286,7 @@ class WebSettingsAPI:
             ),
             "dev_mode": bool(base.get("dev_mode", False)),
             "use_retroachievements_developer_titles": bool(developer_titles),
+            "show_developer_sets_button": bool(developer_sets_button),
             "start_on_boot": bool(
                 visible.get("start_on_boot", base.get("start_on_boot", False))
             ),

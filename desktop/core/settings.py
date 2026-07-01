@@ -8,6 +8,7 @@ DEFAULT_CONFIG = {
     "show_achievement_progress": True,
     "dev_mode": False,
     "use_retroachievements_developer_titles": True,
+    "show_developer_sets_button": True,
     "interval": 5,
     "timeout": 130,
     "start_on_boot": False,
@@ -36,6 +37,7 @@ def normalize_config(raw, decode_api_key=None):
         "show_achievement_progress",
         "dev_mode",
         "use_retroachievements_developer_titles",
+        "show_developer_sets_button",
         "start_on_boot",
     ):
         value = raw.get(key, cfg[key])

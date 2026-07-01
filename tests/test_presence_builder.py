@@ -36,6 +36,7 @@ class PresenceBuilderTests(unittest.TestCase):
             "show_gamepage_button": True,
             "show_achievement_progress": True,
             "use_retroachievements_developer_titles": True,
+            "show_developer_sets_button": True,
         }
         defaults.update(config)
         return PresenceBuilder(defaults, {"7": "nes-icon"})
@@ -156,6 +157,22 @@ class PresenceBuilderTests(unittest.TestCase):
         )
         self.assertEqual(
             "https://retroachievements.org/user/some%20user/developer/sets",
+            result.update_kwargs["buttons"][1]["url"],
+        )
+
+    def test_developer_activity_can_keep_profile_button(self):
+        result = self._builder(show_developer_sets_button=False).build(
+            "user",
+            123,
+            "Developing Achievements",
+            _game(),
+            _progress(),
+            1,
+        )
+
+        self.assertEqual("user's RA Page", result.update_kwargs["buttons"][1]["label"])
+        self.assertEqual(
+            "https://retroachievements.org/user/user",
             result.update_kwargs["buttons"][1]["url"],
         )
 
