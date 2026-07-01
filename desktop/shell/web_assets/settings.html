@@ -93,7 +93,12 @@
           <div class="field-row">
             <label class="field">
               <span>RA Username</span>
-              <input id="usernameInput" autocomplete="username" spellcheck="false">
+              <span class="username-wrap">
+                <input id="usernameInput" autocomplete="username" spellcheck="false">
+                <span class="username-check hidden" id="usernameCheck">
+                  <svg viewBox="0 0 24 24"><polyline points="20 6 9 17 4 12"></polyline></svg>
+                </span>
+              </span>
             </label>
             <label class="field">
               <span>Web API Key</span>

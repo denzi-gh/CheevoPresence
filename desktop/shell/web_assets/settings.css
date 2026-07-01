@@ -303,6 +303,16 @@ button, input, select { font-family: inherit; }
 .number-row input::-webkit-inner-spin-button,
 .number-row input::-webkit-outer-spin-button { margin: 0; appearance: none; }
 
+.username-wrap { position: relative; display: block; }
+.username-check {
+  position: absolute; top: 50%; right: 11px; transform: translateY(-50%);
+  pointer-events: none;
+}
+.username-check svg {
+  display: block; width: 14px; height: 14px;
+  fill: none; stroke: #4cba7a; stroke-width: 2.4; stroke-linecap: round; stroke-linejoin: round;
+}
+
 .apikey-wrap { position: relative; display: block; }
 #apikeyInput { font: 600 12px var(--mono); letter-spacing: 2px; color: #6f747c; padding-right: 64px; }
 .reveal {

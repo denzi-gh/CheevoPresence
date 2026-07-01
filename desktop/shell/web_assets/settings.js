@@ -9,7 +9,7 @@ var apiKeyVisible = false;
 
 function bindElements() {
   var ids = [
-    "usernameInput", "apikeyInput", "revealKey",
+    "usernameInput", "usernameCheck", "apikeyInput", "revealKey",
     "intervalInput", "timeoutInput",
     "profileCheck", "gamepageCheck", "achievementCheck", "bootCheck",
     "devActivityCheck",
@@ -307,7 +307,8 @@ function applyState(state) {
 
   applyRoleBadge(els.roleBadge, els.roleIcon, els.roleLabel, worker, state.role_style);
   applyRoleBadge(els.roleBadgeDev, els.roleIconDev, els.roleLabelDev, worker, state.role_style);
-  if (worker.ra_connected) { show(els.devBanner); } else { hide(els.devBanner); }
+  if (worker.ra_connected) { show(els.usernameCheck); show(els.devBanner); }
+  else { hide(els.usernameCheck); hide(els.devBanner); }
   applyDevGating(state);
   applyMirror(worker);
   applyConnectionButton(state);
