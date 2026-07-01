@@ -1,4 +1,5 @@
-<svg xmlns="http://www.w3.org/2000/svg" width="79" height="26" viewBox="0 0 79 26" font-family="'Segoe UI',Roboto,Helvetica,Arial,sans-serif">
-  <rect x="0.5" y="0.5" width="78" height="25" rx="6" fill="#282417" stroke="#7d6e35" stroke-width="1"/>
-  <text x="11" y="17.08" fill="#f2d35c" font-size="12" font-weight="600">Play Tester</text>
+<svg xmlns="http://www.w3.org/2000/svg" width="98" height="26" viewBox="0 0 98 26" font-family="'Segoe UI',Roboto,Helvetica,Arial,sans-serif">
+  <rect x="0.5" y="0.5" width="97" height="25" rx="6" fill="#282417" stroke="#7d6e35" stroke-width="1"/>
+  <g transform="translate(11 7.0) scale(0.50000)" fill="none" stroke="#f2d35c" stroke-width="2.3" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="8" width="20" height="11" rx="5.5"/><line x1="5.5" y1="13" x2="9.5" y2="13"/><line x1="7.5" y1="11" x2="7.5" y2="15"/><circle cx="16" cy="14" r="1.1" fill="#f2d35c" stroke="none"/><circle cx="18.5" cy="11.5" r="1.1" fill="#f2d35c" stroke="none"/></g>
+  <text x="30" y="17.08" fill="#f2d35c" font-size="12" font-weight="600">Play Tester</text>
 </svg>
