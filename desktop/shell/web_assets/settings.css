@@ -45,7 +45,7 @@ button, input, select { font-family: inherit; }
   flex-direction: column;
   flex: 1;
   min-height: 0;
-  padding: 16px 0 0;
+  padding: 16px 0 8px;
 }
 
 .nav-group-label {
