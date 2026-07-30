@@ -211,7 +211,7 @@ class WebSettingsTests(unittest.TestCase):
                 checked=True,
                 available=True,
                 current_version="1.2.0",
-                latest_version="1.3.0",
+                latest_version="1.3.1",
                 can_self_install=True,
             ),
         )
@@ -219,7 +219,7 @@ class WebSettingsTests(unittest.TestCase):
         state = WebSettingsAPI(controller).get_state()
 
         self.assertTrue(state["update_status"]["available"])
-        self.assertEqual("1.3.0", state["update_status"]["latest_version"])
+        self.assertEqual("1.3.1", state["update_status"]["latest_version"])
         self.assertTrue(state["update_status"]["can_self_install"])
 
     def test_disconnect_delegates_to_controller(self):
@@ -566,7 +566,7 @@ class SettingsServerTests(unittest.TestCase):
         self.assertTrue(self.window._closed_event.is_set())
 
     def test_requests_refresh_the_idle_timestamp(self):
-        # Without this the watchdog would tear down a session the user is using.
+        # Keep the active session alive.
         self.window._last_request = 0.0
 
         status, _body = self._send(

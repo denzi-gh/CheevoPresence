@@ -527,8 +527,6 @@ class WebSettingsWindow:
         self._run()
 
     def present(self):
-        """Bring the settings UI back in front of the user
-        """
         window = self.api.window
         if window is not None:
             shown = getattr(getattr(window, "events", None), "shown", None)
@@ -547,8 +545,6 @@ class WebSettingsWindow:
         return True
 
     def _notify_ready(self):
-        # The native path can fail after this point and hand over to the browser,
-        # so make sure the caller only ever hears about it once.
         if self._ready_notified or not self.on_ready:
             return
         self._ready_notified = True
@@ -591,10 +587,7 @@ class WebSettingsWindow:
                 address, port = self.server.server_address[:2]
                 return f"http://{address}:{port}"
 
-            # The page is opened in the user's own browser when no native webview
-            # backend exists, so it shares an origin namespace with every other
-            # local page. Pinning Host keeps a rebound DNS name from reaching the
-            # server at all.
+            # Validate Host to prevent DNS rebinding to the local server.
             def _is_trusted_request(self):
                 address, port = self.server.server_address[:2]
                 return (self.headers.get("Host") or "") == f"{address}:{port}"
@@ -699,9 +692,6 @@ class WebSettingsWindow:
         webview.start(started.set, debug=False)
 
     def _run_in_browser(self, url):
-        # No native webview backend: hand the same local page to the user's
-        # browser. Linux releases cannot bundle WebKit2GTK, so this is the normal
-        # path there rather than a rare fallback.
         if not open_external_url(url):
             raise RuntimeError("No web browser is available to show the settings window.")
         log_event(logger, AREA_SETTINGS, "settings_opened_in_browser")
@@ -718,8 +708,6 @@ class WebSettingsWindow:
             try:
                 self._open_native_window(url, started)
             except Exception as exc:
-                # A failure after the GUI loop came up is a real error; only a
-                # missing backend should send us to the browser.
                 if started.is_set():
                     raise
                 log_event(

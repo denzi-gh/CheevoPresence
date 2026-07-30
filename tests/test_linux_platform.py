@@ -245,7 +245,7 @@ class LinuxPlatformTests(unittest.TestCase):
 
 class HostProcessEnvTests(unittest.TestCase):
     """A browser started with the PyInstaller bundle still on its library path
-    loads our libraries instead of its own and dies."""
+    may load incompatible libraries and fail to start."""
 
     def test_frozen_runs_restore_the_original_library_path(self):
         env = {"LD_LIBRARY_PATH": "/tmp/_MEI123", "LD_LIBRARY_PATH_ORIG": "/usr/lib"}

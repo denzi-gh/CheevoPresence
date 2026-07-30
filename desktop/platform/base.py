@@ -73,7 +73,7 @@ class PlatformServices:
             return False
 
     def child_process_env(self):
-        """Environment for programs we hand off to, such as a browser."""
+        """Environment for child processes."""
         return os.environ.copy()
 
     def prepare_native_webview_environment(self):

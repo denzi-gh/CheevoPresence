@@ -20,7 +20,7 @@ from desktop.runtime.log_events import AREA_AUTOSTART, log_event
 
 try:
     import fcntl
-except ImportError:  # pragma: no cover - only relevant on non-POSIX platforms
+except ImportError: 
     fcntl = None
 
 AUTOSTART_FILE_NAME = "CheevoPresence.desktop"
@@ -387,9 +387,6 @@ class LinuxPlatformServices(GenericPlatformServices):
 
     def prepare_native_webview_environment(self):
         if JSC_GC_SIGNAL is not None:
-            # The settings-window presenter uses SIGUSR1. JavaScriptCore also
-            # defaults to that signal, so assign its GC thread control a
-            # different Linux signal before WebKit initializes.
             os.environ.setdefault("JSC_SIGNAL_FOR_GC", str(JSC_GC_SIGNAL))
 
     def open_external_url(self, url):
