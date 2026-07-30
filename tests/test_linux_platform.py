@@ -220,6 +220,11 @@ class LinuxPlatformTests(unittest.TestCase):
             platform.stage_update_install("download", [], 123),
         )
 
+    def test_settings_window_is_native_on_linux(self):
+        platform = linux.LinuxPlatformServices()
+
+        self.assertTrue(platform.settings_window_native)
+
 
 class HostProcessEnvTests(unittest.TestCase):
     """A browser started with the PyInstaller bundle still on its library path

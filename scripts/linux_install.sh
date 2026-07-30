@@ -17,6 +17,63 @@ exe_path="$bin_dir/$app_name"
 desktop_path="$desktop_dir/${app_name}.desktop"
 icon_path="$icon_dir/${app_name}.png"
 
+has_webkit_runtime() {
+  if command -v ldconfig >/dev/null 2>&1 && ldconfig -p 2>/dev/null | grep -q 'libwebkit2gtk'; then
+    return 0
+  fi
+
+  if command -v python3 >/dev/null 2>&1; then
+    python3 - <<'PY' >/dev/null 2>&1
+import gi
+from gi.repository import WebKit2
+PY
+    return $?
+  fi
+
+  return 1
+}
+
+install_webkit_runtime() {
+  if has_webkit_runtime; then
+    return
+  fi
+
+  echo "CheevoPresence needs the WebKit2GTK runtime for its native Settings window."
+  case "$(uname -s)" in
+    Linux) ;;
+    *)
+      echo "Install WebKit2GTK using your system package manager, then rerun this installer." >&2
+      exit 1
+      ;;
+  esac
+
+  if command -v apt-get >/dev/null 2>&1; then
+    package=""
+    if apt-cache show gir1.2-webkit2-4.1 >/dev/null 2>&1; then
+      package="gir1.2-webkit2-4.1"
+    elif apt-cache show gir1.2-webkit2-4.0 >/dev/null 2>&1; then
+      package="gir1.2-webkit2-4.0"
+    fi
+    if [[ -z "$package" ]]; then
+      echo "Could not find a WebKit2GTK package in APT. Install it manually, then rerun this installer." >&2
+      exit 1
+    fi
+    sudo apt-get install -y "$package"
+  elif command -v dnf >/dev/null 2>&1; then
+    sudo dnf install -y webkit2gtk4.1
+  elif command -v pacman >/dev/null 2>&1; then
+    sudo pacman -S --needed webkit2gtk-4.1
+  else
+    echo "Unsupported package manager. Install WebKit2GTK manually, then rerun this installer." >&2
+    exit 1
+  fi
+
+  if ! has_webkit_runtime; then
+    echo "WebKit2GTK is still unavailable after installation. Resolve the package installation and rerun this installer." >&2
+    exit 1
+  fi
+}
+
 quote_desktop_exec_arg() {
   local text="${1//%/%%}"
   if [[ "$text" =~ ^[A-Za-z0-9_/:=@%+.,-]+$ ]]; then
@@ -53,6 +110,8 @@ install_app() {
     echo "Extract the whole archive and run ./install.sh from inside it." >&2
     exit 1
   fi
+
+  install_webkit_runtime
 
   mkdir -p "$bin_dir" "$desktop_dir" "$icon_dir"
 

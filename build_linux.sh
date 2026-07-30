@@ -19,6 +19,7 @@ import gi
 
 gi.require_version("Gtk", "3.0")
 from gi.repository import Gtk
+from gi.repository import WebKit2
 
 try:
     gi.require_version("AyatanaAppIndicator3", "0.1")
@@ -199,9 +200,9 @@ PYTHONPATH="$project_root${PYTHONPATH:+:$PYTHONPATH}" "${build_python}" -m PyIns
   --hidden-import "gi" \
   --hidden-import "gi.repository.GLib" \
   --hidden-import "gi.repository.Gtk" \
+  --hidden-import "gi.repository.WebKit2" \
   --hidden-import "gi.repository.AyatanaAppIndicator3" \
   --hidden-import "gi.repository.AppIndicator3" \
-  --exclude-module "gi.repository.WebKit2" \
   --exclude-module "desktop.platform.windows" \
   --exclude-module "desktop.shell.windows.entrypoint" \
   --exclude-module "desktop.shell.windows.tray" \
