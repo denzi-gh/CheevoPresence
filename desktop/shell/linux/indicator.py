@@ -468,6 +468,12 @@ class LinuxIndicatorApp:
         if self._shutdown_started:
             return False
         if self._settings_process is not None and self._settings_process.poll() is None:
+            log_event(
+                logger,
+                AREA_SETTINGS,
+                "client_already_running",
+                pid=self._settings_process.pid,
+            )
             return False
         command = self._settings_command()
         env = os.environ.copy()

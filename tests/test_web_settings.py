@@ -556,6 +556,13 @@ class SettingsServerTests(unittest.TestCase):
         )
         self.assertEqual(403, status)
 
+    def test_close_session_beacon_needs_the_session_key(self):
+        self._send("POST", "/api/close_session?k=deadbeef")
+        self.assertFalse(self.window._closed_event.is_set())
+
+        self._send("POST", f"/api/close_session?k={self.token}")
+        self.assertTrue(self.window._closed_event.is_set())
+
     def test_requests_refresh_the_idle_timestamp(self):
         # Without this the watchdog would tear down a session the user is using.
         self.window._last_request = 0.0

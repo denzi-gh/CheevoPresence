@@ -601,6 +601,11 @@ class WebSettingsWindow:
                 if origin and origin != self._origin():
                     self._send(403, {"ok": False, "error": "Invalid settings origin."})
                     return
+                if parsed.path == "/api/close_session":
+                    if parse_qs(parsed.query).get("k", [""])[0] == token:
+                        api.on_window_closed()
+                    self._send(200, {"ok": True})
+                    return
                 if self.headers.get("X-Cheevo-Token") != token:
                     self._send(403, {"ok": False, "error": "Invalid settings token."})
                     return

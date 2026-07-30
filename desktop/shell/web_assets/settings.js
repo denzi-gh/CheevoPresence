@@ -479,6 +479,13 @@ function init() {
   bindEvents();
   loadConfig();
   pollingTimer = window.setInterval(refreshState, 1000);
+  window.addEventListener("pagehide", function () {
+    if (window.navigator && window.navigator.sendBeacon) {
+      window.navigator.sendBeacon(
+        "/api/close_session?k=" + encodeURIComponent(window.CHEEVO_API_TOKEN || "")
+      );
+    }
+  });
 }
 
 if (document.readyState === "loading") {
