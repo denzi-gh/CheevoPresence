@@ -340,6 +340,7 @@ class LinuxPlatformServices(GenericPlatformServices):
 
     startup_toggle_label = "Launch on Linux login"
     settings_menu_default = True
+    settings_window_native = False
 
     def get_config_dir(self, app_name, runtime_root_dir):
         return get_config_dir(app_name)

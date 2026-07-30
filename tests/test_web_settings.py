@@ -1,4 +1,5 @@
 import http.client
+import os
 import tempfile
 import threading
 import unittest
@@ -600,6 +601,23 @@ class BrowserFallbackTests(unittest.TestCase):
             window._run_in_browser("http://127.0.0.1:1/settings?k=x")
 
         self.assertFalse(window._closed_event.is_set())
+
+    def test_native_window_follows_the_platform_unless_overridden(self):
+        window = self._window()
+
+        for native, env, expected in (
+            (True, "", True),
+            (False, "", False),
+            (False, "native", True),
+            (True, "browser", False),
+        ):
+            with self.subTest(platform_native=native, env=env):
+                platform = type("P", (), {"settings_window_native": native})()
+                with patch(
+                    "desktop.shell.web_settings.get_platform_services",
+                    return_value=platform,
+                ), patch.dict(os.environ, {"CHEEVO_SETTINGS_UI": env}):
+                    self.assertEqual(expected, window._native_window_allowed())
 
     def test_missing_webview_backend_falls_back_to_the_browser(self):
         window = self._window()

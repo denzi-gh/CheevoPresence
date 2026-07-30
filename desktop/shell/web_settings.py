@@ -634,9 +634,18 @@ class WebSettingsWindow:
         self._httpd.server_close()
         self._httpd = None
 
+    def _native_window_allowed(self):
+        mode = os.environ.get(SETTINGS_UI_ENV, "").strip().lower()
+        if mode in {"browser", "native"}:
+            return mode == "native"
+        return bool(get_platform_services().settings_window_native)
+
     def _open_native_window(self, url, started):
-        if os.environ.get(SETTINGS_UI_ENV, "").strip().lower() == "browser":
-            raise RuntimeError(f"Native settings window disabled by {SETTINGS_UI_ENV}.")
+        if not self._native_window_allowed():
+            raise RuntimeError(
+                f"Native settings window unavailable on this platform "
+                f"(override with {SETTINGS_UI_ENV}=native)."
+            )
 
         import webview
 

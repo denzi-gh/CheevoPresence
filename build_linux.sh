@@ -201,6 +201,7 @@ PYTHONPATH="$project_root${PYTHONPATH:+:$PYTHONPATH}" "${build_python}" -m PyIns
   --hidden-import "gi.repository.Gtk" \
   --hidden-import "gi.repository.AyatanaAppIndicator3" \
   --hidden-import "gi.repository.AppIndicator3" \
+  --exclude-module "gi.repository.WebKit2" \
   --exclude-module "desktop.platform.windows" \
   --exclude-module "desktop.shell.windows.entrypoint" \
   --exclude-module "desktop.shell.windows.tray" \

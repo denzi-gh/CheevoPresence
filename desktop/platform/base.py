@@ -10,6 +10,8 @@ class PlatformServices:
 
     startup_toggle_label = "Launch on system startup"
     settings_menu_default = False
+   
+    settings_window_native = True
 
     def protect_api_key(self, value):
         raise NotImplementedError
