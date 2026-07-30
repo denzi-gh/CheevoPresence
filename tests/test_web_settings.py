@@ -1,11 +1,21 @@
+import http.client
+import os
 import tempfile
+import threading
 import unittest
 import logging
+from types import SimpleNamespace
 from unittest.mock import patch
+from urllib.parse import parse_qs, urlparse
 
 from desktop.runtime.controller import ConnectResult, UpdateStatus
 from desktop.runtime.state import MirroredPresence, WorkerState
-from desktop.shell.web_settings import WebSettingsAPI, role_badge_style
+from desktop.shell.web_settings import (
+    WebSettingsAPI,
+    WebSettingsWindow,
+    open_external_url,
+    role_badge_style,
+)
 
 
 class FakePlatform:
@@ -201,7 +211,7 @@ class WebSettingsTests(unittest.TestCase):
                 checked=True,
                 available=True,
                 current_version="1.2.0",
-                latest_version="1.3.0",
+                latest_version="1.3.1",
                 can_self_install=True,
             ),
         )
@@ -209,7 +219,7 @@ class WebSettingsTests(unittest.TestCase):
         state = WebSettingsAPI(controller).get_state()
 
         self.assertTrue(state["update_status"]["available"])
-        self.assertEqual("1.3.0", state["update_status"]["latest_version"])
+        self.assertEqual("1.3.1", state["update_status"]["latest_version"])
         self.assertTrue(state["update_status"]["can_self_install"])
 
     def test_disconnect_delegates_to_controller(self):
@@ -424,7 +434,10 @@ class WebSettingsTests(unittest.TestCase):
         controller = FakeController({})
         api = WebSettingsAPI(controller)
 
-        with patch("desktop.shell.web_settings.webbrowser.open") as open_url:
+        with patch(
+            "desktop.shell.web_settings.open_external_url",
+            return_value=True,
+        ) as open_url:
             result = api.open_mirror_url("https://retroachievements.org/game/123")
 
         self.assertTrue(result["success"])
@@ -434,7 +447,10 @@ class WebSettingsTests(unittest.TestCase):
         controller = FakeController({})
         api = WebSettingsAPI(controller)
 
-        with patch("desktop.shell.web_settings.webbrowser.open") as open_url:
+        with patch(
+            "desktop.shell.web_settings.open_external_url",
+            return_value=True,
+        ) as open_url:
             result = api.open_mirror_url("https://example.com/game/123")
 
         self.assertFalse(result["success"])
@@ -488,6 +504,200 @@ class WebSettingsTests(unittest.TestCase):
         for tier in ("admin", "unknown"):
             with self.subTest(tier=tier):
                 self.assertIsNone(role_badge_style(tier).get("icon"))
+
+
+class SettingsServerTests(unittest.TestCase):
+    """The page is served into the user's own browser when no webview backend
+    exists, so it shares an origin namespace with every other local page."""
+
+    def setUp(self):
+        with patch.object(WebSettingsWindow, "_run", lambda _self: None):
+            self.window = WebSettingsWindow(FakeController({}))
+        self.url = self.window._start_server()
+        self.addCleanup(self.window._stop_server)
+        parsed = urlparse(self.url)
+        self.port = parsed.port
+        self.token = parse_qs(parsed.query)["k"][0]
+
+    def _send(self, method, path, host=None, headers=None, body=None):
+        conn = http.client.HTTPConnection("127.0.0.1", self.port, timeout=5)
+        try:
+            conn.putrequest(method, path, skip_host=True, skip_accept_encoding=True)
+            conn.putheader("Host", host or f"127.0.0.1:{self.port}")
+            for key, value in (headers or {}).items():
+                conn.putheader(key, value)
+            payload = (body or "").encode("utf-8")
+            conn.putheader("Content-Length", str(len(payload)))
+            conn.endheaders(payload)
+            response = conn.getresponse()
+            return response.status, response.read().decode("utf-8")
+        finally:
+            conn.close()
+
+    def test_page_is_only_served_with_the_session_key(self):
+        status, body = self._send("GET", f"/settings?k={self.token}")
+        self.assertEqual(200, status)
+        self.assertIn(self.token, body)
+
+        for path in ("/settings", "/settings?k=deadbeef"):
+            with self.subTest(path=path):
+                status, body = self._send("GET", path)
+                self.assertEqual(404, status)
+                self.assertNotIn(self.token, body)
+
+    def test_foreign_host_or_origin_is_rejected(self):
+        status, body = self._send("GET", f"/settings?k={self.token}", host="cheevo.example")
+        self.assertEqual(404, status)
+        self.assertNotIn(self.token, body)
+
+        status, _body = self._send(
+            "POST",
+            "/api/get_state",
+            headers={"X-Cheevo-Token": self.token, "Origin": "https://cheevo.example"},
+            body="{}",
+        )
+        self.assertEqual(403, status)
+
+    def test_close_session_beacon_needs_the_session_key(self):
+        self._send("POST", "/api/close_session?k=deadbeef")
+        self.assertFalse(self.window._closed_event.is_set())
+
+        self._send("POST", f"/api/close_session?k={self.token}")
+        self.assertTrue(self.window._closed_event.is_set())
+
+    def test_requests_refresh_the_idle_timestamp(self):
+        # Keep the active session alive.
+        self.window._last_request = 0.0
+
+        status, _body = self._send(
+            "POST", "/api/get_state", headers={"X-Cheevo-Token": self.token}, body="{}"
+        )
+
+        self.assertEqual(200, status)
+        self.assertGreater(self.window._last_request, 0.0)
+
+
+class BrowserFallbackTests(unittest.TestCase):
+    def _window(self):
+        with patch.object(WebSettingsWindow, "_run", lambda _self: None):
+            return WebSettingsWindow(FakeController({}))
+
+    def test_browser_session_ends_when_the_page_closes(self):
+        window = self._window()
+        threading.Timer(0.05, window._closed_event.set).start()
+
+        with patch("desktop.shell.web_settings.open_external_url", return_value=True):
+            window._run_in_browser("http://127.0.0.1:1/settings?k=x")
+
+        self.assertTrue(window._closed_event.is_set())
+
+    def test_browser_session_ends_when_the_tab_stops_polling(self):
+        window = self._window()
+        window._last_request = 0.0
+
+        with patch("desktop.shell.web_settings.open_external_url", return_value=True), patch(
+            "desktop.shell.web_settings.BROWSER_IDLE_TIMEOUT",
+            0.0,
+        ):
+            window._run_in_browser("http://127.0.0.1:1/settings?k=x")
+
+        self.assertFalse(window._closed_event.is_set())
+
+    def test_native_window_follows_the_platform_unless_overridden(self):
+        window = self._window()
+
+        for native, env, expected in (
+            (True, "", True),
+            (False, "", False),
+            (False, "native", True),
+            (True, "browser", False),
+        ):
+            with self.subTest(platform_native=native, env=env):
+                platform = type("P", (), {"settings_window_native": native})()
+                with patch(
+                    "desktop.shell.web_settings.get_platform_services",
+                    return_value=platform,
+                ), patch.dict(os.environ, {"CHEEVO_SETTINGS_UI": env}):
+                    self.assertEqual(expected, window._native_window_allowed())
+
+    def test_present_raises_the_window_without_ever_blocking(self):
+        # present() runs from a signal handler on the GUI thread, so it must not
+        # wait on pywebview's shown event.
+        for shown, expect_restore in ((True, True), (False, False)):
+            with self.subTest(shown=shown):
+                window = self._window()
+                calls = []
+                event = threading.Event()
+                if shown:
+                    event.set()
+                window.api.set_window(
+                    SimpleNamespace(
+                        events=SimpleNamespace(shown=event),
+                        restore=lambda: calls.append("restore"),
+                    )
+                )
+
+                self.assertTrue(window.present())
+                self.assertEqual(["restore"] if expect_restore else [], calls)
+
+    def test_focus_native_window_restores_the_window(self):
+        window = self._window()
+        calls = []
+        window.api.set_window(SimpleNamespace(restore=lambda: calls.append("restore")))
+
+        self.assertTrue(window._focus_native_window())
+        self.assertEqual(["restore"], calls)
+
+    def test_present_reopens_the_tab_when_there_is_no_native_window(self):
+        window = self._window()
+        window._url = "http://127.0.0.1:1/settings?k=x"
+
+        with patch(
+            "desktop.shell.web_settings.open_external_url", return_value=True
+        ) as opened:
+            self.assertTrue(window.present())
+
+        opened.assert_called_once_with("http://127.0.0.1:1/settings?k=x")
+
+    def test_missing_webview_backend_falls_back_to_the_browser(self):
+        window = self._window()
+        opened = []
+
+        with patch.object(
+            WebSettingsWindow,
+            "_start_server",
+            return_value="http://127.0.0.1:1/settings?k=x",
+        ), patch.object(
+            WebSettingsWindow,
+            "_open_native_window",
+            side_effect=RuntimeError("no GTK or QT"),
+        ), patch.object(
+            WebSettingsWindow, "_run_in_browser", opened.append
+        ), patch.object(WebSettingsWindow, "_stop_server"):
+            window._run()
+
+        self.assertEqual(["http://127.0.0.1:1/settings?k=x"], opened)
+
+    def test_failure_after_the_window_opened_is_not_swallowed(self):
+        window = self._window()
+
+        def fail_after_start(_self, _url, started):
+            started.set()
+            raise RuntimeError("window crashed")
+
+        with patch.object(
+            WebSettingsWindow,
+            "_start_server",
+            return_value="http://127.0.0.1:1/settings?k=x",
+        ), patch.object(
+            WebSettingsWindow, "_open_native_window", fail_after_start
+        ), patch.object(
+            WebSettingsWindow, "_run_in_browser"
+        ) as run_in_browser, patch.object(WebSettingsWindow, "_stop_server"):
+            with self.assertRaises(RuntimeError):
+                window._run()
+
+        run_in_browser.assert_not_called()
 
 
 if __name__ == "__main__":

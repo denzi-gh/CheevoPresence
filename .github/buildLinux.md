@@ -19,7 +19,7 @@ through your package manager first.
 sudo apt install \
   python3 python3-venv python3-tk \
   python3-gi python3-gi-cairo \
-  gir1.2-gtk-3.0 gir1.2-ayatanaappindicator3-0.1
+  gir1.2-gtk-3.0 gir1.2-webkit2-4.1 gir1.2-ayatanaappindicator3-0.1
 ```
 
 ### Fedora
@@ -27,7 +27,7 @@ sudo apt install \
 ```bash
 sudo dnf install \
   python3 python3-tkinter \
-  python3-gobject gtk3 \
+  python3-gobject gtk3 webkit2gtk4.1 \
   libayatana-appindicator-gtk3
 ```
 
@@ -65,6 +65,23 @@ dist/CheevoPresence.png
 dist/CheevoPresence.desktop
 ```
 
+`dist/CheevoPresence.desktop` is for running out of the build tree only — its
+`Exec=` line holds an absolute path to *this* checkout. The released tarball does
+not ship it; [`scripts/linux_install.sh`](../scripts/linux_install.sh) writes a fresh
+one on the user's machine instead, which is the only place the real install path is
+known.
+
+## What the release ships
+
+CI packages the build as `CheevoPresence-linux-x86_64.tar.gz` containing:
+
+```text
+CheevoPresence          the binary
+CheevoPresence.png      the icon
+install.sh              scripts/linux_install.sh
+```
+
+
 ## 3. Run the build
 
 ```bash
@@ -77,6 +94,20 @@ Pass `--tray` to start directly in the tray without opening the Settings window:
 ./dist/CheevoPresence --tray
 ```
 
+## The Settings window on Linux
+
+Settings is an HTML page displayed in the app's native WebKit2GTK window through
+pywebview. The build includes its WebKit2 bindings. Since `WebKitWebProcess` is a
+distro-provided helper, users also need their distro's WebKit2GTK runtime installed.
+The release `install.sh` detects and installs it on Debian/Ubuntu, Fedora, and Arch.
+To install it manually before running the release:
+
+```bash
+# Arch          sudo pacman -S webkit2gtk-4.1
+# Debian/Ubuntu sudo apt install gir1.2-webkit2-4.1
+# Ubuntu 22.04  sudo apt install gir1.2-webkit2-4.0
+# Fedora        sudo dnf install webkit2gtk4.1
+```
 ## Choosing a specific Python interpreter
 
 If `build_linux.sh` does not pick the interpreter you want, point it at one explicitly:

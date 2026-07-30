@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import logging
 import os
+import signal
 import sys
 
 import tkinter as tk
@@ -13,6 +14,32 @@ from desktop.runtime.log_events import AREA_SETTINGS, log_event
 from desktop.shell.web_settings import WebSettingsWindow
 
 logger = logging.getLogger(__name__)
+
+PRESENT_SIGNAL = getattr(signal, "SIGUSR1", None)
+
+
+def _install_present_handler(window):
+    """Let the host raise this window instead of launching a second client."""
+    if PRESENT_SIGNAL is None:
+        return
+
+    def handle(_signum, _frame):
+        try:
+            window.present()
+        except Exception:
+            log_event(
+                logger,
+                AREA_SETTINGS,
+                "client_present_failed",
+                level=logging.WARNING,
+                exc_info=True,
+            )
+
+    try:
+        signal.signal(PRESENT_SIGNAL, handle)
+    except (ValueError, OSError):
+        
+        pass
 
 
 def _show_startup_error(message):
@@ -43,7 +70,11 @@ def main(address=None, auth_token=None):
     auth_token = auth_token or os.environ.get(SETTINGS_AUTH_ENV)
     try:
         controller = RemoteAppController(address, auth_token)
-        WebSettingsWindow(controller, on_quit=controller.quit_app)
+        WebSettingsWindow(
+            controller,
+            on_quit=controller.quit_app,
+            on_ready=_install_present_handler,
+        )
     except Exception as exc:
         log_event(
             logger,

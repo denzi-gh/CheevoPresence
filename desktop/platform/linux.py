@@ -5,11 +5,13 @@ from __future__ import annotations
 import logging
 import os
 import re
+import signal
 import socket
 import subprocess
 import sys
 import tempfile
 import threading
+import webbrowser
 
 from desktop.core.constants import APP_NAME
 from desktop.platform.generic import GenericPlatformServices
@@ -18,12 +20,13 @@ from desktop.runtime.log_events import AREA_AUTOSTART, log_event
 
 try:
     import fcntl
-except ImportError:  # pragma: no cover - only relevant on non-POSIX platforms
+except ImportError: 
     fcntl = None
 
 AUTOSTART_FILE_NAME = "CheevoPresence.desktop"
 EXIT_SOCKET_NAME = "exit.sock"
 _EXEC_SAFE_RE = re.compile(r"^[A-Za-z0-9_/:=@%+.,-]+$")
+JSC_GC_SIGNAL = getattr(signal, "SIGPWR", None)
 
 _single_instance_handle = None
 _exit_listener_socket = None
@@ -88,6 +91,19 @@ def get_lock_path():
 
 def get_autostart_path():
     return os.path.join(get_config_home(), "autostart", AUTOSTART_FILE_NAME)
+
+
+def host_process_env():
+    env = os.environ.copy()
+    if not getattr(sys, "frozen", False):
+        return env
+    for key in ("LD_LIBRARY_PATH", "LD_PRELOAD"):
+        original = env.pop(f"{key}_ORIG", None)
+        if original:
+            env[key] = original
+        else:
+            env.pop(key, None)
+    return env
 
 
 def get_exe_path():
@@ -365,3 +381,13 @@ class LinuxPlatformServices(GenericPlatformServices):
 
     def stage_update_install(self, download_path, relaunch_args, source_pid):
         return "Automatic updates are not available for Linux builds yet."
+
+    def child_process_env(self):
+        return host_process_env()
+
+    def prepare_native_webview_environment(self):
+        if JSC_GC_SIGNAL is not None:
+            os.environ.setdefault("JSC_SIGNAL_FOR_GC", str(JSC_GC_SIGNAL))
+
+    def open_external_url(self, url):
+        return self.open_path(url) or super().open_external_url(url)

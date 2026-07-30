@@ -3,12 +3,15 @@
 import os
 import subprocess
 import sys
+import webbrowser
 
 
 class PlatformServices:
 
     startup_toggle_label = "Launch on system startup"
     settings_menu_default = False
+   
+    settings_window_native = True
 
     def protect_api_key(self, value):
         raise NotImplementedError
@@ -62,9 +65,20 @@ class PlatformServices:
             if sys.platform.startswith("win"):
                 os.startfile(path)  # noqa: S606 - documented Windows file-manager open
             elif sys.platform == "darwin":
-                subprocess.Popen(["open", path])
+                subprocess.Popen(["open", path], env=self.child_process_env())
             else:
-                subprocess.Popen(["xdg-open", path])
+                subprocess.Popen(["xdg-open", path], env=self.child_process_env())
             return True
         except Exception:
             return False
+
+    def child_process_env(self):
+        """Environment for child processes."""
+        return os.environ.copy()
+
+    def prepare_native_webview_environment(self):
+        return None
+
+    def open_external_url(self, url):
+        """Show a URL in the user's browser."""
+        return bool(webbrowser.open(url))

@@ -10,6 +10,8 @@ from unittest import mock
 
 from desktop.core.constants import APP_NAME
 from desktop.platform import linux
+from desktop.platform.base import PlatformServices
+from desktop.platform.linux import host_process_env
 from desktop.runtime.storage import get_log_dir as get_runtime_log_dir
 
 
@@ -217,6 +219,76 @@ class LinuxPlatformTests(unittest.TestCase):
             "not available",
             platform.stage_update_install("download", [], 123),
         )
+
+    def test_native_webview_environment_configures_jsc(self):
+        with mock.patch.dict(
+            os.environ,
+            {
+            },
+            clear=True,
+        ):
+            linux.LinuxPlatformServices().prepare_native_webview_environment()
+
+            if linux.JSC_GC_SIGNAL is not None:
+                self.assertEqual(str(linux.JSC_GC_SIGNAL), os.environ["JSC_SIGNAL_FOR_GC"])
+
+    def test_native_webview_environment_keeps_a_user_selected_jsc_signal(self):
+        with mock.patch.dict(os.environ, {"JSC_SIGNAL_FOR_GC": "31"}, clear=True):
+            linux.LinuxPlatformServices().prepare_native_webview_environment()
+            self.assertEqual("31", os.environ.get("JSC_SIGNAL_FOR_GC"))
+
+    def test_settings_window_is_native_on_linux(self):
+        platform = linux.LinuxPlatformServices()
+
+        self.assertTrue(platform.settings_window_native)
+
+
+class HostProcessEnvTests(unittest.TestCase):
+    """A browser started with the PyInstaller bundle still on its library path
+    may load incompatible libraries and fail to start."""
+
+    def test_frozen_runs_restore_the_original_library_path(self):
+        env = {"LD_LIBRARY_PATH": "/tmp/_MEI123", "LD_LIBRARY_PATH_ORIG": "/usr/lib"}
+        with mock.patch.dict(os.environ, env, clear=False):
+            with mock.patch.object(sys, "frozen", True, create=True):
+                result = host_process_env()
+
+        self.assertEqual("/usr/lib", result["LD_LIBRARY_PATH"])
+        self.assertNotIn("LD_LIBRARY_PATH_ORIG", result)
+
+    def test_frozen_runs_drop_the_bundle_path_when_there_was_no_original(self):
+        with mock.patch.dict(os.environ, {"LD_LIBRARY_PATH": "/tmp/_MEI123"}, clear=False):
+            with mock.patch.object(sys, "frozen", True, create=True):
+                result = host_process_env()
+
+        self.assertNotIn("LD_LIBRARY_PATH", result)
+
+
+class OpenExternalUrlTests(unittest.TestCase):
+    def test_base_platforms_hand_the_url_straight_to_webbrowser(self):
+        services = PlatformServices()
+        with mock.patch.object(
+            PlatformServices, "open_path", side_effect=AssertionError("must not be used")
+        ), mock.patch("webbrowser.open", return_value=True) as browser_open:
+            self.assertTrue(services.open_external_url("https://retroachievements.org"))
+
+        browser_open.assert_called_once_with("https://retroachievements.org")
+
+    def test_linux_routes_through_open_path_and_falls_back(self):
+        services = linux.LinuxPlatformServices()
+
+        with mock.patch.object(
+            services, "open_path", return_value=True
+        ) as open_path, mock.patch("webbrowser.open") as browser_open:
+            self.assertTrue(services.open_external_url("https://retroachievements.org"))
+        open_path.assert_called_once_with("https://retroachievements.org")
+        browser_open.assert_not_called()
+
+        with mock.patch.object(services, "open_path", return_value=False), mock.patch(
+            "webbrowser.open", return_value=True
+        ) as browser_open:
+            self.assertTrue(services.open_external_url("https://retroachievements.org"))
+        browser_open.assert_called_once_with("https://retroachievements.org")
 
 
 if __name__ == "__main__":

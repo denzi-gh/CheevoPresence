@@ -7,11 +7,11 @@ import json
 import logging
 import os
 import threading
-import webbrowser
+import time
 from dataclasses import asdict, is_dataclass
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from types import SimpleNamespace
-from urllib.parse import urlparse
+from urllib.parse import parse_qs, urlparse
 
 from desktop.core.constants import APP_NAME, APP_VERSION, RA_SETTINGS_URL
 from desktop.core.settings import normalize_config
@@ -31,6 +31,10 @@ logger = logging.getLogger(__name__)
 WINDOW_WIDTH = 720
 WINDOW_HEIGHT = 600
 WEB_RA_DISCONNECTED_TEXT = "Not connected"
+SETTINGS_UI_ENV = "CHEEVO_SETTINGS_UI"
+# The page polls get_state once a second, so a longer gap means the browser tab
+# is gone and the settings session can be torn down.
+BROWSER_IDLE_TIMEOUT = 15.0
 
 ROLE_BADGE_STYLES = {
     "junior_developer": {
@@ -94,6 +98,10 @@ DEFAULT_ROLE_BADGE_STYLE = {
 
 def role_badge_style(tier):
     return ROLE_BADGE_STYLES.get(tier, DEFAULT_ROLE_BADGE_STYLE)
+
+
+def open_external_url(url):
+    return bool(get_platform_services().open_external_url(url))
 
 
 def _asset_path(filename):
@@ -382,15 +390,13 @@ class WebSettingsAPI:
         url = urls.get(target)
         if not url:
             return {"success": False}
-        webbrowser.open(url)
-        return {"success": True}
+        return {"success": open_external_url(url)}
 
     def open_mirror_url(self, url):
         parsed = urlparse(str(url or ""))
         if parsed.scheme != "https" or parsed.netloc != "retroachievements.org":
             return {"success": False}
-        webbrowser.open(parsed.geturl())
-        return {"success": True}
+        return {"success": open_external_url(parsed.geturl())}
 
     def open_logs(self):
         platform = get_platform_services()
@@ -509,11 +515,48 @@ class WebSettingsAPI:
 class WebSettingsWindow:
 
     def __init__(self, controller, on_close=None, on_quit=None, on_ready=None):
-        self.api = WebSettingsAPI(controller, on_close=on_close, on_quit=on_quit)
+        self.api = WebSettingsAPI(controller, on_close=self._handle_closed, on_quit=on_quit)
         self.on_ready = on_ready
+        self._on_close = on_close
+        self._closed_event = threading.Event()
+        self._ready_notified = False
+        self._last_request = time.monotonic()
+        self._url = None
         self._httpd = None
         self._http_thread = None
         self._run()
+
+    def present(self):
+        window = self.api.window
+        if window is not None:
+            shown = getattr(getattr(window, "events", None), "shown", None)
+            if shown is None or shown.is_set():
+                window.restore()
+            return True
+        if self._url:
+            return open_external_url(self._url)
+        return False
+
+    def _focus_native_window(self, *_args):
+        window = self.api.window
+        if window is None:
+            return False
+        window.restore()
+        return True
+
+    def _notify_ready(self):
+        if self._ready_notified or not self.on_ready:
+            return
+        self._ready_notified = True
+        self.on_ready(self)
+
+    def _handle_closed(self):
+        self._closed_event.set()
+        if self._on_close:
+            self._on_close()
+
+    def _touch(self):
+        self._last_request = time.monotonic()
 
     def _start_server(self):
         token = os.urandom(16).hex()
@@ -522,6 +565,7 @@ class WebSettingsWindow:
             token,
         )
         api = self.api
+        session = self
 
         class SettingsHandler(BaseHTTPRequestHandler):
             def log_message(self, _format, *_args):
@@ -539,17 +583,42 @@ class WebSettingsWindow:
                 self.end_headers()
                 self.wfile.write(payload)
 
+            def _origin(self):
+                address, port = self.server.server_address[:2]
+                return f"http://{address}:{port}"
+
+            # Validate Host to prevent DNS rebinding to the local server.
+            def _is_trusted_request(self):
+                address, port = self.server.server_address[:2]
+                return (self.headers.get("Host") or "") == f"{address}:{port}"
+
             def do_GET(self):
+                session._touch()
                 parsed = urlparse(self.path)
-                if parsed.path not in {"/", "/settings"}:
+                if not self._is_trusted_request() or parsed.path not in {"/", "/settings"}:
+                    self._send(404, {"ok": False, "error": "Not found."})
+                    return
+                # Without this the settings token could be scraped straight out of
+                # the HTML by any other page that guesses the port.
+                if parse_qs(parsed.query).get("k", [""])[0] != token:
                     self._send(404, {"ok": False, "error": "Not found."})
                     return
                 self._send(200, page, "text/html; charset=utf-8")
 
             def do_POST(self):
+                session._touch()
                 parsed = urlparse(self.path)
-                if not parsed.path.startswith("/api/"):
+                if not self._is_trusted_request() or not parsed.path.startswith("/api/"):
                     self._send(404, {"ok": False, "error": "Not found."})
+                    return
+                origin = self.headers.get("Origin")
+                if origin and origin != self._origin():
+                    self._send(403, {"ok": False, "error": "Invalid settings origin."})
+                    return
+                if parsed.path == "/api/close_session":
+                    if parse_qs(parsed.query).get("k", [""])[0] == token:
+                        api.on_window_closed()
+                    self._send(200, {"ok": True})
                     return
                 if self.headers.get("X-Cheevo-Token") != token:
                     self._send(403, {"ok": False, "error": "Invalid settings token."})
@@ -570,7 +639,7 @@ class WebSettingsWindow:
         )
         self._http_thread.start()
         host, port = self._httpd.server_address
-        return f"http://{host}:{port}/settings"
+        return f"http://{host}:{port}/settings?k={token}"
 
     def _stop_server(self):
         if self._httpd is None:
@@ -579,15 +648,27 @@ class WebSettingsWindow:
         self._httpd.server_close()
         self._httpd = None
 
-    def _run(self):
-        try:
-            import webview
-        except ImportError as exc:
-            raise RuntimeError(
-                "pywebview is not installed. Install the platform requirements and try again."
-            ) from exc
+    def _native_window_allowed(self):
+        mode = os.environ.get(SETTINGS_UI_ENV, "").strip().lower()
+        if mode in {"browser", "native"}:
+            return mode == "native"
+        return bool(get_platform_services().settings_window_native)
 
-        url = self._start_server()
+    def _open_native_window(self, url, started):
+        if not self._native_window_allowed():
+            raise RuntimeError(
+                f"Native settings window unavailable on this platform "
+                f"(override with {SETTINGS_UI_ENV}=native)."
+            )
+
+        prepare_environment = getattr(
+            get_platform_services(), "prepare_native_webview_environment", None
+        )
+        if prepare_environment:
+            prepare_environment()
+
+        import webview
+
         window = webview.create_window(
             APP_NAME,
             url=url,
@@ -603,10 +684,41 @@ class WebSettingsWindow:
             window.events.closed += self.api.on_window_closed
         except Exception:
             pass
-        if self.on_ready:
-            self.on_ready(self)
         try:
-            webview.start(debug=False)
+            window.events.shown += self._focus_native_window
+        except Exception:
+            pass
+        self._notify_ready()
+        webview.start(started.set, debug=False)
+
+    def _run_in_browser(self, url):
+        if not open_external_url(url):
+            raise RuntimeError("No web browser is available to show the settings window.")
+        log_event(logger, AREA_SETTINGS, "settings_opened_in_browser")
+        self._notify_ready()
+        while not self._closed_event.wait(1.0):
+            if time.monotonic() - self._last_request > BROWSER_IDLE_TIMEOUT:
+                log_event(logger, AREA_SETTINGS, "browser_session_idle")
+                break
+
+    def _run(self):
+        started = threading.Event()
+        url = self._url = self._start_server()
+        try:
+            try:
+                self._open_native_window(url, started)
+            except Exception as exc:
+                if started.is_set():
+                    raise
+                log_event(
+                    logger,
+                    AREA_SETTINGS,
+                    "native_webview_unavailable",
+                    level=logging.WARNING,
+                    error_type=exc.__class__.__name__,
+                    error=str(exc),
+                )
+                self._run_in_browser(url)
         finally:
             self._stop_server()
 
