@@ -148,7 +148,7 @@ jobs:
 
   linux:
     name: linux artifact
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-22.04
     needs: preflight
     if: needs.preflight.outputs.should_build == 'true'
 
@@ -173,26 +173,40 @@ jobs:
       - name: build binary
         run: ./build_linux.sh
 
+
       - name: prepare artifact
         shell: bash
         run: |
-          mkdir -p release-assets/linux
-          cp dist/CheevoPresence release-assets/linux/CheevoPresence-linux-x86_64
-          chmod +x release-assets/linux/CheevoPresence-linux-x86_64
+          package="CheevoPresence-linux-x86_64"
+          staging="release-assets/linux/$package"
+          mkdir -p "$staging"
+          cp dist/CheevoPresence "$staging/CheevoPresence"
+          cp dist/CheevoPresence.png "$staging/CheevoPresence.png"
+          cp scripts/linux_install.sh "$staging/install.sh"
+          chmod +x "$staging/CheevoPresence" "$staging/install.sh"
+          # The tarball exists to carry the executable bit; losing it silently
+          # would put users straight back to "chmod +x".
+          for entry in "$staging/CheevoPresence" "$staging/install.sh"; do
+            if [[ ! -x "$entry" ]]; then
+              echo "::error::$entry is not executable, the package would be broken"
+              exit 1
+            fi
+          done
+          tar -czf "release-assets/linux/$package.tar.gz" -C release-assets/linux "$package"
           cd release-assets/linux
-          sha256sum CheevoPresence-linux-x86_64 > CheevoPresence-linux-x86_64.sha256
+          sha256sum "$package.tar.gz" > "$package.tar.gz.sha256"
 
-      - name: upload binary
+      - name: upload tarball
         uses: actions/upload-artifact@v7
         with:
-          path: release-assets/linux/CheevoPresence-linux-x86_64
+          path: release-assets/linux/CheevoPresence-linux-x86_64.tar.gz
           archive: false
           if-no-files-found: error
 
       - name: upload checksum
         uses: actions/upload-artifact@v7
         with:
-          path: release-assets/linux/CheevoPresence-linux-x86_64.sha256
+          path: release-assets/linux/CheevoPresence-linux-x86_64.tar.gz.sha256
           archive: false
           if-no-files-found: error
 
@@ -241,14 +255,14 @@ jobs:
       - name: download linux artifact
         uses: actions/download-artifact@v8
         with:
-          name: CheevoPresence-linux-x86_64
+          name: CheevoPresence-linux-x86_64.tar.gz
           path: downloaded/linux
           skip-decompress: true
 
       - name: download linux checksum
         uses: actions/download-artifact@v8
         with:
-          name: CheevoPresence-linux-x86_64.sha256
+          name: CheevoPresence-linux-x86_64.tar.gz.sha256
           path: downloaded/linux
           skip-decompress: true
 
@@ -279,8 +293,8 @@ jobs:
             "downloaded/windows/CheevoPresence.exe.sha256"
             "downloaded/macos/CheevoPresence-macos.zip"
             "downloaded/macos/CheevoPresence-macos.zip.sha256"
-            "downloaded/linux/CheevoPresence-linux-x86_64"
-            "downloaded/linux/CheevoPresence-linux-x86_64.sha256"
+            "downloaded/linux/CheevoPresence-linux-x86_64.tar.gz"
+            "downloaded/linux/CheevoPresence-linux-x86_64.tar.gz.sha256"
           )
 
           for asset in "${assets[@]}"; do

@@ -65,6 +65,23 @@ dist/CheevoPresence.png
 dist/CheevoPresence.desktop
 ```
 
+`dist/CheevoPresence.desktop` is for running out of the build tree only — its
+`Exec=` line holds an absolute path to *this* checkout. The released tarball does
+not ship it; [`scripts/linux_install.sh`](../scripts/linux_install.sh) writes a fresh
+one on the user's machine instead, which is the only place the real install path is
+known.
+
+## What the release ships
+
+CI packages the build as `CheevoPresence-linux-x86_64.tar.gz` containing:
+
+```text
+CheevoPresence          the binary
+CheevoPresence.png      the icon
+install.sh              scripts/linux_install.sh
+```
+
+
 ## 3. Run the build
 
 ```bash
