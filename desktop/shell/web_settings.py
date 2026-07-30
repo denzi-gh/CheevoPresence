@@ -8,7 +8,6 @@ import logging
 import os
 import threading
 import time
-import webbrowser
 from dataclasses import asdict, is_dataclass
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from types import SimpleNamespace
@@ -102,12 +101,7 @@ def role_badge_style(tier):
 
 
 def open_external_url(url):
-    # Routed through the platform service so a frozen build hands the browser its
-    # own library path instead of the PyInstaller bundle's; webbrowser is kept as
-    # a fallback for desktops without a working xdg-open.
-    if get_platform_services().open_path(url):
-        return True
-    return bool(webbrowser.open(url))
+    return bool(get_platform_services().open_external_url(url))
 
 
 def _asset_path(filename):

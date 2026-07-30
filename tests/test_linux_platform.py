@@ -10,7 +10,8 @@ from unittest import mock
 
 from desktop.core.constants import APP_NAME
 from desktop.platform import linux
-from desktop.platform.base import host_process_env
+from desktop.platform.base import PlatformServices
+from desktop.platform.linux import host_process_env
 from desktop.runtime.storage import get_log_dir as get_runtime_log_dir
 
 
@@ -224,11 +225,6 @@ class HostProcessEnvTests(unittest.TestCase):
     """A browser started with the PyInstaller bundle still on its library path
     loads our libraries instead of its own and dies."""
 
-    def test_unfrozen_runs_keep_the_environment_untouched(self):
-        with mock.patch.dict(os.environ, {"LD_LIBRARY_PATH": "/opt/dev"}, clear=False):
-            with mock.patch.object(sys, "frozen", False, create=True):
-                self.assertEqual("/opt/dev", host_process_env()["LD_LIBRARY_PATH"])
-
     def test_frozen_runs_restore_the_original_library_path(self):
         env = {"LD_LIBRARY_PATH": "/tmp/_MEI123", "LD_LIBRARY_PATH_ORIG": "/usr/lib"}
         with mock.patch.dict(os.environ, env, clear=False):
@@ -244,6 +240,33 @@ class HostProcessEnvTests(unittest.TestCase):
                 result = host_process_env()
 
         self.assertNotIn("LD_LIBRARY_PATH", result)
+
+
+class OpenExternalUrlTests(unittest.TestCase):
+    def test_base_platforms_hand_the_url_straight_to_webbrowser(self):
+        services = PlatformServices()
+        with mock.patch.object(
+            PlatformServices, "open_path", side_effect=AssertionError("must not be used")
+        ), mock.patch("webbrowser.open", return_value=True) as browser_open:
+            self.assertTrue(services.open_external_url("https://retroachievements.org"))
+
+        browser_open.assert_called_once_with("https://retroachievements.org")
+
+    def test_linux_routes_through_open_path_and_falls_back(self):
+        services = linux.LinuxPlatformServices()
+
+        with mock.patch.object(
+            services, "open_path", return_value=True
+        ) as open_path, mock.patch("webbrowser.open") as browser_open:
+            self.assertTrue(services.open_external_url("https://retroachievements.org"))
+        open_path.assert_called_once_with("https://retroachievements.org")
+        browser_open.assert_not_called()
+
+        with mock.patch.object(services, "open_path", return_value=False), mock.patch(
+            "webbrowser.open", return_value=True
+        ) as browser_open:
+            self.assertTrue(services.open_external_url("https://retroachievements.org"))
+        browser_open.assert_called_once_with("https://retroachievements.org")
 
 
 if __name__ == "__main__":

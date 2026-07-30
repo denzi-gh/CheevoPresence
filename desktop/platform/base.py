@@ -3,30 +3,7 @@
 import os
 import subprocess
 import sys
-
-# PyInstaller points the dynamic loader at the unpacked bundle and stashes the
-# real values in "<VAR>_ORIG". A browser or file manager started with the bundle
-# still on its search path loads our libraries instead of its own and dies, so
-# external programs have to be launched with the original environment restored.
-_LOADER_ENV_VARS = (
-    "LD_LIBRARY_PATH",
-    "LD_PRELOAD",
-    "DYLD_LIBRARY_PATH",
-    "DYLD_INSERT_LIBRARIES",
-)
-
-
-def host_process_env():
-    env = os.environ.copy()
-    if not getattr(sys, "frozen", False):
-        return env
-    for key in _LOADER_ENV_VARS:
-        original = env.pop(f"{key}_ORIG", None)
-        if original:
-            env[key] = original
-        else:
-            env.pop(key, None)
-    return env
+import webbrowser
 
 
 class PlatformServices:
@@ -86,9 +63,17 @@ class PlatformServices:
             if sys.platform.startswith("win"):
                 os.startfile(path)  # noqa: S606 - documented Windows file-manager open
             elif sys.platform == "darwin":
-                subprocess.Popen(["open", path], env=host_process_env())
+                subprocess.Popen(["open", path], env=self.child_process_env())
             else:
-                subprocess.Popen(["xdg-open", path], env=host_process_env())
+                subprocess.Popen(["xdg-open", path], env=self.child_process_env())
             return True
         except Exception:
             return False
+
+    def child_process_env(self):
+        """Environment for programs we hand off to, such as a browser."""
+        return os.environ.copy()
+
+    def open_external_url(self, url):
+        """Show a URL in the user's browser."""
+        return bool(webbrowser.open(url))

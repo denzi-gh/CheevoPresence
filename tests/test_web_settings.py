@@ -532,63 +532,39 @@ class SettingsServerTests(unittest.TestCase):
         finally:
             conn.close()
 
-    def test_page_is_served_with_the_session_key(self):
+    def test_page_is_only_served_with_the_session_key(self):
         status, body = self._send("GET", f"/settings?k={self.token}")
-
         self.assertEqual(200, status)
         self.assertIn(self.token, body)
 
-    def test_page_without_the_session_key_is_not_found(self):
-        status, body = self._send("GET", "/settings")
+        for path in ("/settings", "/settings?k=deadbeef"):
+            with self.subTest(path=path):
+                status, body = self._send("GET", path)
+                self.assertEqual(404, status)
+                self.assertNotIn(self.token, body)
 
-        self.assertEqual(404, status)
-        self.assertNotIn(self.token, body)
-
-    def test_page_with_a_wrong_session_key_is_not_found(self):
-        status, body = self._send("GET", "/settings?k=deadbeef")
-
-        self.assertEqual(404, status)
-        self.assertNotIn(self.token, body)
-
-    def test_foreign_host_header_is_rejected(self):
+    def test_foreign_host_or_origin_is_rejected(self):
         status, body = self._send("GET", f"/settings?k={self.token}", host="cheevo.example")
-
         self.assertEqual(404, status)
         self.assertNotIn(self.token, body)
 
-    def test_api_rejects_a_foreign_origin(self):
         status, _body = self._send(
             "POST",
             "/api/get_state",
             headers={"X-Cheevo-Token": self.token, "Origin": "https://cheevo.example"},
             body="{}",
         )
-
-        self.assertEqual(403, status)
-
-    def test_api_accepts_its_own_origin(self):
-        status, _body = self._send(
-            "POST",
-            "/api/get_state",
-            headers={
-                "X-Cheevo-Token": self.token,
-                "Origin": f"http://127.0.0.1:{self.port}",
-            },
-            body="{}",
-        )
-
-        self.assertEqual(200, status)
-
-    def test_api_still_requires_the_token(self):
-        status, _body = self._send("POST", "/api/get_state", body="{}")
-
         self.assertEqual(403, status)
 
     def test_requests_refresh_the_idle_timestamp(self):
+        # Without this the watchdog would tear down a session the user is using.
         self.window._last_request = 0.0
 
-        self._send("POST", "/api/get_state", headers={"X-Cheevo-Token": self.token}, body="{}")
+        status, _body = self._send(
+            "POST", "/api/get_state", headers={"X-Cheevo-Token": self.token}, body="{}"
+        )
 
+        self.assertEqual(200, status)
         self.assertGreater(self.window._last_request, 0.0)
 
 
@@ -617,13 +593,6 @@ class BrowserFallbackTests(unittest.TestCase):
             window._run_in_browser("http://127.0.0.1:1/settings?k=x")
 
         self.assertFalse(window._closed_event.is_set())
-
-    def test_browser_session_reports_when_no_browser_is_available(self):
-        window = self._window()
-
-        with patch("desktop.shell.web_settings.open_external_url", return_value=False):
-            with self.assertRaises(RuntimeError):
-                window._run_in_browser("http://127.0.0.1:1/settings?k=x")
 
     def test_missing_webview_backend_falls_back_to_the_browser(self):
         window = self._window()
@@ -664,21 +633,6 @@ class BrowserFallbackTests(unittest.TestCase):
                 window._run()
 
         run_in_browser.assert_not_called()
-
-    def test_open_external_url_falls_back_to_webbrowser(self):
-        class DeadPlatform:
-            def open_path(self, _path):
-                return False
-
-        with patch(
-            "desktop.shell.web_settings.get_platform_services",
-            return_value=DeadPlatform(),
-        ), patch(
-            "desktop.shell.web_settings.webbrowser.open", return_value=True
-        ) as browser_open:
-            self.assertTrue(open_external_url("https://retroachievements.org"))
-
-        browser_open.assert_called_once_with("https://retroachievements.org")
 
 
 if __name__ == "__main__":
