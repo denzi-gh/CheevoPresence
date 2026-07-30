@@ -539,6 +539,13 @@ class WebSettingsWindow:
             return open_external_url(self._url)
         return False
 
+    def _focus_native_window(self, *_args):
+        window = self.api.window
+        if window is None:
+            return False
+        window.restore()
+        return True
+
     def _notify_ready(self):
         # The native path can fail after this point and hand over to the browser,
         # so make sure the caller only ever hears about it once.
@@ -682,6 +689,10 @@ class WebSettingsWindow:
         self.api.set_window(window)
         try:
             window.events.closed += self.api.on_window_closed
+        except Exception:
+            pass
+        try:
+            window.events.shown += self._focus_native_window
         except Exception:
             pass
         self._notify_ready()

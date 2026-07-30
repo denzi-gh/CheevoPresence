@@ -640,6 +640,14 @@ class BrowserFallbackTests(unittest.TestCase):
                 self.assertTrue(window.present())
                 self.assertEqual(["restore"] if expect_restore else [], calls)
 
+    def test_focus_native_window_restores_the_window(self):
+        window = self._window()
+        calls = []
+        window.api.set_window(SimpleNamespace(restore=lambda: calls.append("restore")))
+
+        self.assertTrue(window._focus_native_window())
+        self.assertEqual(["restore"], calls)
+
     def test_present_reopens_the_tab_when_there_is_no_native_window(self):
         window = self._window()
         window._url = "http://127.0.0.1:1/settings?k=x"
