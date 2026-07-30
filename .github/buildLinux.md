@@ -77,6 +77,34 @@ Pass `--tray` to start directly in the tray without opening the Settings window:
 ./dist/CheevoPresence --tray
 ```
 
+## The Settings window on Linux
+
+Settings is an HTML page. A native window needs WebKit2GTK through pywebview, and
+WebKit2GTK cannot be shipped inside the executable — it resolves its
+`WebKitWebProcess` helper from a directory compiled in when the distro built it, so
+it does not survive being relocated into a PyInstaller bundle.
+
+So the packaged build serves the page on `127.0.0.1` and opens it in your default
+browser. That needs no system packages and behaves the same on every distro,
+including immutable ones. Closing the tab ends the settings session; the tray keeps
+running either way.
+
+Installing `webkit2gtk-4.1` does **not** give the packaged build a native window.
+PyInstaller replaces `GI_TYPELIB_PATH` with the bundle's own directory, so system
+GObject typelibs are invisible to the frozen executable. You get a native window only
+when running from a source checkout on a machine that has both `python3-gi` and
+WebKit2GTK:
+
+```bash
+# Arch          sudo pacman -S webkit2gtk-4.1
+# Debian/Ubuntu sudo apt install gir1.2-webkit2-4.1
+# Fedora        sudo dnf install webkit2gtk4.1
+python3 launch_linux.py
+```
+
+Set `CHEEVO_SETTINGS_UI=browser` to force the browser path even when a native
+backend is available — useful when reproducing a report. This will be changed in the future, the Linux Release needs serious refactoring..
+
 ## Choosing a specific Python interpreter
 
 If `build_linux.sh` does not pick the interpreter you want, point it at one explicitly:

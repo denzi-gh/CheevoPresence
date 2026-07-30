@@ -10,6 +10,7 @@ from unittest import mock
 
 from desktop.core.constants import APP_NAME
 from desktop.platform import linux
+from desktop.platform.base import host_process_env
 from desktop.runtime.storage import get_log_dir as get_runtime_log_dir
 
 
@@ -217,6 +218,32 @@ class LinuxPlatformTests(unittest.TestCase):
             "not available",
             platform.stage_update_install("download", [], 123),
         )
+
+
+class HostProcessEnvTests(unittest.TestCase):
+    """A browser started with the PyInstaller bundle still on its library path
+    loads our libraries instead of its own and dies."""
+
+    def test_unfrozen_runs_keep_the_environment_untouched(self):
+        with mock.patch.dict(os.environ, {"LD_LIBRARY_PATH": "/opt/dev"}, clear=False):
+            with mock.patch.object(sys, "frozen", False, create=True):
+                self.assertEqual("/opt/dev", host_process_env()["LD_LIBRARY_PATH"])
+
+    def test_frozen_runs_restore_the_original_library_path(self):
+        env = {"LD_LIBRARY_PATH": "/tmp/_MEI123", "LD_LIBRARY_PATH_ORIG": "/usr/lib"}
+        with mock.patch.dict(os.environ, env, clear=False):
+            with mock.patch.object(sys, "frozen", True, create=True):
+                result = host_process_env()
+
+        self.assertEqual("/usr/lib", result["LD_LIBRARY_PATH"])
+        self.assertNotIn("LD_LIBRARY_PATH_ORIG", result)
+
+    def test_frozen_runs_drop_the_bundle_path_when_there_was_no_original(self):
+        with mock.patch.dict(os.environ, {"LD_LIBRARY_PATH": "/tmp/_MEI123"}, clear=False):
+            with mock.patch.object(sys, "frozen", True, create=True):
+                result = host_process_env()
+
+        self.assertNotIn("LD_LIBRARY_PATH", result)
 
 
 if __name__ == "__main__":
