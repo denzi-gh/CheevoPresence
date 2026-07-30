@@ -4,6 +4,7 @@ import tempfile
 import threading
 import unittest
 import logging
+from types import SimpleNamespace
 from unittest.mock import patch
 from urllib.parse import parse_qs, urlparse
 
@@ -618,6 +619,37 @@ class BrowserFallbackTests(unittest.TestCase):
                     return_value=platform,
                 ), patch.dict(os.environ, {"CHEEVO_SETTINGS_UI": env}):
                     self.assertEqual(expected, window._native_window_allowed())
+
+    def test_present_raises_the_window_without_ever_blocking(self):
+        # present() runs from a signal handler on the GUI thread, so it must not
+        # wait on pywebview's shown event.
+        for shown, expect_restore in ((True, True), (False, False)):
+            with self.subTest(shown=shown):
+                window = self._window()
+                calls = []
+                event = threading.Event()
+                if shown:
+                    event.set()
+                window.api.set_window(
+                    SimpleNamespace(
+                        events=SimpleNamespace(shown=event),
+                        restore=lambda: calls.append("restore"),
+                    )
+                )
+
+                self.assertTrue(window.present())
+                self.assertEqual(["restore"] if expect_restore else [], calls)
+
+    def test_present_reopens_the_tab_when_there_is_no_native_window(self):
+        window = self._window()
+        window._url = "http://127.0.0.1:1/settings?k=x"
+
+        with patch(
+            "desktop.shell.web_settings.open_external_url", return_value=True
+        ) as opened:
+            self.assertTrue(window.present())
+
+        opened.assert_called_once_with("http://127.0.0.1:1/settings?k=x")
 
     def test_missing_webview_backend_falls_back_to_the_browser(self):
         window = self._window()

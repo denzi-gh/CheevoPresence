@@ -521,9 +521,23 @@ class WebSettingsWindow:
         self._closed_event = threading.Event()
         self._ready_notified = False
         self._last_request = time.monotonic()
+        self._url = None
         self._httpd = None
         self._http_thread = None
         self._run()
+
+    def present(self):
+        """Bring the settings UI back in front of the user
+        """
+        window = self.api.window
+        if window is not None:
+            shown = getattr(getattr(window, "events", None), "shown", None)
+            if shown is None or shown.is_set():
+                window.restore()
+            return True
+        if self._url:
+            return open_external_url(self._url)
+        return False
 
     def _notify_ready(self):
         # The native path can fail after this point and hand over to the browser,
@@ -682,7 +696,7 @@ class WebSettingsWindow:
 
     def _run(self):
         started = threading.Event()
-        url = self._start_server()
+        url = self._url = self._start_server()
         try:
             try:
                 self._open_native_window(url, started)

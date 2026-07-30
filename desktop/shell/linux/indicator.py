@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import logging
 import os
+import signal
 import subprocess
 import sys
 import threading
@@ -26,6 +27,7 @@ from desktop.runtime.storage import (
 from desktop.shell.ipc import SettingsHostService
 
 SHUTDOWN_GRACE_SECONDS = 8
+PRESENT_SIGNAL = getattr(signal, "SIGUSR1", None)
 logger = logging.getLogger(__name__)
 
 
@@ -468,13 +470,9 @@ class LinuxIndicatorApp:
         if self._shutdown_started:
             return False
         if self._settings_process is not None and self._settings_process.poll() is None:
-            log_event(
-                logger,
-                AREA_SETTINGS,
-                "client_already_running",
-                pid=self._settings_process.pid,
-            )
-            return False
+            if self._present_settings_client():
+                return False
+            self._stop_settings_client()
         command = self._settings_command()
         env = os.environ.copy()
         env.update(self._settings_service.get_launch_env())
@@ -494,6 +492,24 @@ class LinuxIndicatorApp:
         log_event(logger, AREA_SETTINGS, "client_launch", pid=self._settings_process.pid)
         self._settings_open = True
         return False
+
+    def _present_settings_client(self):
+        process = self._settings_process
+        if process is None or PRESENT_SIGNAL is None:
+            return False
+        try:
+            process.send_signal(PRESENT_SIGNAL)
+        except Exception:
+            log_event(
+                logger,
+                AREA_SETTINGS,
+                "client_present_failed",
+                level=logging.WARNING,
+                pid=process.pid,
+            )
+            return False
+        log_event(logger, AREA_SETTINGS, "client_presented", pid=process.pid)
+        return True
 
     def _settings_command(self):
         args = [
