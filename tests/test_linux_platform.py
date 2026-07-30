@@ -220,6 +220,23 @@ class LinuxPlatformTests(unittest.TestCase):
             platform.stage_update_install("download", [], 123),
         )
 
+    def test_native_webview_environment_configures_jsc(self):
+        with mock.patch.dict(
+            os.environ,
+            {
+            },
+            clear=True,
+        ):
+            linux.LinuxPlatformServices().prepare_native_webview_environment()
+
+            if linux.JSC_GC_SIGNAL is not None:
+                self.assertEqual(str(linux.JSC_GC_SIGNAL), os.environ["JSC_SIGNAL_FOR_GC"])
+
+    def test_native_webview_environment_keeps_a_user_selected_jsc_signal(self):
+        with mock.patch.dict(os.environ, {"JSC_SIGNAL_FOR_GC": "31"}, clear=True):
+            linux.LinuxPlatformServices().prepare_native_webview_environment()
+            self.assertEqual("31", os.environ.get("JSC_SIGNAL_FOR_GC"))
+
     def test_settings_window_is_native_on_linux(self):
         platform = linux.LinuxPlatformServices()
 

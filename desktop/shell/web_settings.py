@@ -661,6 +661,12 @@ class WebSettingsWindow:
                 f"(override with {SETTINGS_UI_ENV}=native)."
             )
 
+        prepare_environment = getattr(
+            get_platform_services(), "prepare_native_webview_environment", None
+        )
+        if prepare_environment:
+            prepare_environment()
+
         import webview
 
         window = webview.create_window(

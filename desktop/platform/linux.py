@@ -5,6 +5,7 @@ from __future__ import annotations
 import logging
 import os
 import re
+import signal
 import socket
 import subprocess
 import sys
@@ -25,6 +26,7 @@ except ImportError:  # pragma: no cover - only relevant on non-POSIX platforms
 AUTOSTART_FILE_NAME = "CheevoPresence.desktop"
 EXIT_SOCKET_NAME = "exit.sock"
 _EXEC_SAFE_RE = re.compile(r"^[A-Za-z0-9_/:=@%+.,-]+$")
+JSC_GC_SIGNAL = getattr(signal, "SIGPWR", None)
 
 _single_instance_handle = None
 _exit_listener_socket = None
@@ -382,6 +384,13 @@ class LinuxPlatformServices(GenericPlatformServices):
 
     def child_process_env(self):
         return host_process_env()
+
+    def prepare_native_webview_environment(self):
+        if JSC_GC_SIGNAL is not None:
+            # The settings-window presenter uses SIGUSR1. JavaScriptCore also
+            # defaults to that signal, so assign its GC thread control a
+            # different Linux signal before WebKit initializes.
+            os.environ.setdefault("JSC_SIGNAL_FOR_GC", str(JSC_GC_SIGNAL))
 
     def open_external_url(self, url):
         return self.open_path(url) or super().open_external_url(url)

@@ -76,6 +76,9 @@ class PlatformServices:
         """Environment for programs we hand off to, such as a browser."""
         return os.environ.copy()
 
+    def prepare_native_webview_environment(self):
+        return None
+
     def open_external_url(self, url):
         """Show a URL in the user's browser."""
         return bool(webbrowser.open(url))

@@ -197,6 +197,8 @@ PYTHONPATH="$project_root${PYTHONPATH:+:$PYTHONPATH}" "${build_python}" -m PyIns
   --hidden-import "desktop.shell.settings_client" \
   --hidden-import "desktop.shell.web_settings" \
   --hidden-import "desktop.shell.tk_settings" \
+  --hidden-import "appdirs" \
+  --collect-all "pkg_resources" \
   --hidden-import "gi" \
   --hidden-import "gi.repository.GLib" \
   --hidden-import "gi.repository.Gtk" \
@@ -223,6 +225,15 @@ PYTHONPATH="$project_root${PYTHONPATH:+:$PYTHONPATH}" "${build_python}" -m PyIns
   --add-data "cheevoRP_active.ico:." \
   --add-data "cheevoRP_error.ico:." \
   "launch_linux.py"
+
+"${build_python}" - "$project_root/dist/CheevoPresence" <<'PY'
+import sys
+
+from PyInstaller.archive.readers import pkg_archive_contents
+
+if not any("appdirs" in name for name in pkg_archive_contents(sys.argv[1])):
+    raise SystemExit("The Linux executable is missing appdirs.")
+PY
 
 write_linux_launcher_files
 
