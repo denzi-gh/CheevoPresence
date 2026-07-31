@@ -23,6 +23,7 @@ update-test.json
 build/
 dist/
 *.spec
+version_info.txt
 
 # IDE / editor
 .idea/

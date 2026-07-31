@@ -8,6 +8,35 @@ if ($LASTEXITCODE -ne 0) {
   throw "pywebview is not installed for this Python. Run: python -m pip install -r requirements/windows.txt"
 }
 
+# version metadata (pulled from constants.py)
+$appVersion = python -c "from desktop.core.constants import APP_VERSION; print(APP_VERSION)"
+if ($LASTEXITCODE -ne 0) { throw "Could not read APP_VERSION from desktop/core/constants.py" }
+$appVersion = $appVersion.Trim()
+$parts = $appVersion.Split('.')
+$vTuple = "$($parts[0]), $($parts[1]), $($parts[2]), 0"
+
+$versionFile = Join-Path $projectRoot "version_info.txt"
+@"
+VSVersionInfo(
+  ffi=FixedFileInfo(
+    filevers=($vTuple), prodvers=($vTuple),
+    mask=0x3f, flags=0x0, OS=0x40004, fileType=0x1, subtype=0x0, date=(0, 0)
+  ),
+  kids=[
+    StringFileInfo([StringTable('040904B0', [
+      StringStruct('CompanyName', 'denzi-gh'),
+      StringStruct('FileDescription', 'CheevoPresence - RetroAchievements Discord Rich Presence'),
+      StringStruct('FileVersion', '$appVersion'),
+      StringStruct('InternalName', 'CheevoPresence'),
+      StringStruct('LegalCopyright', 'Copyright (c) denzi-gh'),
+      StringStruct('OriginalFilename', 'CheevoPresence.exe'),
+      StringStruct('ProductName', 'CheevoPresence'),
+      StringStruct('ProductVersion', '$appVersion')])]),
+    VarFileInfo([VarStruct('Translation', [1033, 1200])])
+  ]
+)
+"@ | Set-Content -LiteralPath $versionFile -Encoding UTF8
+
 python -m PyInstaller `
   --noconfirm `
   --clean `
@@ -15,6 +44,8 @@ python -m PyInstaller `
   --windowed `
   --name "CheevoPresence" `
   --icon "cheevoRP_icon.ico" `
+  --version-file "version_info.txt" `
+  --noupx `
   --paths "$projectRoot" `
   --hidden-import "pystray._win32" `
   --hidden-import "desktop.shell.ipc" `
