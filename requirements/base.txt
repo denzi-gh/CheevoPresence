@@ -4,7 +4,7 @@ charset-normalizer==3.4.4
 idna==3.11
 pillow==11.3.0
 pypresence==4.6.1
-pywebview>=5.4,<6
+pywebview==5.4
 pystray==0.19.5
 requests==2.32.5
 six==1.17.0
