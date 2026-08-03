@@ -7,7 +7,7 @@
 **Mirror your RetroAchievements Activity to Discord**
 
 [![Latest Release](https://img.shields.io/github/v/release/denzi-gh/CheevoPresence?style=for-the-badge&logo=github&label=Latest%20Release&color=5865F2)](https://github.com/denzi-gh/CheevoPresence/releases/latest)
-[![Total Downloads](https://img.shields.io/github/downloads/denzi-gh/CheevoPresence/total?style=for-the-badge&logo=github&label=Downloads&color=57F287)](https://github.com/denzi-gh/CheevoPresence/releases)
+[![Downloads](https://img.shields.io/endpoint?url=https%3A%2F%2Fdenzi.dev%2Fapi%2Fdownloads%2Fdenzi-gh%2FCheevoPresence&style=for-the-badge)](https://github.com/denzi-gh/CheevoPresence/releases)
 [![Support on Ko-fi](https://img.shields.io/badge/Ko--fi-Support-FF5E5B?style=for-the-badge&logo=kofi&logoColor=white)](https://ko-fi.com/denzi)
 
 </div>
