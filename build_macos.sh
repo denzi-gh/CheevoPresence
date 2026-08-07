@@ -187,7 +187,8 @@ PYTHONPATH="$project_root${PYTHONPATH:+:$PYTHONPATH}" "${build_python}" -m PyIns
 
 "${build_python}" scripts/postprocess_macos_bundle.py "dist/CheevoPresence.app"
 sign_macos_bundle "dist/CheevoPresence.app"
-/usr/bin/ditto -c -k --keepParent "dist/CheevoPresence.app" "dist/CheevoPresence-macos.zip"
+arch_label="$(uname -m)"
+/usr/bin/ditto -c -k --keepParent "dist/CheevoPresence.app" "dist/CheevoPresence-macos-${arch_label}.zip"
 
 echo "Built dist/CheevoPresence.app"
-echo "Packaged dist/CheevoPresence-macos.zip"
+echo "Packaged dist/CheevoPresence-macos-${arch_label}.zip"
