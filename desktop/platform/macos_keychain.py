@@ -48,21 +48,27 @@ def _read_keychain_password(account):
     return result.stdout.strip()
 
 
+def _quote_for_security_shell(value):
+    return '"' + value.replace("\\", "\\\\").replace('"', '\\"') + '"'
+
+
 def _write_keychain_password(account, value):
+    if any(ord(char) < 0x20 or ord(char) == 0x7F for char in value):
+        raise OSError("The API key contains characters that cannot be stored.")
+    command = " ".join(
+        [
+            "add-generic-password",
+            "-U",
+            "-a",
+            _quote_for_security_shell(account),
+            "-s",
+            _quote_for_security_shell(KEYCHAIN_SERVICE),
+            "-w",
+            _quote_for_security_shell(value),
+        ]
+    )
     try:
-        _run_command(
-            [
-                "security",
-                "add-generic-password",
-                "-U",
-                "-a",
-                account,
-                "-s",
-                KEYCHAIN_SERVICE,
-                "-w",
-                value,
-            ]
-        )
+        _run_command(["security", "-i"], input_text=command + "\n")
     except OSError as exc:
         raise OSError("Could not access the macOS Keychain.") from exc
     except subprocess.CalledProcessError as exc:

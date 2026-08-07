@@ -20,6 +20,20 @@ class IpcSecurityTests(unittest.TestCase):
         with self.assertRaises(PermissionError):
             service._dispatch({"token": "wrong-token", "method": "get_state"})
 
+    def test_non_string_token_is_rejected(self):
+        service = self._service()
+
+        for bad_token in (None, 123, ["correct-token"], {"token": "correct-token"}):
+            with self.assertRaises(PermissionError):
+                service._dispatch({"token": bad_token, "method": "get_state"})
+
+    def test_auth_token_is_long_random_hex(self):
+        service = SettingsHostService(FakeController())
+
+        self.assertEqual(64, len(service.auth_token))
+        int(service.auth_token, 16)
+        self.assertNotEqual(service.auth_token, SettingsHostService(FakeController()).auth_token)
+
     def test_invalid_token_error_is_generic(self):
         message = _format_ipc_error(PermissionError("secret-token"))
 

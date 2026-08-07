@@ -2,9 +2,11 @@
 
 from __future__ import annotations
 
+import hmac
 import json
 import logging
 import os
+import secrets
 import socket
 import tempfile
 import threading
@@ -152,7 +154,7 @@ class SettingsHostService:
         self.controller = controller
         self.on_quit = on_quit
         self.address = ""
-        self.auth_token = uuid.uuid4().hex
+        self.auth_token = secrets.token_hex(32)
         self.listener = None
         self.thread = None
         self._uses_unix_socket = False
@@ -221,7 +223,11 @@ class SettingsHostService:
         }
 
     def _dispatch(self, request):
-        if request.get("token") != self.auth_token:
+        supplied_token = request.get("token")
+        if not isinstance(supplied_token, str) or not hmac.compare_digest(
+            supplied_token.encode("utf-8"),
+            self.auth_token.encode("utf-8"),
+        ):
             raise PermissionError("Invalid IPC token.")
 
         method = request.get("method")
