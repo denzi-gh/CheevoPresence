@@ -223,7 +223,7 @@ class UpdateService:
             )
 
         download_dir = tempfile.mkdtemp(prefix="CheevoPresence-download-")
-        download_path = os.path.join(download_dir, asset_name)
+        download_path = os.path.join(download_dir, os.path.basename(asset_name))
         try:
             log_event(logger, AREA_UPDATE, "download_start", asset=asset_name)
             download_start = time.monotonic()

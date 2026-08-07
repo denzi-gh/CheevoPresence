@@ -46,6 +46,19 @@ class RuntimeLoggingTests(unittest.TestCase):
                 get_log_file(platform),
             )
 
+    def test_setup_logging_clamps_http_client_loggers(self):
+        with tempfile.TemporaryDirectory() as tmpdir:
+            platform = FakePlatform(tmpdir)
+            try:
+                setup_logging(platform)
+
+                self.assertEqual(logging.WARNING, logging.getLogger("urllib3").level)
+                self.assertEqual(logging.WARNING, logging.getLogger("requests").level)
+            finally:
+                logging.getLogger("urllib3").setLevel(logging.NOTSET)
+                logging.getLogger("requests").setLevel(logging.NOTSET)
+                self._close_runtime_handlers()
+
     def test_setup_logging_creates_one_rotating_handler(self):
         with tempfile.TemporaryDirectory() as tmpdir:
             platform = FakePlatform(tmpdir)

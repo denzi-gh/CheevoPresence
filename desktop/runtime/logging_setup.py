@@ -41,6 +41,9 @@ def setup_logging(platform=None, level=logging.INFO):
     logger.setLevel(level)
     logger.propagate = False
 
+    for noisy_logger in ("urllib3", "requests"):
+        logging.getLogger(noisy_logger).setLevel(logging.WARNING)
+
     log_file = get_log_file(platform)
     for handler in logger.handlers:
         if _is_runtime_handler(handler) and _same_log_file(handler, log_file):

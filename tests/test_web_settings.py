@@ -700,5 +700,25 @@ class BrowserFallbackTests(unittest.TestCase):
         run_in_browser.assert_not_called()
 
 
+class TokenMatchesTests(unittest.TestCase):
+    def test_matching_token(self):
+        from desktop.shell.web_settings import token_matches
+
+        self.assertTrue(token_matches("abc123", "abc123"))
+
+    def test_wrong_token(self):
+        from desktop.shell.web_settings import token_matches
+
+        self.assertFalse(token_matches("abc124", "abc123"))
+        self.assertFalse(token_matches("", "abc123"))
+
+    def test_non_string_or_empty_expected_never_matches(self):
+        from desktop.shell.web_settings import token_matches
+
+        self.assertFalse(token_matches(None, "abc123"))
+        self.assertFalse(token_matches(123, "abc123"))
+        self.assertFalse(token_matches("", ""))
+
+
 if __name__ == "__main__":
     unittest.main()

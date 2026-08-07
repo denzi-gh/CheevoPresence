@@ -216,6 +216,30 @@ class UpdateServiceTests(unittest.TestCase):
         with open(staged_path, "rb") as handle:
             self.assertEqual(b"abcdef", handle.read())
 
+    def test_install_update_confines_malicious_asset_name_to_download_dir(self):
+        platform = FakePlatform()
+        service = UpdateService(
+            platform,
+            session=FakeSession(FakeResponse(chunks=[b"abc"])),
+            current_version="1.0.0",
+            override_file="",
+        )
+        service._status.available = True
+        service._status.asset_name = "../../evil.exe"
+        service._status.asset_url = "https://example.test/exe"
+        service._status.asset_sha256 = hashlib.sha256(b"abc").hexdigest()
+
+        result = service.install_update()
+
+        self.assertTrue(result.success)
+        staged_path, _, _ = platform.staged
+        self.assertEqual("evil.exe", os.path.basename(staged_path))
+        self.assertTrue(
+            os.path.basename(os.path.dirname(staged_path)).startswith(
+                "CheevoPresence-download-"
+            )
+        )
+
     def test_install_update_refuses_unverified_asset(self):
         platform = FakePlatform()
         service = UpdateService(

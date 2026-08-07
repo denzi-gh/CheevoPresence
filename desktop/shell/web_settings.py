@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import base64
+import hmac
 import json
 import logging
 import os
@@ -35,6 +36,13 @@ SETTINGS_UI_ENV = "CHEEVO_SETTINGS_UI"
 # The page polls get_state once a second, so a longer gap means the browser tab
 # is gone and the settings session can be torn down.
 BROWSER_IDLE_TIMEOUT = 15.0
+
+def token_matches(supplied, expected):
+    """Constant-time comparison for the settings-server token."""
+    if not isinstance(supplied, str) or not expected:
+        return False
+    return hmac.compare_digest(supplied.encode("utf-8"), expected.encode("utf-8"))
+
 
 ROLE_BADGE_STYLES = {
     "junior_developer": {
@@ -600,7 +608,7 @@ class WebSettingsWindow:
                     return
                 # Without this the settings token could be scraped straight out of
                 # the HTML by any other page that guesses the port.
-                if parse_qs(parsed.query).get("k", [""])[0] != token:
+                if not token_matches(parse_qs(parsed.query).get("k", [""])[0], token):
                     self._send(404, {"ok": False, "error": "Not found."})
                     return
                 self._send(200, page, "text/html; charset=utf-8")
@@ -608,6 +616,11 @@ class WebSettingsWindow:
             def do_POST(self):
                 session._touch()
                 parsed = urlparse(self.path)
+                try:
+                    size = int(self.headers.get("Content-Length") or "0")
+                except ValueError:
+                    size = 0
+                raw = self.rfile.read(min(size, 1024 * 1024)) if size > 0 else b""
                 if not self._is_trusted_request() or not parsed.path.startswith("/api/"):
                     self._send(404, {"ok": False, "error": "Not found."})
                     return
@@ -616,16 +629,14 @@ class WebSettingsWindow:
                     self._send(403, {"ok": False, "error": "Invalid settings origin."})
                     return
                 if parsed.path == "/api/close_session":
-                    if parse_qs(parsed.query).get("k", [""])[0] == token:
+                    if token_matches(parse_qs(parsed.query).get("k", [""])[0], token):
                         api.on_window_closed()
                     self._send(200, {"ok": True})
                     return
-                if self.headers.get("X-Cheevo-Token") != token:
+                if not token_matches(self.headers.get("X-Cheevo-Token"), token):
                     self._send(403, {"ok": False, "error": "Invalid settings token."})
                     return
                 try:
-                    size = int(self.headers.get("Content-Length") or "0")
-                    raw = self.rfile.read(min(size, 1024 * 1024))
                     params = json.loads(raw.decode("utf-8") or "{}") if raw else {}
                     method = parsed.path.rsplit("/", 1)[-1]
                     self._send(200, {"ok": True, "result": api.dispatch(method, params)})
