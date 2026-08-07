@@ -56,6 +56,9 @@ select_build_python() {
   candidates+=(
     "/opt/homebrew/bin/python3.12"
     "/opt/homebrew/bin/python3.11"
+    "/opt/homebrew/opt/python@3.12/bin/python3.12"
+    "/usr/local/bin/python3.12"
+    "/usr/local/opt/python@3.12/bin/python3.12"
     "python3.12"
     "python3.11"
     "python3"
@@ -187,7 +190,8 @@ PYTHONPATH="$project_root${PYTHONPATH:+:$PYTHONPATH}" "${build_python}" -m PyIns
 
 "${build_python}" scripts/postprocess_macos_bundle.py "dist/CheevoPresence.app"
 sign_macos_bundle "dist/CheevoPresence.app"
-/usr/bin/ditto -c -k --keepParent "dist/CheevoPresence.app" "dist/CheevoPresence-macos.zip"
+arch_label="$(uname -m)"
+/usr/bin/ditto -c -k --keepParent "dist/CheevoPresence.app" "dist/CheevoPresence-macos-${arch_label}.zip"
 
 echo "Built dist/CheevoPresence.app"
-echo "Packaged dist/CheevoPresence-macos.zip"
+echo "Packaged dist/CheevoPresence-macos-${arch_label}.zip"

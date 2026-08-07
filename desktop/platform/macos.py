@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import logging
 import os
+import platform
 import plistlib
 import shlex
 import socket
@@ -33,7 +34,12 @@ logger = logging.getLogger(__name__)
 
 LAUNCH_AGENT_ID = "org.denzi.cheevopresence"
 LAUNCH_AGENT_FILE = f"{LAUNCH_AGENT_ID}.plist"
-UPDATE_HELPER_ARCHIVE_NAME = "CheevoPresence-macos.zip"
+#Release Asset name template for macOS builds (for arm64 and x86_64)
+UPDATE_ASSET_NAME_TEMPLATE = "CheevoPresence-macos-{machine}.zip"
+_OTHER_ARCH_MARKERS = {
+    "arm64": ("x86_64", "amd64", "intel"),
+    "x86_64": ("arm64", "aarch64"),
+}
 EXIT_SOCKET_NAME = "exit.sock"
 
 _single_instance_handle = None
@@ -471,7 +477,10 @@ def supports_self_update():
     )
 
 
-def select_update_asset(assets):
+def select_update_asset(assets, machine=None):
+    machine = (machine or platform.machine()).lower()
+    exact_name = UPDATE_ASSET_NAME_TEMPLATE.format(machine=machine).lower()
+    other_arch_markers = _OTHER_ARCH_MARKERS.get(machine, ())
     preferred = None
     for asset in assets or []:
         if not isinstance(asset, dict):
@@ -480,9 +489,14 @@ def select_update_asset(assets):
         if not name:
             continue
         lowered = name.lower()
-        if lowered == UPDATE_HELPER_ARCHIVE_NAME.lower():
+        if lowered == exact_name:
             return asset
-        if lowered.endswith(".zip") and "mac" in lowered and preferred is None:
+        if (
+            preferred is None
+            and lowered.endswith(".zip")
+            and "mac" in lowered
+            and not any(marker in lowered for marker in other_arch_markers)
+        ):
             preferred = asset
     return preferred
 

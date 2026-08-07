@@ -122,17 +122,33 @@ jobs:
           if-no-files-found: error
 
   macos:
-    name: macos artifact
-    runs-on: macos-latest
+    name: macos artifact (${{ matrix.arch }})
+    runs-on: ${{ matrix.runner }}
     needs: preflight
     if: needs.preflight.outputs.should_build == 'true'
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - runner: macos-latest
+            arch: arm64
+          - runner: macos-15-intel
+            arch: x86_64
 
     steps:
       - name: checkout
         uses: actions/checkout@v4
 
       - name: install build python
-        run: brew install python@3.12 python-tk@3.12 tcl-tk
+        shell: bash
+        env:
+          HOMEBREW_NO_PATH_SHADOW_CHECK: "1"
+        run: |
+          brew install python@3.12 || brew link --overwrite python@3.12
+          brew install python-tk@3.12 tcl-tk
+          # Pin the build to the keg path so it works even when linking
+          # into /usr/local was skipped or failed.
+          echo "CHEEVO_MACOS_PYTHON=$(brew --prefix python@3.12)/bin/python3.12" >> "$GITHUB_ENV"
 
       - name: build app
         run: ./build_macos.sh
@@ -141,21 +157,21 @@ jobs:
         shell: bash
         run: |
           mkdir -p release-assets/macos
-          cp dist/CheevoPresence-macos.zip release-assets/macos/CheevoPresence-macos.zip
+          cp "dist/CheevoPresence-macos-${{ matrix.arch }}.zip" release-assets/macos/
           cd release-assets/macos
-          shasum -a 256 CheevoPresence-macos.zip > CheevoPresence-macos.zip.sha256
+          shasum -a 256 "CheevoPresence-macos-${{ matrix.arch }}.zip" > "CheevoPresence-macos-${{ matrix.arch }}.zip.sha256"
 
       - name: upload zip
         uses: actions/upload-artifact@v7
         with:
-          path: release-assets/macos/CheevoPresence-macos.zip
+          path: release-assets/macos/CheevoPresence-macos-${{ matrix.arch }}.zip
           archive: false
           if-no-files-found: error
 
       - name: upload checksum
         uses: actions/upload-artifact@v7
         with:
-          path: release-assets/macos/CheevoPresence-macos.zip.sha256
+          path: release-assets/macos/CheevoPresence-macos-${{ matrix.arch }}.zip.sha256
           archive: false
           if-no-files-found: error
 
@@ -252,17 +268,31 @@ jobs:
           path: downloaded/windows
           skip-decompress: true
 
-      - name: download macos artifact
+      - name: download macos artifact (arm64)
         uses: actions/download-artifact@v8
         with:
-          name: CheevoPresence-macos.zip
+          name: CheevoPresence-macos-arm64.zip
           path: downloaded/macos
           skip-decompress: true
 
-      - name: download macos checksum
+      - name: download macos checksum (arm64)
         uses: actions/download-artifact@v8
         with:
-          name: CheevoPresence-macos.zip.sha256
+          name: CheevoPresence-macos-arm64.zip.sha256
+          path: downloaded/macos
+          skip-decompress: true
+
+      - name: download macos artifact (x86_64)
+        uses: actions/download-artifact@v8
+        with:
+          name: CheevoPresence-macos-x86_64.zip
+          path: downloaded/macos
+          skip-decompress: true
+
+      - name: download macos checksum (x86_64)
+        uses: actions/download-artifact@v8
+        with:
+          name: CheevoPresence-macos-x86_64.zip.sha256
           path: downloaded/macos
           skip-decompress: true
 
@@ -305,8 +335,13 @@ jobs:
           assets=(
             "downloaded/windows/CheevoPresence.exe"
             "downloaded/windows/CheevoPresence.exe.sha256"
-            "downloaded/macos/CheevoPresence-macos.zip"
-            "downloaded/macos/CheevoPresence-macos.zip.sha256"
+            # Keep the arm64 zip listed before x86_64: clients up to v1.3.2
+            # self-update to the first macOS zip in the release asset list,
+            # and those installs are arm64.
+            "downloaded/macos/CheevoPresence-macos-arm64.zip"
+            "downloaded/macos/CheevoPresence-macos-arm64.zip.sha256"
+            "downloaded/macos/CheevoPresence-macos-x86_64.zip"
+            "downloaded/macos/CheevoPresence-macos-x86_64.zip.sha256"
             "downloaded/linux/CheevoPresence-linux-x86_64.tar.gz"
             "downloaded/linux/CheevoPresence-linux-x86_64.tar.gz.sha256"
           )
