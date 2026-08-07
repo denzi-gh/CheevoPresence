@@ -45,8 +45,12 @@ After a successful build you will get:
 
 ```text
 dist/CheevoPresence.app
-dist/CheevoPresence-macos.zip
+dist/CheevoPresence-macos-<architecture>.zip
 ```
+
+The zip name carries the CPU architecture of the build machine (for example
+`CheevoPresence-macos-arm64.zip` on Apple Silicon), so the self-updater can
+tell which architecture a release asset was built for.
 
 ## 3. Run the build
 
