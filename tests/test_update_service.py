@@ -1,9 +1,11 @@
 import os
 import hashlib
+import sys
 import tempfile
 import unittest
+from unittest import mock
 
-from desktop.runtime.update_service import UpdateService
+from desktop.runtime.update_service import UPDATE_OVERRIDE_ENV, UpdateService
 
 
 class FakeResponse:
@@ -97,6 +99,44 @@ class UpdateServiceTests(unittest.TestCase):
 
             self.assertTrue(status.available)
             self.assertEqual(os.path.abspath(asset_path), status.asset_url)
+
+    def _override_service(self, tmpdir):
+        asset_path = os.path.join(tmpdir, "CheevoPresence.exe")
+        override_path = os.path.join(tmpdir, "update-test.json")
+        with open(asset_path, "wb") as handle:
+            handle.write(b"exe")
+        with open(override_path, "w", encoding="utf-8") as handle:
+            handle.write('{"latest_version":"2.0.0","asset_path":"CheevoPresence.exe"}')
+        return UpdateService(
+            FakePlatform(),
+            session=FakeSession(FakeResponse({})),
+            current_version="1.0.0",
+            override_file=override_path,
+        )
+
+    def test_frozen_build_ignores_override_file(self):
+        with tempfile.TemporaryDirectory() as tmpdir:
+            service = self._override_service(tmpdir)
+
+            environ = {key: value for key, value in os.environ.items() if key != UPDATE_OVERRIDE_ENV}
+            with mock.patch.object(sys, "frozen", True, create=True):
+                with mock.patch.dict(os.environ, environ, clear=True):
+                    status = service.check_for_updates()
+
+            self.assertTrue(status.checked)
+            self.assertFalse(status.available)
+            self.assertIsNone(status.asset_url)
+
+    def test_frozen_build_honors_override_with_env_opt_in(self):
+        with tempfile.TemporaryDirectory() as tmpdir:
+            service = self._override_service(tmpdir)
+
+            with mock.patch.object(sys, "frozen", True, create=True):
+                with mock.patch.dict(os.environ, {UPDATE_OVERRIDE_ENV: "1"}):
+                    status = service.check_for_updates()
+
+            self.assertTrue(status.available)
+            self.assertEqual("2.0.0", status.latest_version)
 
     def test_install_update_downloads_and_stages_asset(self):
         platform = FakePlatform()
