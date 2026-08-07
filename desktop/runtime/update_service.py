@@ -27,6 +27,15 @@ from desktop.runtime.storage import UPDATE_OVERRIDE_FILE
 
 logger = logging.getLogger(__name__)
 
+# Update override only allowed in non-frozen builds or when env var is set to 1
+UPDATE_OVERRIDE_ENV = "CHEEVO_UPDATE_TEST"
+
+
+def _update_override_allowed():
+    if not getattr(sys, "frozen", False):
+        return True
+    return os.environ.get(UPDATE_OVERRIDE_ENV) == "1"
+
 
 @dataclass
 class UpdateStatus:
@@ -307,7 +316,18 @@ class UpdateService:
         return UpdateInstallResult(success=True)
 
     def _build_update_status(self):
-        override = load_update_override(self.override_file, self.current_version)
+        override = None
+        if _update_override_allowed():
+            override = load_update_override(self.override_file, self.current_version)
+        elif self.override_file and os.path.exists(self.override_file):
+            log_event(
+                logger,
+                AREA_UPDATE,
+                "override_ignored",
+                level=logging.WARNING,
+                reason="frozen_build",
+                hint=f"set {UPDATE_OVERRIDE_ENV}=1 to enable the update-test override",
+            )
         if override:
             return UpdateStatus(
                 checked=True,
