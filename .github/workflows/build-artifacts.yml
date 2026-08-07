@@ -74,7 +74,15 @@ jobs:
         uses: actions/checkout@v4
 
       - name: install build python
-        run: brew install python@3.12 python-tk@3.12 tcl-tk
+        shell: bash
+        env:
+          HOMEBREW_NO_PATH_SHADOW_CHECK: "1"
+        run: |
+          brew install python@3.12 || brew link --overwrite python@3.12
+          brew install python-tk@3.12 tcl-tk
+          # Pin the build to the keg path so it works even when linking
+          # into /usr/local was skipped or failed.
+          echo "CHEEVO_MACOS_PYTHON=$(brew --prefix python@3.12)/bin/python3.12" >> "$GITHUB_ENV"
 
       - name: build app
         run: ./build_macos.sh

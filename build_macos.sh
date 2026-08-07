@@ -56,6 +56,9 @@ select_build_python() {
   candidates+=(
     "/opt/homebrew/bin/python3.12"
     "/opt/homebrew/bin/python3.11"
+    "/opt/homebrew/opt/python@3.12/bin/python3.12"
+    "/usr/local/bin/python3.12"
+    "/usr/local/opt/python@3.12/bin/python3.12"
     "python3.12"
     "python3.11"
     "python3"
