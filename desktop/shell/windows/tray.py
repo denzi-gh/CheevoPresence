@@ -174,14 +174,10 @@ class TrayApp:
         return False
 
     def _settings_command(self):
-        args = [
-            WINDOWS_SETTINGS_CLIENT_FLAG,
-            self._settings_service.address,
-            self._settings_service.auth_token,
-        ]
+        # Address and auth token travel via get_launch_env() only
         if getattr(sys, "frozen", False):
-            return [sys.executable, *args]
-        return [sys.executable, os.path.abspath(sys.argv[0]), *args]
+            return [sys.executable, WINDOWS_SETTINGS_CLIENT_FLAG]
+        return [sys.executable, os.path.abspath(sys.argv[0]), WINDOWS_SETTINGS_CLIENT_FLAG]
 
     def _on_settings_closed(self):
         self._settings_open = False
