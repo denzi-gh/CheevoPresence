@@ -51,6 +51,19 @@ jobs:
             echo "version=" >> "$GITHUB_OUTPUT"
           fi
 
+      - name: verify APP_VERSION matches release version
+        if: steps.version.outputs.should_build == 'true'
+        shell: bash
+        env:
+          VERSION: ${{ steps.version.outputs.version }}
+        run: |
+          app_version="$(python3 -c 'from desktop.core.constants import APP_VERSION; print(APP_VERSION)')"
+          if [[ "v$app_version" != "$VERSION" ]]; then
+            echo "::error::Release version $VERSION does not match APP_VERSION=$app_version in desktop/core/constants.py. A binary built from this commit would report itself as v$app_version, so the self-updater would keep offering $VERSION forever. Bump APP_VERSION (or fix the version marker) and retry."
+            exit 1
+          fi
+          echo "APP_VERSION=$app_version matches $VERSION"
+
       - name: explain skipped build
         if: steps.version.outputs.should_build != 'true'
         run: echo "release artifacts are only built when the workflow input or head commit message contains a version like v1.2.3"
