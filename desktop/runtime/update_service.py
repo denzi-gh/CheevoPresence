@@ -50,6 +50,7 @@ class UpdateStatus:
     asset_sha256: str | None = None
     checksum_url: str | None = None
     can_self_install: bool = False
+    check_error: str | None = None
 
 
 @dataclass
@@ -72,6 +73,7 @@ def copy_update_status(status):
         asset_sha256=status.asset_sha256,
         checksum_url=status.checksum_url,
         can_self_install=status.can_self_install,
+        check_error=status.check_error,
     )
 
 
@@ -113,14 +115,15 @@ class UpdateService:
         status = self._build_update_status()
         with self._lock:
             self._status = status
-        log_event(
-            logger,
-            AREA_UPDATE,
-            "check_success",
-            latest_version=status.latest_version,
-            update_available=status.available,
-            installable=status.can_self_install,
-        )
+        if status.check_error is None:
+            log_event(
+                logger,
+                AREA_UPDATE,
+                "check_success",
+                latest_version=status.latest_version,
+                update_available=status.available,
+                installable=status.can_self_install,
+            )
         return copy_update_status(status)
 
     def install_update(self, relaunch_args=None, source_pid=None):
@@ -349,6 +352,7 @@ class UpdateService:
         asset_url = None
         asset_sha256 = None
         checksum_url = None
+        check_error = None
 
         try:
             payload = self._fetch_latest_release()
@@ -363,8 +367,26 @@ class UpdateService:
                     asset_url = str(asset.get("browser_download_url") or "").strip() or None
                     asset_sha256 = self._asset_sha256_from_metadata(asset)
                     checksum_url = self._find_checksum_url(payload.get("assets") or [], asset_name)
-        except Exception:
-            pass
+        except requests.RequestException as exc:
+            check_error = format_api_error(exc)
+            log_event(
+                logger,
+                AREA_UPDATE,
+                "check_failed",
+                level=logging.WARNING,
+                error_type=exc.__class__.__name__,
+                detail=check_error,
+            )
+        except Exception as exc:
+            check_error = "Update check failed."
+            log_event(
+                logger,
+                AREA_UPDATE,
+                "check_failed",
+                level=logging.ERROR,
+                exc_info=True,
+                error_type=exc.__class__.__name__,
+            )
 
         return UpdateStatus(
             checked=True,
@@ -377,6 +399,7 @@ class UpdateService:
             asset_sha256=asset_sha256,
             checksum_url=checksum_url,
             can_self_install=self.platform.supports_self_update(),
+            check_error=check_error,
         )
 
     def _fetch_latest_release(self):

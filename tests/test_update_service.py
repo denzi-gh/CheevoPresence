@@ -34,6 +34,14 @@ class FakeSession:
         return self.response
 
 
+class RaisingSession:
+    def __init__(self, exc):
+        self.exc = exc
+
+    def get(self, url, **kwargs):
+        raise self.exc
+
+
 class FakePlatform:
     def __init__(self):
         self.staged = None
@@ -99,6 +107,54 @@ class UpdateServiceTests(unittest.TestCase):
 
             self.assertTrue(status.available)
             self.assertEqual(os.path.abspath(asset_path), status.asset_url)
+
+    def test_check_failure_is_reported_in_status(self):
+        import requests
+
+        service = UpdateService(
+            FakePlatform(),
+            session=RaisingSession(requests.ConnectionError("boom")),
+            current_version="1.0.0",
+            override_file="",
+        )
+
+        status = service.check_for_updates()
+
+        self.assertTrue(status.checked)
+        self.assertFalse(status.available)
+        self.assertEqual("API error: network unavailable", status.check_error)
+        self.assertEqual(
+            "API error: network unavailable",
+            service.get_status().check_error,
+        )
+
+    def test_unexpected_check_failure_uses_generic_error(self):
+        service = UpdateService(
+            FakePlatform(),
+            session=RaisingSession(RuntimeError("boom")),
+            current_version="1.0.0",
+            override_file="",
+        )
+
+        status = service.check_for_updates()
+
+        self.assertTrue(status.checked)
+        self.assertFalse(status.available)
+        self.assertEqual("Update check failed.", status.check_error)
+
+    def test_successful_check_clears_check_error(self):
+        payload = {"tag_name": "v1.0.0", "html_url": "https://example.test/release"}
+        service = UpdateService(
+            FakePlatform(),
+            session=FakeSession(FakeResponse(payload)),
+            current_version="1.0.0",
+            override_file="",
+        )
+
+        status = service.check_for_updates()
+
+        self.assertTrue(status.checked)
+        self.assertIsNone(status.check_error)
 
     def _override_service(self, tmpdir):
         asset_path = os.path.join(tmpdir, "CheevoPresence.exe")
