@@ -616,6 +616,11 @@ class WebSettingsWindow:
             def do_POST(self):
                 session._touch()
                 parsed = urlparse(self.path)
+                try:
+                    size = int(self.headers.get("Content-Length") or "0")
+                except ValueError:
+                    size = 0
+                raw = self.rfile.read(min(size, 1024 * 1024)) if size > 0 else b""
                 if not self._is_trusted_request() or not parsed.path.startswith("/api/"):
                     self._send(404, {"ok": False, "error": "Not found."})
                     return
@@ -632,8 +637,6 @@ class WebSettingsWindow:
                     self._send(403, {"ok": False, "error": "Invalid settings token."})
                     return
                 try:
-                    size = int(self.headers.get("Content-Length") or "0")
-                    raw = self.rfile.read(min(size, 1024 * 1024))
                     params = json.loads(raw.decode("utf-8") or "{}") if raw else {}
                     method = parsed.path.rsplit("/", 1)[-1]
                     self._send(200, {"ok": True, "result": api.dispatch(method, params)})
