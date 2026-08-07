@@ -512,14 +512,10 @@ class LinuxIndicatorApp:
         return True
 
     def _settings_command(self):
-        args = [
-            "--linux-settings-client",
-            self._settings_service.address,
-            self._settings_service.auth_token,
-        ]
+        # Address and auth token travel via get_launch_env() only
         if getattr(sys, "frozen", False):
-            return [sys.executable, *args]
-        return [sys.executable, os.path.abspath(sys.argv[0]), *args]
+            return [sys.executable, "--linux-settings-client"]
+        return [sys.executable, os.path.abspath(sys.argv[0]), "--linux-settings-client"]
 
     def _on_settings_closed(self):
         self._settings_open = False

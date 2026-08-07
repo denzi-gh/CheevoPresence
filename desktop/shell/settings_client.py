@@ -52,7 +52,7 @@ def _show_startup_error(message):
         print(message, file=sys.stderr)
 
 
-def main(address=None, auth_token=None):
+def main():
     from desktop.platform import get_platform_services
     from desktop.runtime.logging_setup import setup_logging
     from desktop.shell.ipc import (
@@ -66,8 +66,8 @@ def main(address=None, auth_token=None):
     setup_logging(get_platform_services())
     log_event(logger, AREA_SETTINGS, "client_started", pid=os.getpid())
 
-    address = address or os.environ.get(SETTINGS_ADDRESS_ENV)
-    auth_token = auth_token or os.environ.get(SETTINGS_AUTH_ENV)
+    address = os.environ.get(SETTINGS_ADDRESS_ENV)
+    auth_token = os.environ.get(SETTINGS_AUTH_ENV)
     try:
         controller = RemoteAppController(address, auth_token)
         WebSettingsWindow(
