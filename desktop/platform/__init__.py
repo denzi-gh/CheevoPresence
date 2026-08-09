@@ -5,7 +5,7 @@ import sys
 from desktop.platform.base import PlatformServices
 from desktop.platform.generic import GenericPlatformServices
 
-_platform_services = None
+_platform_services: PlatformServices | None = None
 
 
 def get_platform_services() -> PlatformServices:
