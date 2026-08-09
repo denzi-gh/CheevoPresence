@@ -8,8 +8,8 @@ from dataclasses import dataclass
 
 import requests
 
-from desktop.core.api import APIResponseError, format_api_error
-from desktop.core.ra_client import RAClient
+from desktop.core.api import format_api_error
+from desktop.core.ra_client import APIResponseError, RAClient
 from desktop.core.roles import debug_forced_role_permission, resolve_dev_mode
 from desktop.core.settings import normalize_config
 from desktop.platform import get_platform_services
@@ -19,9 +19,7 @@ from desktop.runtime.storage import (
     save_config,
 )
 from desktop.runtime.update_service import (
-    UpdateInstallResult,
     UpdateService,
-    UpdateStatus,
     install_update_for_current_process,
 )
 from desktop.runtime.worker import RPCWorker

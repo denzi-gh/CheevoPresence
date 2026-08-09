@@ -2,7 +2,7 @@
 
 import requests
 
-from desktop.core.ra_client import APIResponseError, RAClient
+from desktop.core.ra_client import RAClient
 
 
 def trimmer(text, max_units=128):

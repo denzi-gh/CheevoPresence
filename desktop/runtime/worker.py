@@ -9,13 +9,13 @@ import requests
 from pypresence import Presence
 
 from desktop.core.api import (
-    APIResponseError,
     format_api_error,
     ra_get_game,
-    ra_get_user_progress,
     ra_get_user_profile_v2,
+    ra_get_user_progress,
     ra_get_user_summary,
 )
+from desktop.core.ra_client import APIResponseError
 from desktop.core.roles import (
     coerce_permissions,
     debug_forced_role_permission,
@@ -553,7 +553,7 @@ class RPCWorker:
                 except APIResponseError:
                     consecutive_errors += 1
                     self._unexpected_api_response()
-                except Exception as exc:
+                except Exception as exc:  # noqa: BLE001 the worker loop must survive any iteration failure; classified below
                     consecutive_errors += 1
                     self._disconnect_rpc()
                     if is_discord_unavailable_error(exc):

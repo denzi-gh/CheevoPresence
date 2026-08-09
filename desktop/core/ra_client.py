@@ -1,6 +1,6 @@
 """RetroAchievements API client with injectable HTTP transport."""
 
-from datetime import datetime
+from datetime import datetime, timezone
 from urllib.parse import quote
 
 import requests
@@ -33,7 +33,7 @@ class RAClient:
         return data
 
     def get_user_summary(self, username, apikey):
-        no_cache = datetime.now().strftime("%d%m%Y%H%M%S")
+        no_cache = datetime.now(tz=timezone.utc).strftime("%d%m%Y%H%M%S")
         return self._get_json_dict(
             "API_GetUserSummary.php",
             {"u": username, "y": apikey, "g": 0, "a": 0, "noCache": no_cache},

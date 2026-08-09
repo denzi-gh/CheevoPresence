@@ -160,9 +160,11 @@ class RoleTests(unittest.TestCase):
 
     def test_debug_forced_permission_ignores_unknown_values(self):
         for value in ("", "nope", "99"):
-            with self.subTest(value=value):
-                with patch.dict("os.environ", {DEBUG_FORCE_ROLE_PERMISSION_ENV: value}):
-                    self.assertIsNone(debug_forced_role_permission())
+            with (
+                self.subTest(value=value),
+                patch.dict("os.environ", {DEBUG_FORCE_ROLE_PERMISSION_ENV: value}),
+            ):
+                self.assertIsNone(debug_forced_role_permission())
 
     def test_roles_grant_dev_mode_only_for_developer_tiers(self):
         for roles in (

@@ -5,7 +5,8 @@ from urllib.parse import quote
 
 from pypresence import ActivityType
 
-from desktop.core.api import APIResponseError, trimmer
+from desktop.core.api import trimmer
+from desktop.core.ra_client import APIResponseError
 
 DEVELOPER_ACTIVITY_TITLES = {
     "developing achievements": "Developing RetroAchievements",
@@ -150,18 +151,18 @@ class PresenceBuilder:
         )
         small_img = self.console_icons.get(console_id)
 
-        update_kwargs = dict(
-            activity_type=ActivityType.PLAYING,
-            name=trimmer(display_name),
-            details=trimmer(details) if details else None,
-            state=state_str,
-            start=start_time,
-            large_image=large_img,
-            large_text=large_tooltip,
-            small_image=small_img,
-            small_text=console_name,
-            buttons=buttons,
-        )
+        update_kwargs = {
+            "activity_type": ActivityType.PLAYING,
+            "name": trimmer(display_name),
+            "details": trimmer(details) if details else None,
+            "state": state_str,
+            "start": start_time,
+            "large_image": large_img,
+            "large_text": large_tooltip,
+            "small_image": small_img,
+            "small_text": console_name,
+            "buttons": buttons,
+        }
         if party:
             update_kwargs["party_id"] = f"ra_{last_game_id}"
             update_kwargs["party_size"] = party

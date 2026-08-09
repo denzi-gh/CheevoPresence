@@ -1,4 +1,5 @@
 import unittest
+from typing import ClassVar
 
 from pypresence import exceptions as pypresence_exceptions
 
@@ -6,9 +7,9 @@ from desktop.runtime.worker import RPCWorker
 
 
 class FakePresence:
-    attempts = []
-    failures = {}
-    instances = []
+    attempts: ClassVar[list] = []
+    failures: ClassVar[dict] = {}
+    instances: ClassVar[list] = []
 
     def __init__(self, client_id, pipe=None):
         self.client_id = client_id

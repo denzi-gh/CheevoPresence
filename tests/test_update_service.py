@@ -1,5 +1,5 @@
-import os
 import hashlib
+import os
 import sys
 import tempfile
 import unittest
@@ -57,7 +57,6 @@ class FakePlatform:
 
     def stage_update_install(self, download_path, relaunch_args, source_pid):
         self.staged = (download_path, relaunch_args, source_pid)
-        return None
 
 
 class UpdateServiceTests(unittest.TestCase):
@@ -175,9 +174,11 @@ class UpdateServiceTests(unittest.TestCase):
             service = self._override_service(tmpdir)
 
             environ = {key: value for key, value in os.environ.items() if key != UPDATE_OVERRIDE_ENV}
-            with mock.patch.object(sys, "frozen", True, create=True):
-                with mock.patch.dict(os.environ, environ, clear=True):
-                    status = service.check_for_updates()
+            with (
+                mock.patch.object(sys, "frozen", True, create=True),
+                mock.patch.dict(os.environ, environ, clear=True),
+            ):
+                status = service.check_for_updates()
 
             self.assertTrue(status.checked)
             self.assertFalse(status.available)
@@ -187,9 +188,11 @@ class UpdateServiceTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as tmpdir:
             service = self._override_service(tmpdir)
 
-            with mock.patch.object(sys, "frozen", True, create=True):
-                with mock.patch.dict(os.environ, {UPDATE_OVERRIDE_ENV: "1"}):
-                    status = service.check_for_updates()
+            with (
+                mock.patch.object(sys, "frozen", True, create=True),
+                mock.patch.dict(os.environ, {UPDATE_OVERRIDE_ENV: "1"}),
+            ):
+                status = service.check_for_updates()
 
             self.assertTrue(status.available)
             self.assertEqual("2.0.0", status.latest_version)

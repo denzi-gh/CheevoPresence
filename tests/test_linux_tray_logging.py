@@ -86,7 +86,7 @@ class ReopenSettingsTests(unittest.TestCase):
         process = FakeSettingsProcess(signal_error=ProcessLookupError())
         app = self._app(process)
         app._settings_service = SimpleNamespace(
-            address="addr", auth_token="token", get_launch_env=lambda: {}
+            address="addr", auth_token="token", get_launch_env=dict
         )
 
         with mock.patch.object(indicator, "PRESENT_SIGNAL", 10), mock.patch.object(

@@ -76,13 +76,13 @@ def notify_already_running():
         try:
             ctypes.windll.user32.MessageBoxW(None, message, APP_NAME, 0x40)
             return
-        except Exception:
-            pass
+        except Exception:  # any native failure falls back to the tk box
+            logger.debug("Native message box unavailable", exc_info=True)
 
     try:
         messagebox.showinfo(APP_NAME, message)
-    except Exception:
-        pass
+    except Exception:  # notification is best-effort (e.g. headless tk)
+        logger.debug("tk message box unavailable", exc_info=True)
 
 
 def request_running_app_exit():
@@ -102,7 +102,7 @@ def request_running_app_exit():
             return bool(kernel32.SetEvent(event))
         finally:
             kernel32.CloseHandle(event)
-    except Exception:
+    except (OSError, AttributeError):
         return False
 
 
@@ -122,8 +122,10 @@ def start_exit_listener(callback):
         initial_state = False
         event = kernel32.CreateEventW(None, manual_reset, initial_state, EXIT_EVENT_NAME)
         if not event:
+            logger.warning("Windows exit listener event could not be created")
             return None
-    except Exception:
+    except (OSError, AttributeError):
+        logger.warning("Windows exit listener could not start", exc_info=True)
         return None
 
     _exit_event_handle = event
@@ -136,7 +138,7 @@ def start_exit_listener(callback):
             if result == wait_object_0:
                 callback()
         except Exception:
-            pass
+            logger.exception("Windows exit listener failed")
 
     _exit_listener_thread = threading.Thread(target=listen_for_exit, daemon=True)
     _exit_listener_thread.start()
@@ -191,7 +193,7 @@ def _wait_for_process_exit(pid, timeout_seconds=120):
     for _ in range(int(timeout_seconds)):
         try:
             probe = kernel32.OpenProcess(synchronize, False, int(pid))
-        except Exception:
+        except OSError:
             probe = None
         if not probe:
             return
@@ -284,7 +286,7 @@ def handle_special_args(argv):
             [launch_path, *relaunch_args],
             cwd=os.path.dirname(target_path) or None,
         )
-    except Exception as exc:
+    except Exception as exc:  # noqa: BLE001 helper must finish the swap; failure is in the update log
         _append_update_log(log_path, f"Launch failed: {exc}")
 
     _spawn_cleanup(cleanup_paths)
@@ -368,7 +370,7 @@ def set_autostart(enable):
             path=f"HKCU\\{STARTUP_REG_KEY}\\{STARTUP_REG_NAME}",
         )
         return None
-    except Exception as exc:
+    except OSError as exc:
         log_event(
             logger,
             AREA_AUTOSTART,
@@ -392,7 +394,7 @@ def is_autostart_enabled():
             enabled = False
         finally:
             winreg.CloseKey(key)
-    except Exception:
+    except OSError:
         enabled = False
     # Polled every second by the settings UI, so keep this off the INFO log.
     log_event(logger, AREA_AUTOSTART, "read", level=logging.DEBUG, enabled=enabled)
@@ -445,7 +447,7 @@ def get_tray_icon_class(pystray):
                     hCursor=None,
                     hbrBackground=pystray_win32.win32.COLOR_WINDOW + 1,
                     lpszMenuName=None,
-                    lpszClassName="%s%dSystemTrayIcon" % (self.name, id(self)),
+                    lpszClassName=f"{self.name}{id(self)}SystemTrayIcon",
                     hIconSm=None,
                 )
             )

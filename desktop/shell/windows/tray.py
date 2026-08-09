@@ -39,7 +39,7 @@ def load_icon_image(path):
     try:
         with Image.open(path) as img:
             return img.copy()
-    except Exception:
+    except Exception:  # noqa: BLE001 Pillow raises assorted errors for corrupt icons; caller falls back
         return None
 
 
@@ -101,8 +101,8 @@ class TrayApp:
             return
         try:
             self.icon.update_menu()
-        except Exception:
-            pass
+        except Exception:  # pystray teardown race; menu refresh is best-effort
+            logger.debug("Tray menu update failed", exc_info=True)
 
     def _get_connection_action_text(self, _item=None):
         state = self.worker.get_state()
@@ -224,7 +224,6 @@ class TrayApp:
                     logger.info("Windows tray icon stopped")
                 except Exception:
                     logger.exception("Windows tray icon stop failed")
-                    pass
             self._stop_settings_client()
             self._settings_service.stop()
             stopped = self.controller.shutdown(timeout=SHUTDOWN_GRACE_SECONDS)

@@ -11,7 +11,6 @@ import subprocess
 import sys
 import tempfile
 import threading
-import webbrowser
 
 from desktop.core.constants import APP_NAME
 from desktop.platform.generic import GenericPlatformServices
@@ -164,20 +163,22 @@ def acquire_single_instance():
     if _single_instance_handle is not None:
         return True
 
+    handle = None
     try:
         lock_path = get_lock_path()
         _ensure_private_dir(os.path.dirname(lock_path))
-        handle = open(lock_path, "w", encoding="utf-8")
+        handle = open(lock_path, "w", encoding="utf-8")  # noqa: SIM115
         fcntl.flock(handle.fileno(), fcntl.LOCK_EX | fcntl.LOCK_NB)
         handle.write(str(os.getpid()))
         handle.flush()
         _single_instance_handle = handle
         return True
     except OSError:
-        try:
-            handle.close()
-        except Exception:
-            pass
+        if handle is not None:
+            try:
+                handle.close()
+            except OSError:
+                pass
         return False
 
 
@@ -191,8 +192,8 @@ def notify_already_running():
             text=True,
             timeout=2,
         )
-    except Exception:
-        pass
+    except (OSError, subprocess.SubprocessError):
+        logger.debug("notify-send unavailable", exc_info=True)
 
 
 def request_running_app_exit():
@@ -243,7 +244,7 @@ def start_exit_listener(callback):
             while not stop_event.is_set():
                 try:
                     conn, _addr = listener.accept()
-                except socket.timeout:
+                except TimeoutError:
                     continue
                 except OSError:
                     break

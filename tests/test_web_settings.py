@@ -1,19 +1,19 @@
 import http.client
+import logging
 import os
 import tempfile
 import threading
 import unittest
-import logging
 from types import SimpleNamespace
 from unittest.mock import patch
 from urllib.parse import parse_qs, urlparse
 
-from desktop.runtime.controller import ConnectResult, UpdateStatus
+from desktop.runtime.controller import ConnectResult
 from desktop.runtime.state import MirroredPresence, WorkerState
+from desktop.runtime.update_service import UpdateStatus
 from desktop.shell.web_settings import (
     WebSettingsAPI,
     WebSettingsWindow,
-    open_external_url,
     role_badge_style,
 )
 
@@ -633,7 +633,7 @@ class BrowserFallbackTests(unittest.TestCase):
                 window.api.set_window(
                     SimpleNamespace(
                         events=SimpleNamespace(shown=event),
-                        restore=lambda: calls.append("restore"),
+                        restore=lambda calls=calls: calls.append("restore"),
                     )
                 )
 
@@ -685,17 +685,18 @@ class BrowserFallbackTests(unittest.TestCase):
             started.set()
             raise RuntimeError("window crashed")
 
-        with patch.object(
-            WebSettingsWindow,
-            "_start_server",
-            return_value="http://127.0.0.1:1/settings?k=x",
-        ), patch.object(
-            WebSettingsWindow, "_open_native_window", fail_after_start
-        ), patch.object(
-            WebSettingsWindow, "_run_in_browser"
-        ) as run_in_browser, patch.object(WebSettingsWindow, "_stop_server"):
-            with self.assertRaises(RuntimeError):
-                window._run()
+        with (
+            patch.object(
+                WebSettingsWindow,
+                "_start_server",
+                return_value="http://127.0.0.1:1/settings?k=x",
+            ),
+            patch.object(WebSettingsWindow, "_open_native_window", fail_after_start),
+            patch.object(WebSettingsWindow, "_run_in_browser") as run_in_browser,
+            patch.object(WebSettingsWindow, "_stop_server"),
+            self.assertRaises(RuntimeError),
+        ):
+            window._run()
 
         run_in_browser.assert_not_called()
 

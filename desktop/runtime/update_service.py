@@ -2,8 +2,8 @@
 
 from __future__ import annotations
 
-import logging
 import hashlib
+import logging
 import os
 import re
 import shutil
@@ -16,7 +16,11 @@ from dataclasses import dataclass
 import requests
 
 from desktop.core.api import format_api_error
-from desktop.core.constants import APP_VERSION, RELEASES_LATEST_API_URL, RELEASES_PAGE_URL
+from desktop.core.constants import (
+    APP_VERSION,
+    RELEASES_LATEST_API_URL,
+    RELEASES_PAGE_URL,
+)
 from desktop.core.update import (
     is_newer_version,
     load_update_override,
@@ -284,7 +288,7 @@ class UpdateService:
                 error_title="Update Failed",
                 error_message="Could not write the downloaded update to disk.",
             )
-        except Exception as exc:
+        except Exception as exc:  # noqa: BLE001 last-resort boundary so a failed update never crashes the app
             log_event(
                 logger,
                 AREA_UPDATE,
@@ -377,7 +381,7 @@ class UpdateService:
                 error_type=exc.__class__.__name__,
                 detail=check_error,
             )
-        except Exception as exc:
+        except Exception as exc:  # noqa: BLE001 reported via UpdateStatus.check_error, logged below
             check_error = "Update check failed."
             log_event(
                 logger,
@@ -411,7 +415,7 @@ class UpdateService:
         response.raise_for_status()
         payload = response.json()
         if not isinstance(payload, dict):
-            raise ValueError("Unexpected release payload.")
+            raise TypeError("Unexpected release payload.")
         return payload
 
     def _fetch_latest_update_asset(self):

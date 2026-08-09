@@ -4,7 +4,6 @@ from unittest.mock import patch
 
 from desktop.runtime.worker import RPCWorker
 
-
 SECRET_USERNAME = "private_user"
 SECRET_API_KEY = "SECRET_API_KEY"
 SECRET_RP_TEXT = "secret rich presence text"
@@ -81,17 +80,19 @@ class WorkerLoggingTests(unittest.TestCase):
         return worker
 
     def _run_one_loop_with_logs(self, worker):
-        with patch(
-            "desktop.runtime.worker.ra_get_user_summary",
-            return_value=_summary_payload(),
+        with (
+            patch(
+                "desktop.runtime.worker.ra_get_user_summary",
+                return_value=_summary_payload(),
+            ),
+            patch("desktop.runtime.worker.ra_get_game", return_value=_game_payload()),
+            patch(
+                "desktop.runtime.worker.ra_get_user_progress",
+                return_value=_progress_payload(),
+            ),
+            self.assertLogs("desktop.runtime.worker", level="INFO") as logs,
         ):
-            with patch("desktop.runtime.worker.ra_get_game", return_value=_game_payload()):
-                with patch(
-                    "desktop.runtime.worker.ra_get_user_progress",
-                    return_value=_progress_payload(),
-                ):
-                    with self.assertLogs("desktop.runtime.worker", level="INFO") as logs:
-                        worker._loop()
+            worker._loop()
         return "\n".join(logs.output)
 
     def test_presence_update_success_logs_safe_metadata(self):

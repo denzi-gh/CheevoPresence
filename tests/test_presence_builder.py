@@ -2,7 +2,7 @@ import unittest
 
 from pypresence import ActivityType
 
-from desktop.core.api import APIResponseError
+from desktop.core.ra_client import APIResponseError
 from desktop.runtime.presence_builder import PresenceBuilder
 
 

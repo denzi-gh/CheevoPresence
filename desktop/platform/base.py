@@ -63,13 +63,13 @@ class PlatformServices:
             return False
         try:
             if sys.platform.startswith("win"):
-                os.startfile(path)  # noqa: S606 - documented Windows file-manager open
+                os.startfile(path)
             elif sys.platform == "darwin":
                 subprocess.Popen(["open", path], env=self.child_process_env())
             else:
                 subprocess.Popen(["xdg-open", path], env=self.child_process_env())
             return True
-        except Exception:
+        except (OSError, ValueError):
             return False
 
     def child_process_env(self):

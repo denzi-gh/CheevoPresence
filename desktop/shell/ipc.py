@@ -14,9 +14,10 @@ import time
 import uuid
 from dataclasses import asdict
 
-from desktop.runtime.controller import ConnectResult, UpdateInstallResult, UpdateStatus
+from desktop.runtime.controller import ConnectResult
 from desktop.runtime.log_events import AREA_IPC, log_event
 from desktop.runtime.state import MirroredPresence, WorkerState
+from desktop.runtime.update_service import UpdateInstallResult, UpdateStatus
 
 logger = logging.getLogger(__name__)
 
@@ -262,7 +263,7 @@ class SettingsHostService:
         while not self._stop_event.is_set():
             try:
                 conn, _addr = self.listener.accept()
-            except socket.timeout:
+            except TimeoutError:
                 continue
             except OSError:
                 break
@@ -282,7 +283,7 @@ class SettingsHostService:
                         success=True,
                         elapsed_ms=round((time.monotonic() - start) * 1000),
                     )
-            except Exception as exc:
+            except Exception as exc:  # noqa: BLE001 dispatch boundary; error is formatted generically for the client
                 response = {"ok": False, "error": _format_ipc_error(exc)}
                 log_event(
                     logger,
@@ -296,12 +297,29 @@ class SettingsHostService:
                 )
             try:
                 _write_message(conn, response)
-            except Exception:
-                pass
+            except OSError as exc:
+                log_event(
+                    logger,
+                    AREA_IPC,
+                    "response_write_failed",
+                    level=logging.WARNING,
+                    method=method,
+                    error_type=exc.__class__.__name__,
+                )
+            except (TypeError, ValueError) as exc:
+                log_event(
+                    logger,
+                    AREA_IPC,
+                    "response_serialize_failed",
+                    level=logging.ERROR,
+                    exc_info=True,
+                    method=method,
+                    error_type=exc.__class__.__name__,
+                )
             finally:
                 try:
                     conn.close()
-                except Exception:
+                except OSError:
                     pass
 
 

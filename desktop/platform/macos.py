@@ -11,15 +11,12 @@ import socket
 import subprocess
 import sys
 import tempfile
-import shutil
 import threading
 from pathlib import Path
 
 from desktop.core.constants import APP_NAME
 from desktop.platform.generic import GenericPlatformServices
 from desktop.platform.macos_keychain import (
-    build_keychain_token,
-    parse_keychain_token,
     protect_api_key,
     unprotect_api_key,
 )
@@ -286,7 +283,7 @@ def acquire_single_instance():
     try:
         lock_dir = get_cache_dir()
         os.makedirs(lock_dir, exist_ok=True)
-        handle = open(os.path.join(lock_dir, "instance.lock"), "w", encoding="utf-8")
+        handle = open(os.path.join(lock_dir, "instance.lock"), "w", encoding="utf-8")  # noqa: SIM115
         fcntl.flock(handle.fileno(), fcntl.LOCK_EX | fcntl.LOCK_NB)
         handle.write(str(os.getpid()))
         handle.flush()
@@ -354,8 +351,9 @@ def start_exit_listener(callback):
     except OSError:
         try:
             listener.close()
-        except Exception:
+        except OSError:
             pass
+        logger.warning("macOS exit listener could not start", exc_info=True)
         return None
 
     stop_event = threading.Event()
@@ -367,7 +365,7 @@ def start_exit_listener(callback):
             while not stop_event.is_set():
                 try:
                     conn, _addr = listener.accept()
-                except socket.timeout:
+                except TimeoutError:
                     continue
                 except OSError:
                     break

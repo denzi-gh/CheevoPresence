@@ -9,7 +9,6 @@ from pathlib import Path
 
 from PIL import Image, ImageDraw
 
-
 ROOT = Path(__file__).resolve().parents[1]
 SOURCE_ICON = ROOT / ".github" / "assets" / "tray-default.png"
 OUTPUT_DIR = ROOT / "build" / "macos" / "generated"

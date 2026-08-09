@@ -25,8 +25,8 @@ def close_rpc_client(rpc):
         return
     try:
         rpc.close()
-    except Exception:
-        pass
+    except Exception:  # best-effort close of a possibly dead pipe
+        logger.debug("RPC client close failed", exc_info=True)
 
 
 def is_discord_unavailable_error(exc):
@@ -106,7 +106,7 @@ class DiscordPresenceGateway:
         def do_connect():
             try:
                 rpc.connect()
-            except Exception as exc:
+            except Exception as exc:  # noqa: BLE001 forwarded to the caller via errors
                 errors.append(exc)
             finally:
                 done.set()
@@ -174,7 +174,7 @@ class DiscordPresenceGateway:
                     )
                     self._set_status("error", "Discord connection failed")
                     return False
-                except Exception as exc:
+                except Exception as exc:  # noqa: BLE001 pypresence raises assorted types; classified below
                     self.rpc = None
                     if is_discord_unavailable_error(exc):
                         log_event(
@@ -218,7 +218,7 @@ class DiscordPresenceGateway:
                         self.rpc.clear()
                         self.rpc.close()
                         log_event(logger, AREA_DISCORD, "clear_success", pipe=self.rpc_pipe)
-                    except Exception:
+                    except Exception:  # noqa: BLE001 - teardown of a possibly dead pipe; logged below
                         log_event(
                             logger,
                             AREA_DISCORD,
@@ -226,19 +226,17 @@ class DiscordPresenceGateway:
                             level=logging.WARNING,
                             pipe=self.rpc_pipe,
                         )
-                        pass
                 else:
                     try:
                         self.rpc.close()
                         log_event(logger, AREA_DISCORD, "closed_before_connection")
-                    except Exception:
+                    except Exception:  # noqa: BLE001 teardown of a possibly dead pipe; logged below
                         log_event(
                             logger,
                             AREA_DISCORD,
                             "close_failed_before_connection",
                             level=logging.WARNING,
                         )
-                        pass
             self.rpc = None
             self.rpc_connected = False
             self.start_time = None

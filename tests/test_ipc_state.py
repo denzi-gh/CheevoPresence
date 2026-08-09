@@ -2,7 +2,11 @@ import unittest
 from unittest.mock import patch
 
 from desktop.runtime.state import MirroredPresence, WorkerState
-from desktop.shell.ipc import RemoteAppController, RemoteWorkerProxy, SettingsHostService
+from desktop.shell.ipc import (
+    RemoteAppController,
+    RemoteWorkerProxy,
+    SettingsHostService,
+)
 
 
 def _presence_snapshot():
@@ -58,7 +62,7 @@ class FakeController:
         self.config = {"username": "user", "apikey": "secret"}
 
     def get_update_status(self):
-        from desktop.runtime.controller import UpdateStatus
+        from desktop.runtime.update_service import UpdateStatus
 
         return UpdateStatus(checked=True)
 
