@@ -1,0 +1,36 @@
+{
+  $schema: "https://docs.renovatebot.com/renovate-schema.json",
+  extends: [
+    "config:recommended",
+    "helpers:pinGitHubActionDigests",
+    ":timezone(Europe/Berlin)",
+  ],
+  labels: ["dependencies"],
+  // Updates will be fetched every week
+  schedule: ["before 6am on monday"],
+  prConcurrentLimit: 5,
+  // Need to be 7 days old to be suggested
+  minimumReleaseAge: "7 days",
+  packageRules: [
+    {
+      description: "pyobjc packages move in lockstep",
+      matchPackageNames: ["/^pyobjc/"],
+      groupName: "pyobjc",
+    },
+    {
+      description: "GUI/tray stack is regression-prone; extra settle time",
+      matchPackageNames: ["pywebview", "pystray", "pypresence"],
+      minimumReleaseAge: "14 days",
+    },
+    {
+      description: "GitHub Actions updates arrive as one grouped PR",
+      matchManagers: ["github-actions"],
+      groupName: "github-actions",
+    },
+    {
+      description: "Dev tooling (ruff/mypy/pytest/coverage) as one grouped PR",
+      matchFileNames: ["requirements/dev.txt"],
+      groupName: "dev tooling",
+    },
+  ],
+}
