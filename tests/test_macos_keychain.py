@@ -38,20 +38,24 @@ class WriteKeychainPasswordTests(unittest.TestCase):
     def test_control_characters_are_rejected(self):
         # A newline would end the interactive command and could smuggle in a
         # second security command.
-        with mock.patch.object(macos_keychain.subprocess, "run") as run:
-            with self.assertRaises(OSError):
-                macos_keychain._write_keychain_password(
-                    "account",
-                    "key\ndelete-generic-password",
-                )
+        with (
+            mock.patch.object(macos_keychain.subprocess, "run") as run,
+            self.assertRaises(OSError),
+        ):
+            macos_keychain._write_keychain_password(
+                "account",
+                "key\ndelete-generic-password",
+            )
 
         run.assert_not_called()
 
     def test_failed_write_raises_oserror(self):
         error = subprocess.CalledProcessError(1, ["security", "-i"])
-        with mock.patch.object(macos_keychain.subprocess, "run", side_effect=error):
-            with self.assertRaises(OSError):
-                macos_keychain._write_keychain_password("account", "key")
+        with (
+            mock.patch.object(macos_keychain.subprocess, "run", side_effect=error),
+            self.assertRaises(OSError),
+        ):
+            macos_keychain._write_keychain_password("account", "key")
 
 
 class ReadKeychainPasswordTests(unittest.TestCase):

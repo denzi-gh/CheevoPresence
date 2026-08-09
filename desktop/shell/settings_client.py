@@ -6,7 +6,6 @@ import logging
 import os
 import signal
 import sys
-
 import tkinter as tk
 from tkinter import messagebox
 
@@ -26,7 +25,7 @@ def _install_present_handler(window):
     def handle(_signum, _frame):
         try:
             window.present()
-        except Exception:
+        except Exception:  # noqa: BLE001 signal-handler boundary; warning logged below
             log_event(
                 logger,
                 AREA_SETTINGS,
@@ -48,7 +47,7 @@ def _show_startup_error(message):
         root.withdraw()
         messagebox.showerror("CheevoPresence Settings", message)
         root.destroy()
-    except Exception:
+    except Exception:  # noqa: BLE001 error dialog is best-effort; stderr is the fallback
         print(message, file=sys.stderr)
 
 
@@ -75,7 +74,7 @@ def main():
             on_quit=controller.quit_app,
             on_ready=_install_present_handler,
         )
-    except Exception as exc:
+    except Exception as exc:  # noqa: BLE001 process entry boundary; logged and shown to the user
         log_event(
             logger,
             AREA_SETTINGS,

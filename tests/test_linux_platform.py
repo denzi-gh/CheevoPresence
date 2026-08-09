@@ -249,17 +249,21 @@ class HostProcessEnvTests(unittest.TestCase):
 
     def test_frozen_runs_restore_the_original_library_path(self):
         env = {"LD_LIBRARY_PATH": "/tmp/_MEI123", "LD_LIBRARY_PATH_ORIG": "/usr/lib"}
-        with mock.patch.dict(os.environ, env, clear=False):
-            with mock.patch.object(sys, "frozen", True, create=True):
-                result = host_process_env()
+        with (
+            mock.patch.dict(os.environ, env, clear=False),
+            mock.patch.object(sys, "frozen", True, create=True),
+        ):
+            result = host_process_env()
 
         self.assertEqual("/usr/lib", result["LD_LIBRARY_PATH"])
         self.assertNotIn("LD_LIBRARY_PATH_ORIG", result)
 
     def test_frozen_runs_drop_the_bundle_path_when_there_was_no_original(self):
-        with mock.patch.dict(os.environ, {"LD_LIBRARY_PATH": "/tmp/_MEI123"}, clear=False):
-            with mock.patch.object(sys, "frozen", True, create=True):
-                result = host_process_env()
+        with (
+            mock.patch.dict(os.environ, {"LD_LIBRARY_PATH": "/tmp/_MEI123"}, clear=False),
+            mock.patch.object(sys, "frozen", True, create=True),
+        ):
+            result = host_process_env()
 
         self.assertNotIn("LD_LIBRARY_PATH", result)
 

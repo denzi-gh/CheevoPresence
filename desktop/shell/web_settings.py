@@ -640,7 +640,7 @@ class WebSettingsWindow:
                     params = json.loads(raw.decode("utf-8") or "{}") if raw else {}
                     method = parsed.path.rsplit("/", 1)[-1]
                     self._send(200, {"ok": True, "result": api.dispatch(method, params)})
-                except Exception as exc:
+                except Exception as exc:  # noqa: BLE001 HTTP boundary; any error becomes a 500 reply
                     self._send(500, {"ok": False, "error": str(exc) or "Request failed."})
 
         self._httpd = ThreadingHTTPServer(("127.0.0.1", 0), SettingsHandler)
@@ -694,11 +694,11 @@ class WebSettingsWindow:
         try:
             window.events.closed += self.api.on_window_closed
         except Exception:
-            pass
+            logger.debug("pywebview closed event unavailable", exc_info=True)
         try:
             window.events.shown += self._focus_native_window
-        except Exception:
-            pass
+        except Exception: 
+            logger.debug("pywebview shown event unavailable", exc_info=True)
         self._notify_ready()
         webview.start(started.set, debug=False)
 

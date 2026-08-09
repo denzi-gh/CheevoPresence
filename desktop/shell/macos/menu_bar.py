@@ -20,10 +20,10 @@ from AppKit import (
     NSMenu,
     NSMenuItem,
     NSRunningApplication,
-    NSStatusBar,
     NSSquareStatusItemLength,
+    NSStatusBar,
 )
-from Foundation import NSObject, NSMakeSize
+from Foundation import NSMakeSize, NSObject
 from PyObjCTools.AppHelper import callAfter, runEventLoop
 from Quartz import CALayer
 
@@ -66,7 +66,7 @@ def _load_template_status_image():
 class _MenuBarDelegate(NSObject):
 
     def initWithOwner_(self, owner):
-        self = objc.super(_MenuBarDelegate, self).init()
+        self = objc.super(_MenuBarDelegate, self).init()  # noqa: PLW0642
         if self is None:
             return None
         self.owner = owner
@@ -318,7 +318,7 @@ class MacOSMenuBarApp:
         is_flipped = False
         try:
             is_flipped = bool(button.isFlipped())
-        except Exception:
+        except Exception:  # noqa: BLE001, S110 AppKit geometry probe; default to non-flipped
             pass
         badge_y = bounds.size.height - diameter - inset_y if is_flipped else inset_y
         badge.setFrame_(
@@ -349,7 +349,7 @@ class MacOSMenuBarApp:
                 stderr=subprocess.DEVNULL,
                 env=env,
             )
-        except Exception as exc:
+        except (OSError, ValueError) as exc:
             log_event(
                 logger,
                 AREA_SETTINGS,

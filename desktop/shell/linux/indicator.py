@@ -15,14 +15,19 @@ from PIL import Image, ImageDraw
 from desktop.core.constants import APP_NAME, APP_VERSION, RA_SETTINGS_URL
 from desktop.platform.linux import get_runtime_dir
 from desktop.runtime.controller import AppController
-from desktop.runtime.log_events import AREA_SETTINGS, AREA_SHUTDOWN, AREA_TRAY, log_event
+from desktop.runtime.log_events import (
+    AREA_SETTINGS,
+    AREA_SHUTDOWN,
+    AREA_TRAY,
+    log_event,
+)
 from desktop.runtime.storage import (
     APP_ICON_PNG_FILE,
+    GENERATED_MENU_BAR_TEMPLATE_ICON_FILE,
+    MENU_BAR_TEMPLATE_ICON_FILE,
     TRAY_ACTIVE_ICON_FILE,
     TRAY_ERROR_ICON_FILE,
     TRAY_INACTIVE_ICON_FILE,
-    GENERATED_MENU_BAR_TEMPLATE_ICON_FILE,
-    MENU_BAR_TEMPLATE_ICON_FILE,
 )
 from desktop.shell.ipc import SettingsHostService
 
@@ -50,7 +55,7 @@ def _load_indicator_modules():
                 original_deprecated_attr(namespace, attr, replacement)
 
             gi.overrides.deprecated_attr = safe_deprecated_attr
-        except Exception:
+        except Exception:  # noqa: BLE001 optional compat shim; loading continues without it
             original_deprecated_attr = None
 
         try:
@@ -154,7 +159,7 @@ def get_linux_tray_icon_path():
             return candidate
     try:
         return _generate_linux_template_icon()
-    except Exception:
+    except Exception:  # noqa: BLE001 icon generation is cosmetic; warning logged below
         log_event(
             logger,
             AREA_TRAY,
@@ -214,7 +219,7 @@ def get_linux_status_icon_path(status):
     if os.path.exists(source_path):
         try:
             return _png_copy_for_icon(source_path, f"linux-tray-{status}")
-        except Exception:
+        except Exception:  # noqa: BLE001 icon conversion is cosmetic; warning logged below
             log_event(
                 logger,
                 AREA_TRAY,
@@ -337,7 +342,7 @@ class LinuxIndicatorApp:
     def _check_status_icon_embedded(self, status_icon):
         try:
             embedded = bool(status_icon.is_embedded())
-        except Exception:
+        except Exception:  # noqa: BLE001 GTK object may already be destroyed
             return False
         if embedded:
             log_event(logger, AREA_TRAY, "statusicon_embedded", embedded=True)
@@ -355,7 +360,7 @@ class LinuxIndicatorApp:
         if self.backend == "appindicator":
             try:
                 log_event(logger, AREA_TRAY, "backend_selected", backend="appindicator")
-                icon_dir, _icon_name, icon_path = get_linux_indicator_icon(self.current_status)
+                _icon_dir, _icon_name, icon_path = get_linux_indicator_icon(self.current_status)
                 self._log_icon_resolved(icon_path)
                 self.indicator = self._create_indicator()
                 return
@@ -478,7 +483,7 @@ class LinuxIndicatorApp:
         env.update(self._settings_service.get_launch_env())
         try:
             self._settings_process = subprocess.Popen(command, env=env)
-        except Exception as exc:
+        except (OSError, ValueError) as exc:
             log_event(
                 logger,
                 AREA_SETTINGS,
@@ -499,7 +504,7 @@ class LinuxIndicatorApp:
             return False
         try:
             process.send_signal(PRESENT_SIGNAL)
-        except Exception:
+        except OSError:
             log_event(
                 logger,
                 AREA_SETTINGS,

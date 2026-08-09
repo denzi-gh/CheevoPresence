@@ -1,5 +1,6 @@
-import unittest
 import threading
+import unittest
+from typing import ClassVar
 
 from pypresence import exceptions as pypresence_exceptions
 
@@ -7,9 +8,9 @@ from desktop.runtime.discord_gateway import DiscordPresenceGateway
 
 
 class FakePresence:
-    attempts = []
-    failures = {}
-    init_kwargs = []
+    attempts: ClassVar[list] = []
+    failures: ClassVar[dict] = {}
+    init_kwargs: ClassVar[list] = []
 
     def __init__(self, client_id, pipe=None, **kwargs):
         self.client_id = client_id
