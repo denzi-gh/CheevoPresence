@@ -80,7 +80,7 @@ jobs:
           python -m pip install -r requirements/dev.txt
 
       - name: compile
-        run: python -m compileall -q desktop tests launch_windows.py launch_macos.py launch_linux.py ra_discord_rp.py
+        run: python -m compileall -q desktop tests launch_windows.py launch_macos.py launch_linux.py
 
       - name: unit tests
         run: python -m coverage run -m pytest tests/ -v

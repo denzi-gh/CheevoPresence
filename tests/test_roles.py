@@ -12,7 +12,7 @@ from desktop.core.roles import (
     role_from_visible_role,
     roles_grant_dev_mode,
 )
-from desktop.shell.tk_widgets import role_badge_style
+from desktop.shell.web_settings import role_badge_style
 
 
 class RoleTests(unittest.TestCase):
@@ -228,16 +228,16 @@ class RoleTests(unittest.TestCase):
             )
 
     def test_badge_style_selection_uses_role_tier(self):
-        self.assertEqual("#F0B450", role_badge_style("junior_developer")["accent"])
-        self.assertEqual("#5FD07F", role_badge_style("developer")["accent"])
-        self.assertEqual("#D98FE6", role_badge_style("event_manager")["accent"])
-        self.assertEqual("#F28D4F", role_badge_style("artist")["accent"])
-        self.assertEqual("#F2D35C", role_badge_style("play_tester")["accent"])
-        self.assertEqual("#7DC5FF", role_badge_style("writer")["accent"])
-        self.assertEqual("#B0A0F0", role_badge_style("code_reviewer")["accent"])
-        self.assertEqual("#6FCFE2", role_badge_style("moderator")["accent"])
-        self.assertEqual("#EF6461", role_badge_style("admin")["accent"])
-        self.assertEqual("#F0B450", role_badge_style("unknown")["accent"])
+        self.assertEqual("#e0a93c", role_badge_style("junior_developer")["accent"])
+        self.assertEqual("#5cc081", role_badge_style("developer")["accent"])
+        self.assertEqual("#d98fe6", role_badge_style("event_manager")["accent"])
+        self.assertEqual("#f28d4f", role_badge_style("artist")["accent"])
+        self.assertEqual("#f2d35c", role_badge_style("play_tester")["accent"])
+        self.assertEqual("#7dc5ff", role_badge_style("writer")["accent"])
+        self.assertEqual("#b0a0f0", role_badge_style("code_reviewer")["accent"])
+        self.assertEqual("#6fcfe2", role_badge_style("moderator")["accent"])
+        self.assertEqual("#e86666", role_badge_style("admin")["accent"])
+        self.assertEqual("#e0a93c", role_badge_style("unknown")["accent"])
 
     def test_badge_icons_match_expected_tiers(self):
         expected = {

@@ -196,7 +196,6 @@ PYTHONPATH="$project_root${PYTHONPATH:+:$PYTHONPATH}" "${build_python}" -m PyIns
   --hidden-import "desktop.shell.ipc" \
   --hidden-import "desktop.shell.settings_client" \
   --hidden-import "desktop.shell.web_settings" \
-  --hidden-import "desktop.shell.tk_settings" \
   --hidden-import "appdirs" \
   --collect-all "pkg_resources" \
   --hidden-import "gi" \
@@ -208,7 +207,6 @@ PYTHONPATH="$project_root${PYTHONPATH:+:$PYTHONPATH}" "${build_python}" -m PyIns
   --exclude-module "desktop.platform.windows" \
   --exclude-module "desktop.shell.windows.entrypoint" \
   --exclude-module "desktop.shell.windows.tray" \
-  --exclude-module "desktop.shell.windows.ui" \
   --exclude-module "desktop.platform.macos" \
   --exclude-module "desktop.shell.macos.entrypoint" \
   --exclude-module "desktop.shell.macos.menu_bar" \
