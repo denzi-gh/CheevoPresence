@@ -1,0 +1,31 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "cheevopresence"
+description = "Mirror your RetroAchievements activity to Discord Rich Presence."
+readme = "README.md"
+license = { file = "LICENSE" }
+# The code uses PEP 604 unions (X | None) and other 3.10+ syntax.
+requires-python = ">=3.10"
+dynamic = ["version"]
+
+[tool.setuptools.packages.find]
+include = ["desktop*"]
+
+[tool.setuptools.dynamic]
+# Single source of truth for the version stays desktop/core/constants.py.
+version = { attr = "desktop.core.constants.APP_VERSION" }
+
+[tool.ruff]
+target-version = "py310"
+
+[tool.mypy]
+python_version = "3.10"
+files = ["desktop"]
+# pystray, pywebview, gi, and the pyobjc modules ship no type stubs.
+ignore_missing_imports = true
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
