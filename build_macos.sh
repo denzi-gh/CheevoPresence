@@ -171,7 +171,6 @@ PYTHONPATH="$project_root${PYTHONPATH:+:$PYTHONPATH}" "${build_python}" -m PyIns
   --hidden-import "desktop.shell.macos.menu_bar" \
   --hidden-import "desktop.shell.settings_client" \
   --hidden-import "desktop.shell.web_settings" \
-  --hidden-import "desktop.shell.tk_settings" \
   --hidden-import "objc" \
   --hidden-import "Foundation" \
   --hidden-import "AppKit" \
@@ -180,7 +179,6 @@ PYTHONPATH="$project_root${PYTHONPATH:+:$PYTHONPATH}" "${build_python}" -m PyIns
   --exclude-module "desktop.platform.windows" \
   --exclude-module "desktop.shell.windows.entrypoint" \
   --exclude-module "desktop.shell.windows.tray" \
-  --exclude-module "desktop.shell.windows.ui" \
   --exclude-module "pystray._win32" \
   --add-data "console_icons.ini:." \
   --add-data "desktop/shell/web_assets:desktop/shell/web_assets" \
