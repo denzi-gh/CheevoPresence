@@ -20,8 +20,8 @@ from desktop.runtime.log_events import AREA_AUTOSTART, log_event
 
 try:
     import fcntl
-except ImportError: 
-    fcntl = None
+except ImportError:
+    fcntl = None  # type: ignore[assignment]
 
 AUTOSTART_FILE_NAME = "CheevoPresence.desktop"
 EXIT_SOCKET_NAME = "exit.sock"

@@ -3,11 +3,47 @@ name: ci
 on:
   pull_request:
   push:
+    branches: [main]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: ${{ github.ref != 'refs/heads/main' }}
 
 jobs:
+  lint:
+    name: lint & typecheck
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+
+    steps:
+      - name: checkout
+        uses: actions/checkout@v4
+
+      - name: setup python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+          cache-dependency-path: requirements/dev.txt
+
+      - name: install tools
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install -r requirements/dev.txt
+
+      - name: ruff
+        run: ruff check .
+
+      - name: mypy
+        run: mypy
+
   test:
     name: test (${{ matrix.os }}, py${{ matrix.python-version }})
     runs-on: ${{ matrix.os }}
+    timeout-minutes: 15
     strategy:
       fail-fast: false
       matrix:
@@ -28,6 +64,7 @@ jobs:
             requirements/windows.txt
             requirements/macos.txt
             requirements/linux.txt
+            requirements/dev.txt
 
       - name: install dependencies
         shell: bash
@@ -40,9 +77,13 @@ jobs:
           else
             python -m pip install -r requirements/windows.txt
           fi
+          python -m pip install -r requirements/dev.txt
 
       - name: compile
         run: python -m compileall -q desktop tests launch_windows.py launch_macos.py launch_linux.py ra_discord_rp.py
 
       - name: unit tests
-        run: python -m unittest discover -s tests -v
+        run: python -m coverage run -m pytest tests/ -v
+
+      - name: coverage report
+        run: python -m coverage report

@@ -21,6 +21,32 @@ version = { attr = "desktop.core.constants.APP_VERSION" }
 [tool.ruff]
 target-version = "py310"
 
+[tool.ruff.lint]
+# TEMPORARY baseline: every rule listed here has existing violations that lint will cleanup
+ignore = [
+    "B008",
+    "B023",
+    "BLE001",
+    "C408",
+    "DTZ005",
+    "F401",
+    "I001",
+    "PIE790",
+    "PIE807",
+    "PLR1711",
+    "PLW0642",
+    "RET501",
+    "RUF012",
+    "RUF059",
+    "RUF100",
+    "S110",
+    "SIM115",
+    "SIM117",
+    "TRY004",
+    "UP031",
+    "UP041",
+]
+
 [tool.mypy]
 python_version = "3.10"
 files = ["desktop"]
@@ -29,3 +55,6 @@ ignore_missing_imports = true
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
+
+[tool.coverage.run]
+source = ["desktop"]

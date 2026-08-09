@@ -28,7 +28,7 @@ from desktop.runtime.log_events import AREA_AUTOSTART, log_event
 try:
     import fcntl
 except ImportError:  # pragma: no cover - only relevant on non-POSIX platforms
-    fcntl = None
+    fcntl = None  # type: ignore[assignment]
 
 logger = logging.getLogger(__name__)
 
