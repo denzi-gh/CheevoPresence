@@ -2,7 +2,6 @@
 
 from dataclasses import asdict, dataclass
 
-
 SCHEMA_VERSION = 1
 
 _TRUE_STRINGS = frozenset({"1", "true", "yes", "on"})
