@@ -16,7 +16,7 @@ from dataclasses import asdict
 
 from desktop.core.log_events import AREA_IPC, log_event
 from desktop.runtime.controller import ConnectResult
-from desktop.runtime.state import MirroredPresence, WorkerState
+from desktop.runtime.state import WorkerState
 from desktop.runtime.update_service import UpdateInstallResult, UpdateStatus
 
 logger = logging.getLogger(__name__)
@@ -70,44 +70,6 @@ def _is_tcp_address(address):
 
 def _serialize_dataclass(value):
     return asdict(value)
-
-
-def _coerce_mirrored_presence(payload):
-    if not isinstance(payload, dict):
-        return None
-    buttons = payload.get("buttons") or []
-    if not isinstance(buttons, list):
-        buttons = []
-    try:
-        game_id = int(payload.get("game_id", 0))
-    except (TypeError, ValueError):
-        game_id = 0
-    try:
-        achievement_count = int(payload.get("achievement_count", 0))
-    except (TypeError, ValueError):
-        achievement_count = 0
-    try:
-        achievement_total = int(payload.get("achievement_total", 0))
-    except (TypeError, ValueError):
-        achievement_total = 0
-    return MirroredPresence(
-        game_id=game_id,
-        title=str(payload.get("title") or ""),
-        details=payload.get("details") if payload.get("details") is not None else None,
-        state=payload.get("state") if payload.get("state") is not None else None,
-        console_name=str(payload.get("console_name") or ""),
-        game_icon_url=(
-            payload.get("game_icon_url")
-            if payload.get("game_icon_url") is not None
-            else None
-        ),
-        large_text=payload.get("large_text") if payload.get("large_text") is not None else None,
-        achievement_count=achievement_count,
-        achievement_total=achievement_total,
-        show_achievement_progress=bool(payload.get("show_achievement_progress", False)),
-        buttons=[dict(button) for button in buttons if isinstance(button, dict)],
-        developer_activity=bool(payload.get("developer_activity", False)),
-    )
 
 
 def _public_config(config):
@@ -324,62 +286,22 @@ class SettingsHostService:
 
 
 class RemoteWorkerProxy:
+    """A read-only view of the host worker's state, fed by IPC payloads."""
 
     def __init__(self):
-        self.running = False
-        self.current_status = "disconnected"
-        self.status_text = "Not running"
-        self.ra_connected = False
-        self.ra_status_text = "Not connected to RetroAchievements"
-        self.ra_permissions = None
-        self.ra_role_label = ""
-        self.ra_role_tier = ""
-        self.ra_dev_mode = False
-        self.mirrored_presence = None
-        self._is_busy = False
-        self._is_stopping = False
+        self._state = WorkerState.from_dict({})
 
     def update(self, payload):
-        self.running = bool(payload.get("running", False))
-        self.current_status = str(payload.get("current_status") or "disconnected")
-        self.status_text = str(payload.get("status_text") or "Not running")
-        self.ra_connected = bool(payload.get("ra_connected", False))
-        self.ra_status_text = str(payload.get("ra_status_text") or "Not connected to RetroAchievements")
-        permissions = payload.get("ra_permissions")
-        try:
-            self.ra_permissions = int(permissions) if permissions is not None else None
-        except (TypeError, ValueError):
-            self.ra_permissions = None
-        self.ra_role_label = str(payload.get("ra_role_label") or "")
-        self.ra_role_tier = str(payload.get("ra_role_tier") or "")
-        self.ra_dev_mode = bool(payload.get("ra_dev_mode", False))
-        self.mirrored_presence = _coerce_mirrored_presence(
-            payload.get("mirrored_presence")
-        )
-        self._is_busy = bool(payload.get("is_busy", False))
-        self._is_stopping = bool(payload.get("is_stopping", False))
-
-    def is_busy(self):
-        return self._is_busy
-
-    def is_stopping(self):
-        return self._is_stopping
+        self._state = WorkerState.from_dict(payload)
 
     def get_state(self):
-        return WorkerState(
-            running=self.running,
-            is_busy=self._is_busy,
-            is_stopping=self._is_stopping,
-            current_status=self.current_status,
-            status_text=self.status_text,
-            ra_connected=self.ra_connected,
-            ra_status_text=self.ra_status_text,
-            ra_permissions=self.ra_permissions,
-            ra_role_label=self.ra_role_label,
-            ra_role_tier=self.ra_role_tier,
-            ra_dev_mode=self.ra_dev_mode,
-            mirrored_presence=self.mirrored_presence,
-        )
+        return self._state
+
+    def __getattr__(self, name):
+        state = self.__dict__.get("_state")
+        if state is not None and hasattr(state, name):
+            return getattr(state, name)
+        raise AttributeError(name)
 
 
 class RemotePlatformProxy:

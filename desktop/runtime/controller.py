@@ -5,6 +5,7 @@ from __future__ import annotations
 import logging
 import threading
 from dataclasses import dataclass
+from typing import Any, Protocol
 
 import requests
 
@@ -19,7 +20,9 @@ from desktop.runtime.storage import (
     save_config,
 )
 from desktop.runtime.update_service import (
+    UpdateInstallResult,
     UpdateService,
+    UpdateStatus,
     install_update_for_current_process,
 )
 from desktop.runtime.worker import RPCWorker
@@ -36,6 +39,20 @@ class ConnectResult:
     warning_message: str | None = None
     error_title: str | None = None
     error_message: str | None = None
+
+
+class SettingsController(Protocol):
+    """Structural interface the settings UI needs from a controller."""
+
+    worker: Any
+    platform: Any
+    config: dict
+
+    def load_config(self) -> dict: ...
+    def get_update_status(self) -> UpdateStatus: ...
+    def connect(self, config: dict) -> ConnectResult: ...
+    def disconnect(self) -> bool: ...
+    def install_update(self) -> UpdateInstallResult: ...
 
 
 class AppController:
