@@ -11,7 +11,7 @@ import threading
 import time
 from dataclasses import asdict, is_dataclass
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
-from types import SimpleNamespace
+from typing import TYPE_CHECKING
 from urllib.parse import parse_qs, urlparse
 
 from desktop.core.constants import APP_NAME, APP_VERSION, RA_SETTINGS_URL
@@ -28,6 +28,9 @@ from desktop.runtime.storage import (
     get_resource_dir,
 )
 from desktop.shell.settings_presenter import truncate_status_text
+
+if TYPE_CHECKING:
+    from desktop.runtime.controller import SettingsController
 
 logger = logging.getLogger(__name__)
 
@@ -185,14 +188,14 @@ def _developer_settings_unlocked(worker_payload, config):
 
 class WebSettingsAPI:
 
-    def __init__(self, controller, on_close=None, on_quit=None):
+    def __init__(self, controller: SettingsController, on_close=None, on_quit=None):
         self.controller = controller
         self.worker = controller.worker
         self.platform = controller.platform
         self.on_close = on_close
         self.on_quit = on_quit
         self.window = None
-        self.cfg = {}
+        self.cfg: dict = {}
         self._closed = False
         self._is_connecting = False
         self._is_installing_update = False
@@ -207,27 +210,10 @@ class WebSettingsAPI:
             poll_state()
 
     def _worker_state(self):
-        get_state = getattr(self.worker, "get_state", None)
-        if callable(get_state):
-            return get_state()
-        return SimpleNamespace(
-            running=self.worker.running,
-            is_busy=self.worker.is_busy(),
-            is_stopping=self.worker.is_stopping(),
-            current_status=self.worker.current_status,
-            status_text=self.worker.status_text,
-            ra_connected=self.worker.ra_connected,
-            ra_status_text=self.worker.ra_status_text,
-            ra_permissions=getattr(self.worker, "ra_permissions", None),
-            ra_role_label=getattr(self.worker, "ra_role_label", ""),
-            ra_role_tier=getattr(self.worker, "ra_role_tier", ""),
-            ra_dev_mode=getattr(self.worker, "ra_dev_mode", False),
-            mirrored_presence=getattr(self.worker, "mirrored_presence", None),
-        )
+        return self.worker.get_state()
 
     def _state_payload(self):
-        worker_state = self._worker_state()
-        worker_payload = _dataclass_to_dict(worker_state)
+        worker_payload = _dataclass_to_dict(self._worker_state())
         config = getattr(self.controller, "config", self.cfg)
         if not worker_payload.get("ra_connected"):
             worker_payload["ra_status_text"] = WEB_RA_DISCONNECTED_TEXT
