@@ -61,7 +61,7 @@ class AppController:
 
     def load_config(self):
         self.config = load_config(self.platform)
-        self.worker.config = dict(self.config)
+        self.worker.replace_config(self.config)
         return dict(self.config)
 
     def save_config(self, config):
@@ -94,7 +94,7 @@ class AppController:
                     "warning_message": warning_message,
                 }
 
-            self.worker.config = dict(self.config)
+            self.worker.replace_config(self.config)
             return {
                 "success": autostart_error is None,
                 "config": dict(self.config),

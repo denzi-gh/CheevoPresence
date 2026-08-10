@@ -67,10 +67,6 @@ class RPCWorker:
             presence_factory=presence_factory,
             status_callback=self.status_callback,
         )
-        self.rpc = None
-        self.rpc_connected = False
-        self.rpc_pipe = None
-        self.start_time = None
         self._current_game_id = None
         self.current_status = "disconnected"
         self.status_text = "Not running"
@@ -85,6 +81,42 @@ class RPCWorker:
         self._ra_role_cache_displayable_roles = None
         self._ra_role_cache_at = 0.0
         self.mirrored_presence = None
+
+    # Delegating views onto the gateway-owned connection state. Keeping them as
+    # properties preserves the worker's public surface (and its tests) without
+    # duplicating the fields.
+    @property
+    def rpc(self):
+        return self.discord_gateway.rpc
+
+    @property
+    def rpc_connected(self):
+        return self.discord_gateway.rpc_connected
+
+    @property
+    def rpc_pipe(self):
+        return self.discord_gateway.rpc_pipe
+
+    @rpc_pipe.setter
+    def rpc_pipe(self, value):
+        self.discord_gateway.rpc_pipe = value
+
+    @property
+    def start_time(self):
+        return self.discord_gateway.start_time
+
+    @start_time.setter
+    def start_time(self, value):
+        self.discord_gateway.start_time = value
+
+    def replace_config(self, config):
+        """Thread-safe config swap used by the controller from the UI thread."""
+        with self._state_lock:
+            self.config = normalize_config(config)
+
+    def _config_snapshot(self):
+        with self._state_lock:
+            return dict(self.config)
 
     def set_status_callback(self, callback):
         self._external_callback = callback
@@ -294,34 +326,22 @@ class RPCWorker:
                 developer_activity=presence.developer_activity,
             )
 
-    def _sync_gateway_from_worker(self):
+    def _configure_gateway(self):
+        # The presence factory (and status callback) can be swapped after
+        # construction, so push the current ones before connecting.
         self.discord_gateway.presence_factory = self._presence_factory
         self.discord_gateway.status_callback = self.status_callback
-        self.discord_gateway.rpc = self.rpc
-        self.discord_gateway.rpc_connected = self.rpc_connected
-        self.discord_gateway.rpc_pipe = self.rpc_pipe
-        self.discord_gateway.start_time = self.start_time
-
-    def _sync_worker_from_gateway(self):
-        self.rpc = self.discord_gateway.rpc
-        self.rpc_connected = self.discord_gateway.rpc_connected
-        self.rpc_pipe = self.discord_gateway.rpc_pipe
-        self.start_time = self.discord_gateway.start_time
 
     def _connect_rpc(self):
-        self._sync_gateway_from_worker()
-        connected = self.discord_gateway.connect()
-        self._sync_worker_from_gateway()
-        return connected
+        self._configure_gateway()
+        return self.discord_gateway.connect()
 
     def _disconnect_rpc(self):
-        self._sync_gateway_from_worker()
         self.discord_gateway.disconnect()
-        self._sync_worker_from_gateway()
         self._clear_mirrored_presence()
 
     def _presence_builder(self):
-        return PresenceBuilder(dict(self.config), self.console_icons)
+        return PresenceBuilder(self._config_snapshot(), self.console_icons)
 
     def _roles_for_user(self, username, apikey):
         now = time.monotonic()
@@ -372,11 +392,15 @@ class RPCWorker:
             log_event(logger, AREA_WORKER, "loop_started")
             self.set_ra_status(False)
             self.status_callback("connecting", "Starting...")
-            self.config = normalize_config(self.config)
-            username = self.config["username"]
-            apikey = self.config["apikey"]
-            interval = self.config["interval"]
-            timeout_sec = self.config["timeout"]
+            # Snapshot the session identity once under the state lock; the
+            # controller may swap self.config from the UI thread at any time.
+            with self._state_lock:
+                self.config = normalize_config(self.config)
+                session = dict(self.config)
+            username = session["username"]
+            apikey = session["apikey"]
+            interval = session["interval"]
+            timeout_sec = session["timeout"]
             backoff = BackoffPolicy(interval)
             consecutive_errors = 0
 
