@@ -19,7 +19,7 @@ CheevoPresence is a desktop app for Windows, macOS, and Linux that mirrors your 
 It watches your current RetroAchievements session, detects whether you are actively playing, and updates Discord with your game, platform, achievement progress, and quick links to your RetroAchievements profile, created sets, or game page.
 
 <p align="center">
-  <img src="./.github/assets/cheevopresence-settings-window.png" alt="CheevoPresence settings window" />
+  <img src="./.github/assets/cheevopresence1.3.0.png" alt="CheevoPresence settings window" />
 </p>
 
 ---
