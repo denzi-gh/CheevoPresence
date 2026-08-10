@@ -19,7 +19,7 @@ CheevoPresence is a desktop app for Windows, macOS, and Linux that mirrors your 
 It watches your current RetroAchievements session, detects whether you are actively playing, and updates Discord with your game, platform, achievement progress, and quick links to your RetroAchievements profile, created sets, or game page.
 
 <p align="center">
-  <img src="./.github/assets/cheevopresence1.3.0.png" alt="CheevoPresence settings window" />
+  <img src="./.github/assets/cheevopresence-settings-window.png" alt="CheevoPresence settings window" />
 </p>
 
 ---
@@ -109,7 +109,6 @@ CheevoPresence does not expect you to keep secrets inside the repository.
 - Runtime configuration is stored under `%APPDATA%\CheevoPresence\config.json` on Windows
 - Runtime configuration is stored under `~/Library/Application Support/CheevoPresence/config.json` on macOS
 - Runtime configuration is stored under `${XDG_CONFIG_HOME:-~/.config}/CheevoPresence/config.json` on Linux
-- The API key is stored in a protected form on Windows, in the macOS Keychain on macOS, and in the Linux local config encoding on Linux rather than being written back as plain text in the repo
 - `config.example.json` exists only as a clean template
 
 ### Diagnostic Logs
@@ -121,19 +120,18 @@ CheevoPresence writes local diagnostic logs so problems can be diagnosed without
 - Linux logs: `${XDG_STATE_HOME:-~/.local/state}/CheevoPresence/logs`
 
 > [!NOTE]
-> If something is not working, zip that folder and send it to me via Discord or post it in the Issue. It contains no API Keys or full Paths :)
+> If something is not working, zip that folder and send it to me via Discord or post it in the issue. API keys are not stored in logs!
 
 ---
 
 ## Building the App Yourself
 
-If you want to modify or package CheevoPresence yourself, use the platform-specific build guides:
+CheevoPresence requires **Python 3.10 or newer** (the build guides use 3.11 or 3.12). If you want to modify or package CheevoPresence yourself, use the platform-specific build guides:
 
 - Windows: [`.github/buildWindows.md`](./.github/buildWindows.md)
 - macOS: [`.github/buildMacOS.md`](./.github/buildMacOS.md)
 - Linux: [`.github/buildLinux.md`](./.github/buildLinux.md)
 
----
 
 ## Support the Project
 
