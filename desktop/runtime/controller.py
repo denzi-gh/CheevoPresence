@@ -275,11 +275,10 @@ class AppController:
             )
 
     def disconnect(self, timeout=35):
-        with self._action_lock:
-            logger.info("Disconnect requested timeout=%s", timeout)
-            stopped = self.worker.stop(timeout=timeout)
-            logger.info("Disconnect completed stopped=%s", stopped)
-            return stopped
+        logger.info("Disconnect requested timeout=%s", timeout)
+        stopped = self.worker.stop(timeout=timeout)
+        logger.info("Disconnect completed stopped=%s", stopped)
+        return stopped
 
     def shutdown(self, timeout=35):
         logger.info("Controller shutdown requested timeout=%s", timeout)
