@@ -416,19 +416,34 @@ class WebSettingsTests(unittest.TestCase):
         self.assertEqual(tmpdir, result["path"])
         self.assertIn(result["level"], {"DEBUG", "INFO", "WARNING", "ERROR", "CRITICAL"})
 
-    def test_set_log_level_updates_root_logger(self):
+    def test_set_log_level_updates_app_logger_and_handler(self):
+        from desktop.runtime.logging_setup import HANDLER_MARKER, LOGGER_NAME
+
         controller = FakeController({})
         api = WebSettingsAPI(controller)
+
+        app_logger = logging.getLogger(LOGGER_NAME)
         root = logging.getLogger()
-        original = root.level
+        handler = logging.NullHandler()
+        setattr(handler, HANDLER_MARKER, True)
+        handler.setLevel(logging.INFO)
+        app_logger.addHandler(handler)
+        original_logger_level = app_logger.level
+        original_root_level = root.level
         try:
             result = api.set_log_level("DEBUG")
 
             self.assertTrue(result["success"])
             self.assertEqual("DEBUG", result["level"])
-            self.assertEqual(logging.DEBUG, root.level)
+            # Both the app logger and its file handler must drop to DEBUG for
+            # the toggle to reach cheevo.log...
+            self.assertEqual(logging.DEBUG, app_logger.level)
+            self.assertEqual(logging.DEBUG, handler.level)
+            # ...and the root logger must be left alone (the old bug).
+            self.assertEqual(original_root_level, root.level)
         finally:
-            root.setLevel(original)
+            app_logger.removeHandler(handler)
+            app_logger.setLevel(original_logger_level)
 
     def test_open_mirror_url_allows_retroachievements_https_links(self):
         controller = FakeController({})
