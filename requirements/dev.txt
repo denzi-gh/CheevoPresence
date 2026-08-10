@@ -2,3 +2,4 @@ ruff==0.16.2
 mypy==2.3.0
 pytest==9.1.1
 coverage==7.15.4
+commitizen==4.17.0

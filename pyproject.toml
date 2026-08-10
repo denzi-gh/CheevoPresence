@@ -32,3 +32,16 @@ testpaths = ["tests"]
 
 [tool.coverage.run]
 source = ["desktop"]
+
+[tool.commitizen]
+# `cz bump` derives the next version from the Conventional Commit history and
+# writes it into desktop/core/constants.py
+name = "cz_conventional_commits"
+version = "1.3.2"
+version_files = [
+    "desktop/core/constants.py:APP_VERSION",
+]
+tag_format = "v$version"
+annotated_tag = true
+# Embed the vX.Y.Z marker so the existing release-build.yml trigger fires on push.
+bump_message = "release: v$new_version (from $current_version)"
