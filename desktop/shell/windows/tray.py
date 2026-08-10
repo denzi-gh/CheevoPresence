@@ -9,7 +9,12 @@ import webbrowser
 
 from PIL import Image, ImageDraw
 
-from desktop.core.constants import APP_NAME, APP_VERSION, RA_SETTINGS_URL
+from desktop.core.constants import (
+    APP_NAME,
+    APP_VERSION,
+    RA_SETTINGS_URL,
+    WINDOWS_SETTINGS_CLIENT_FLAG,
+)
 from desktop.runtime.controller import AppController
 from desktop.runtime.storage import (
     APP_ICON_FILE,
@@ -18,8 +23,6 @@ from desktop.runtime.storage import (
     TRAY_INACTIVE_ICON_FILE,
 )
 from desktop.shell.ipc import SettingsHostService
-
-WINDOWS_SETTINGS_CLIENT_FLAG = "--windows-settings-client"
 
 SHUTDOWN_GRACE_SECONDS = 8
 SHUTDOWN_WATCHDOG_SECONDS = 12

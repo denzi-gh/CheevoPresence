@@ -5,7 +5,7 @@ import os
 import sys
 from logging.handlers import RotatingFileHandler
 
-from desktop.runtime.log_events import AREA_STARTUP, log_event
+from desktop.core.log_events import AREA_STARTUP, log_event
 from desktop.runtime.storage import get_log_file
 
 LOGGER_NAME = "desktop"

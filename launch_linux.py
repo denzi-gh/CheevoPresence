@@ -2,7 +2,7 @@
 
 import sys
 
-LINUX_SETTINGS_CLIENT_FLAG = "--linux-settings-client"
+from desktop.core.constants import LINUX_SETTINGS_CLIENT_FLAG
 
 
 def main():

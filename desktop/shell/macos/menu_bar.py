@@ -27,16 +27,20 @@ from Foundation import NSMakeSize, NSObject
 from PyObjCTools.AppHelper import callAfter, runEventLoop
 from Quartz import CALayer
 
-from desktop.core.constants import APP_NAME, APP_VERSION, RA_SETTINGS_URL
+from desktop.core.constants import (
+    APP_NAME,
+    APP_VERSION,
+    MAC_SETTINGS_CLIENT_FLAG,
+    RA_SETTINGS_URL,
+)
+from desktop.core.log_events import AREA_SETTINGS, log_event
 from desktop.platform.macos import get_exe_path
 from desktop.runtime.controller import AppController
-from desktop.runtime.log_events import AREA_SETTINGS, log_event
 from desktop.runtime.storage import (
     APP_ICON_PNG_FILE,
     GENERATED_MENU_BAR_TEMPLATE_ICON_FILE,
     MENU_BAR_TEMPLATE_ICON_FILE,
 )
-from desktop.shell.entrypoint import MAC_SETTINGS_CLIENT_FLAG
 
 logger = logging.getLogger(__name__)
 

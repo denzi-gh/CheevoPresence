@@ -15,9 +15,9 @@ from types import SimpleNamespace
 from urllib.parse import parse_qs, urlparse
 
 from desktop.core.constants import APP_NAME, APP_VERSION, RA_SETTINGS_URL
+from desktop.core.log_events import AREA_SETTINGS, log_event
 from desktop.core.settings import normalize_config
 from desktop.platform import get_platform_services
-from desktop.runtime.log_events import AREA_SETTINGS, log_event
 from desktop.runtime.storage import (
     APP_ICON_PNG_FILE,
     get_config_dir,

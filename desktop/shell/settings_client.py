@@ -9,7 +9,7 @@ import sys
 import tkinter as tk
 from tkinter import messagebox
 
-from desktop.runtime.log_events import AREA_SETTINGS, log_event
+from desktop.core.log_events import AREA_SETTINGS, log_event
 from desktop.shell.web_settings import WebSettingsWindow
 
 logger = logging.getLogger(__name__)

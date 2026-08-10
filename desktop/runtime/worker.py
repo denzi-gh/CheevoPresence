@@ -15,6 +15,12 @@ from desktop.core.api import (
     ra_get_user_progress,
     ra_get_user_summary,
 )
+from desktop.core.log_events import (
+    AREA_DISCORD,
+    AREA_RA,
+    AREA_WORKER,
+    log_event,
+)
 from desktop.core.ra_client import APIResponseError
 from desktop.core.roles import (
     coerce_permissions,
@@ -28,12 +34,6 @@ from desktop.runtime.discord_gateway import (
     DiscordPresenceGateway,
     is_discord_unavailable_error,
     safe_exception_name,
-)
-from desktop.runtime.log_events import (
-    AREA_DISCORD,
-    AREA_RA,
-    AREA_WORKER,
-    log_event,
 )
 from desktop.runtime.presence_builder import PresenceBuilder, coerce_progress_int
 from desktop.runtime.state import MirroredPresence, WorkerState

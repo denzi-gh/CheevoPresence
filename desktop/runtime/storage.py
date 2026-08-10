@@ -8,9 +8,9 @@ import sys
 import tempfile
 
 from desktop.core.constants import APP_NAME, UPDATE_TEST_FILE_NAME
+from desktop.core.log_events import AREA_CONFIG, log_event
 from desktop.core.settings import DEFAULT_CONFIG, normalize_config
 from desktop.platform import get_platform_services
-from desktop.runtime.log_events import AREA_CONFIG, log_event
 
 logger = logging.getLogger(__name__)
 

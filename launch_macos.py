@@ -2,7 +2,7 @@
 
 import sys
 
-MAC_SETTINGS_CLIENT_FLAG = "--mac-settings-client"
+from desktop.core.constants import MAC_SETTINGS_CLIENT_FLAG
 
 
 def main():

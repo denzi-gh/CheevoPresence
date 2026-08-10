@@ -14,13 +14,13 @@ import tempfile
 import threading
 from pathlib import Path
 
-from desktop.core.constants import APP_NAME
+from desktop.core.constants import APP_NAME, TRAY_FLAG
+from desktop.core.log_events import AREA_AUTOSTART, log_event
 from desktop.platform.generic import GenericPlatformServices
 from desktop.platform.macos_keychain import (
     protect_api_key,
     unprotect_api_key,
 )
-from desktop.runtime.log_events import AREA_AUTOSTART, log_event
 
 try:
     import fcntl
@@ -146,10 +146,10 @@ def _get_launch_command():
     exe_path = get_exe_path()
     bundle_path = _find_app_bundle(exe_path)
     if getattr(sys, "frozen", False) and bundle_path:
-        return ["/usr/bin/open", bundle_path, "--args", "--tray"]
+        return ["/usr/bin/open", bundle_path, "--args", TRAY_FLAG]
     if exe_path.endswith(".py"):
-        return [sys.executable, exe_path, "--tray"]
-    return [exe_path, "--tray"]
+        return [sys.executable, exe_path, TRAY_FLAG]
+    return [exe_path, TRAY_FLAG]
 
 
 def _write_launch_agent(path, payload):
