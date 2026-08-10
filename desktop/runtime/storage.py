@@ -9,7 +9,7 @@ import tempfile
 
 from desktop.core.constants import APP_NAME, UPDATE_TEST_FILE_NAME
 from desktop.core.log_events import AREA_CONFIG, log_event
-from desktop.core.settings import DEFAULT_CONFIG, normalize_config
+from desktop.core.settings import DEFAULT_CONFIG, migrate_config, normalize_config
 from desktop.platform import get_platform_services
 
 logger = logging.getLogger(__name__)
@@ -92,6 +92,7 @@ def load_config(platform=None):
         try:
             with open(source, "r", encoding="utf-8") as handle:
                 saved = json.load(handle)
+            saved = migrate_config(saved)
             cfg = normalize_config(saved, decode_api_key=platform.unprotect_api_key)
             if source != config_file:
                 save_config(cfg, platform)
