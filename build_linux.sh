@@ -8,7 +8,6 @@ cd "$project_root"
 build_venv_dir="$project_root/build/linux-venv"
 pyinstaller_work_dir="$project_root/build/linux-work"
 dependency_marker="$build_venv_dir/.dependencies.sha256"
-pyinstaller_version="6.19.0"
 
 python_supports_linux_desktop() {
   local candidate="$1"
@@ -35,7 +34,8 @@ dependency_fingerprint() {
     cat requirements/base.txt
     printf '\n'
     cat requirements/linux.txt
-    printf '\npyinstaller==%s\n' "${pyinstaller_version}"
+    printf '\n'
+    cat requirements/build.txt
   } | sha256sum | awk '{print $1}'
 }
 
@@ -92,7 +92,7 @@ ensure_build_venv() {
 
   if [[ "${should_install}" -eq 1 ]]; then
     "${build_venv_dir}/bin/python" -m pip install --disable-pip-version-check --upgrade pip setuptools wheel
-    "${build_venv_dir}/bin/python" -m pip install --disable-pip-version-check -r requirements/linux.txt "pyinstaller==${pyinstaller_version}"
+    "${build_venv_dir}/bin/python" -m pip install --disable-pip-version-check -r requirements/linux.txt -r requirements/build.txt
     printf '%s\n' "${current_fingerprint}" > "${dependency_marker}"
   fi
 }
