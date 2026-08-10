@@ -18,6 +18,8 @@ from desktop.core.constants import APP_NAME, APP_VERSION, RA_SETTINGS_URL
 from desktop.core.log_events import AREA_SETTINGS, log_event
 from desktop.core.settings import normalize_config
 from desktop.platform import get_platform_services
+from desktop.runtime.logging_setup import get_log_level
+from desktop.runtime.logging_setup import set_log_level as apply_log_level
 from desktop.runtime.storage import (
     APP_ICON_PNG_FILE,
     get_config_dir,
@@ -434,13 +436,13 @@ class WebSettingsAPI:
                 out = handle.read().splitlines()[-limit:]
         except OSError:
             out = []
-        level = logging.getLevelName(logging.getLogger().level)
+        level = logging.getLevelName(get_log_level())
         return {"lines": out, "path": get_log_dir(platform), "level": level}
 
     def set_log_level(self, level):
         name = str(level or "INFO").upper()
         value = getattr(logging, name, logging.INFO)
-        logging.getLogger().setLevel(value)
+        apply_log_level(value)
         return {"success": True, "level": logging.getLevelName(value)}
 
     def copy_diagnostics(self):

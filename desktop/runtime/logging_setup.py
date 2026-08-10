@@ -74,3 +74,18 @@ def setup_logging(platform=None, level=logging.INFO):
     logger.addHandler(handler)
     log_event(logger, AREA_STARTUP, "logging_initialized", log_file=log_file)
     return log_file
+
+
+def get_log_level():
+    """Effective level of the app logger that writes cheevo.log."""
+    return logging.getLogger(LOGGER_NAME).level
+
+
+def set_log_level(level):
+    """Set the app logger's level *and* its file handler's level."""
+    logger = logging.getLogger(LOGGER_NAME)
+    logger.setLevel(level)
+    for handler in logger.handlers:
+        if _is_runtime_handler(handler):
+            handler.setLevel(level)
+    return logger.level
