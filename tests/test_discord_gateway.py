@@ -88,6 +88,14 @@ class DiscordPresenceGatewayTests(unittest.TestCase):
         self.assertIsNone(gateway.rpc)
         self.assertFalse(gateway.rpc_connected)
 
+    def test_update_after_disconnect_raises_pipe_closed(self):
+        gateway = self._gateway()
+        self.assertTrue(gateway.connect())
+        gateway.disconnect()
+
+        with self.assertRaises(pypresence_exceptions.PipeClosed):
+            gateway.update(details="hello")
+
     def test_connect_pipe_times_out_hung_handshake(self):
         class HangingPresence:
             closed = False

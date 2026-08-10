@@ -208,7 +208,10 @@ class DiscordPresenceGateway:
             return False
 
     def update(self, **kwargs):
-        self.rpc.update(**kwargs)
+        with self._lock:
+            if self.rpc is None:
+                raise pypresence_exceptions.PipeClosed
+            self.rpc.update(**kwargs)
 
     def disconnect(self):
         with self._lock:
