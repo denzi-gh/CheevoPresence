@@ -35,6 +35,7 @@ from desktop.runtime.storage import (
     TRAY_INACTIVE_ICON_FILE,
 )
 from desktop.shell.ipc import SettingsHostService
+from desktop.shell.tray_base import TrayControllerBase
 
 SHUTDOWN_GRACE_SECONDS = 8
 PRESENT_SIGNAL = getattr(signal, "SIGUSR1", None)
@@ -239,7 +240,7 @@ def get_linux_indicator_icon(status):
     return _indicator_icon_from_path(get_linux_status_icon_path(status))
 
 
-class LinuxIndicatorApp:
+class LinuxIndicatorApp(TrayControllerBase):
 
     def __init__(self, controller: AppController, open_settings_on_launch=True):
         self.Gtk, self.GLib, self.AppIndicator = _load_indicator_modules()
@@ -391,10 +392,11 @@ class LinuxIndicatorApp:
             return
         raise LinuxTrayUnavailable("No AppIndicator or GTK StatusIcon tray backend is available.")
 
-    def _truncate_status(self, text, limit=72):
-        if len(text) <= limit:
-            return text
-        return text[: limit - 3] + "..."
+    def _marshal(self, fn):
+        self.GLib.idle_add(fn)
+
+    def _refresh_menu(self):
+        self._update_menu_status()
 
     def _on_status(self, status, text):
         if self._shutdown_started:
@@ -421,57 +423,15 @@ class LinuxIndicatorApp:
             self.status_icon.set_from_file(get_linux_status_icon_path(self.current_status))
             self.status_icon.set_tooltip_text(f"{APP_NAME} - {self.status_text}")
 
-    def _get_connection_action_title(self):
-        state = self.worker.get_state()
-        if state.is_stopping:
-            return "Stopping..."
-        if state.running:
-            return "Disconnect"
-        return "Connect"
-
     def _update_connection_item(self):
         if self.connection_item is None:
             return
         state = self.worker.get_state()
-        self.connection_item.set_label(self._get_connection_action_title())
+        self.connection_item.set_label(self.connection_action_title())
         self.connection_item.set_sensitive(not state.is_stopping)
 
     def _on_toggle_connection(self, *_args):
-        if self._shutdown_started or self.worker.get_state().is_stopping:
-            return
-        threading.Thread(target=self._toggle_connection, daemon=True).start()
-
-    def _toggle_connection(self):
-        if self.worker.get_state().running:
-            log_event(logger, AREA_TRAY, "disconnect_requested")
-            self.controller.disconnect()
-            self.GLib.idle_add(self._update_menu_status)
-            return
-
-        config = self.controller.load_config()
-        if not config["username"] or not config["apikey"]:
-            log_event(
-                logger,
-                AREA_TRAY,
-                "connect_blocked",
-                reason="missing_credentials",
-                username_present=bool(config["username"]),
-                apikey_present=bool(config["apikey"]),
-            )
-            self.worker.set_ra_status(False)
-            self.worker.status_callback("error", "Username or API Key missing")
-            self.GLib.idle_add(self.open_settings)
-            return
-
-        log_event(logger, AREA_TRAY, "connect_requested")
-        if not self.controller.start_saved_session():
-            log_event(
-                logger,
-                AREA_TRAY,
-                "connect_no_worker",
-                level=logging.WARNING,
-            )
-            self.GLib.idle_add(self._update_menu_status)
+        self._request_toggle_connection()
 
     def _on_settings(self, *_args):
         self.open_settings()
