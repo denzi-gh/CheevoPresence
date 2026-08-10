@@ -11,7 +11,7 @@ import platform as platform_module
 import sys
 
 from desktop.core.constants import APP_VERSION
-from desktop.runtime.log_events import (
+from desktop.core.log_events import (
     AREA_PATHS,
     AREA_PLATFORM,
     AREA_STARTUP,

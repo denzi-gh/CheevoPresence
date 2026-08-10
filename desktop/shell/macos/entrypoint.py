@@ -3,19 +3,19 @@
 import logging
 import sys
 
+from desktop.core.constants import EXIT_APP_FLAG, TRAY_FLAG
+from desktop.core.log_events import AREA_STARTUP, log_event
 from desktop.platform import get_platform_services
 from desktop.runtime.controller import AppController
 from desktop.runtime.diagnostics import log_startup_diagnostics
-from desktop.runtime.log_events import AREA_STARTUP, log_event
 from desktop.runtime.logging_setup import setup_logging
 from desktop.shell.macos.menu_bar import MacOSMenuBarApp
 
-EXIT_APP_FLAG = "--exit"
 logger = logging.getLogger(__name__)
 
 
 def main():
-    tray_mode = "--tray" in sys.argv
+    tray_mode = TRAY_FLAG in sys.argv
     mode = "tray" if tray_mode else "settings"
     platform = get_platform_services()
     setup_logging(platform)

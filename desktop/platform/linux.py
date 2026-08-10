@@ -12,10 +12,10 @@ import sys
 import tempfile
 import threading
 
-from desktop.core.constants import APP_NAME
+from desktop.core.constants import APP_NAME, TRAY_FLAG
+from desktop.core.log_events import AREA_AUTOSTART, log_event
 from desktop.platform.generic import GenericPlatformServices
 from desktop.platform.linux_secrets import protect_api_key, unprotect_api_key
-from desktop.runtime.log_events import AREA_AUTOSTART, log_event
 
 try:
     import fcntl
@@ -114,10 +114,10 @@ def get_exe_path():
 def _get_launch_command():
     exe_path = get_exe_path()
     if getattr(sys, "frozen", False):
-        return [exe_path, "--tray"]
+        return [exe_path, TRAY_FLAG]
     if exe_path.endswith(".py"):
-        return [sys.executable, exe_path, "--tray"]
-    return [exe_path, "--tray"]
+        return [sys.executable, exe_path, TRAY_FLAG]
+    return [exe_path, TRAY_FLAG]
 
 
 def _quote_desktop_exec_arg(value):

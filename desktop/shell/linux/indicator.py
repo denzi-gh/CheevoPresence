@@ -12,15 +12,20 @@ import webbrowser
 
 from PIL import Image, ImageDraw
 
-from desktop.core.constants import APP_NAME, APP_VERSION, RA_SETTINGS_URL
-from desktop.platform.linux import get_runtime_dir
-from desktop.runtime.controller import AppController
-from desktop.runtime.log_events import (
+from desktop.core.constants import (
+    APP_NAME,
+    APP_VERSION,
+    LINUX_SETTINGS_CLIENT_FLAG,
+    RA_SETTINGS_URL,
+)
+from desktop.core.log_events import (
     AREA_SETTINGS,
     AREA_SHUTDOWN,
     AREA_TRAY,
     log_event,
 )
+from desktop.platform.linux import get_runtime_dir
+from desktop.runtime.controller import AppController
 from desktop.runtime.storage import (
     APP_ICON_PNG_FILE,
     GENERATED_MENU_BAR_TEMPLATE_ICON_FILE,
@@ -519,8 +524,8 @@ class LinuxIndicatorApp:
     def _settings_command(self):
         # Address and auth token travel via get_launch_env() only
         if getattr(sys, "frozen", False):
-            return [sys.executable, "--linux-settings-client"]
-        return [sys.executable, os.path.abspath(sys.argv[0]), "--linux-settings-client"]
+            return [sys.executable, LINUX_SETTINGS_CLIENT_FLAG]
+        return [sys.executable, os.path.abspath(sys.argv[0]), LINUX_SETTINGS_CLIENT_FLAG]
 
     def _on_settings_closed(self):
         self._settings_open = False

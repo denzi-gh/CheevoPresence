@@ -8,7 +8,7 @@ never carry their query string (which may hold the RA API key).
 import logging
 from urllib.parse import urlsplit, urlunsplit
 
-# Area tags used across the runtime so support can grep one log file.
+# Area tags used across the app so support can grep one log file.
 AREA_STARTUP = "STARTUP"
 AREA_PLATFORM = "PLATFORM"
 AREA_PATHS = "PATHS"

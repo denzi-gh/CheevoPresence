@@ -14,8 +14,8 @@ import time
 import uuid
 from dataclasses import asdict
 
+from desktop.core.log_events import AREA_IPC, log_event
 from desktop.runtime.controller import ConnectResult
-from desktop.runtime.log_events import AREA_IPC, log_event
 from desktop.runtime.state import MirroredPresence, WorkerState
 from desktop.runtime.update_service import UpdateInstallResult, UpdateStatus
 

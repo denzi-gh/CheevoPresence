@@ -1,7 +1,7 @@
 import logging
 import unittest
 
-from desktop.runtime.log_events import (
+from desktop.core.log_events import (
     REDACTED,
     format_event,
     log_event,

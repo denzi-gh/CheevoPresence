@@ -21,12 +21,12 @@ from desktop.core.constants import (
     RELEASES_LATEST_API_URL,
     RELEASES_PAGE_URL,
 )
+from desktop.core.log_events import AREA_UPDATE, log_event
 from desktop.core.update import (
     is_newer_version,
     load_update_override,
     normalize_version_label,
 )
-from desktop.runtime.log_events import AREA_UPDATE, log_event
 from desktop.runtime.storage import UPDATE_OVERRIDE_FILE
 
 logger = logging.getLogger(__name__)

@@ -8,7 +8,7 @@ from pypresence import Presence
 from pypresence import exceptions as pypresence_exceptions
 
 from desktop.core.constants import DISCORD_APP_ID
-from desktop.runtime.log_events import AREA_DISCORD, log_event
+from desktop.core.log_events import AREA_DISCORD, log_event
 
 DISCORD_IPC_PIPES = tuple(range(10))
 DISCORD_CONNECT_TIMEOUT_SECONDS = 1.5

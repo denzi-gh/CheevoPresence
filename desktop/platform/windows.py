@@ -14,9 +14,9 @@ import time
 from tkinter import messagebox
 
 from desktop.core.constants import APP_NAME
+from desktop.core.log_events import AREA_AUTOSTART, log_event
 from desktop.platform.base import PlatformServices
 from desktop.platform.windows_secrets import protect_api_key, unprotect_api_key
-from desktop.runtime.log_events import AREA_AUTOSTART, log_event
 
 SINGLE_INSTANCE_MUTEX_NAME = f"Local\\{APP_NAME}Singleton"
 EXIT_EVENT_NAME = f"Local\\{APP_NAME}Exit"
