@@ -1,55 +1,22 @@
 """Application entrypoint for the Windows desktop shell."""
 
-import logging
 import sys
 
-from desktop.core.constants import (
-    EXIT_APP_FLAG,
-    TRAY_FLAG,
-    WINDOWS_SETTINGS_CLIENT_FLAG,
-)
-from desktop.core.log_events import AREA_STARTUP, log_event
-from desktop.platform import get_platform_services
-from desktop.runtime.controller import AppController
-from desktop.runtime.diagnostics import log_startup_diagnostics
-from desktop.runtime.logging_setup import setup_logging
+from desktop.core.constants import WINDOWS_SETTINGS_CLIENT_FLAG
+from desktop.shell.entrypoint import run_shell
 from desktop.shell.windows.tray import TrayApp
 
-logger = logging.getLogger(__name__)
+
+def _run_app(controller, *, tray_mode):
+    TrayApp(controller, open_settings_on_launch=not tray_mode).run()
 
 
 def main():
     if WINDOWS_SETTINGS_CLIENT_FLAG in sys.argv:
+        # Address and auth token are read from the environment
+        # (CHEEVO_SETTINGS_SOCKET / CHEEVO_SETTINGS_TOKEN).
         from desktop.shell.settings_client import main as settings_main
 
-        # Address and auth token are read from the environment
-        # (CHEEVO_SETTINGS_SOCKET / CHEEVO_SETTINGS_TOKEN);
         return settings_main()
 
-    tray_mode = TRAY_FLAG in sys.argv
-    mode = "tray" if tray_mode else "settings"
-    platform = get_platform_services()
-    setup_logging(platform)
-    log_startup_diagnostics(platform)
-    log_event(logger, AREA_STARTUP, "entrypoint_started", platform="windows", mode=mode)
-
-    if platform.handle_special_args(sys.argv):
-        log_event(logger, AREA_STARTUP, "platform_helper_handled", platform="windows")
-        return
-
-    if EXIT_APP_FLAG in sys.argv:
-        requested = platform.request_running_app_exit()
-        log_event(logger, AREA_STARTUP, "external_exit_requested", success=requested)
-        return
-
-    if not platform.acquire_single_instance():
-        log_event(logger, AREA_STARTUP, "duplicate_instance_blocked", mode=mode)
-        if not tray_mode:
-            platform.notify_already_running()
-        return
-
-    log_event(logger, AREA_STARTUP, "single_instance_acquired", mode=mode)
-    controller = AppController(platform=platform)
-    app = TrayApp(controller, open_settings_on_launch=not tray_mode)
-
-    app.run()
+    return run_shell("windows", _run_app)
