@@ -1,0 +1,29 @@
+name: Feature request / idea
+description: Suggest an improvement or a new capability
+title: "[Idea]: "
+labels: ["enhancement"]
+body:
+  - type: textarea
+    id: idea
+    attributes:
+      label: What's the idea?
+      description: What would you like CheevoPresence to do?
+    validations:
+      required: true
+  - type: textarea
+    id: why
+    attributes:
+      label: Why would this be useful?
+      description: What problem does it solve, or what would it make nicer?
+    validations:
+      required: true
+  - type: dropdown
+    id: platforms
+    attributes:
+      label: Which platforms would this affect?
+      multiple: true
+      options:
+        - Windows
+        - macOS
+        - Linux
+        - All / not sure

@@ -1,0 +1,8 @@
+blank_issues_enabled: false
+contact_links:
+  - name: Question or setup help
+    url: https://discord.com/users/249480996146249729
+    about: Add me on Discord (_denzi) and send me a DM!
+  - name: Setup & troubleshooting
+    url: https://github.com/denzi-gh/CheevoPresence#getting-started
+    about: Check the README's Getting Started and Diagnostic Logs sections
