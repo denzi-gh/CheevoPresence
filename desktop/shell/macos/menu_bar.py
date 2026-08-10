@@ -41,6 +41,7 @@ from desktop.runtime.storage import (
     GENERATED_MENU_BAR_TEMPLATE_ICON_FILE,
     MENU_BAR_TEMPLATE_ICON_FILE,
 )
+from desktop.shell.tray_base import TrayControllerBase
 
 logger = logging.getLogger(__name__)
 
@@ -99,7 +100,7 @@ class _MenuBarDelegate(NSObject):
         self.owner.quit_app()
 
 
-class MacOSMenuBarApp:
+class MacOSMenuBarApp(TrayControllerBase):
 
     def __init__(self, controller: AppController, open_settings_on_launch=True):
         self.controller = controller
@@ -208,10 +209,11 @@ class MacOSMenuBarApp:
         self.status_menu.addItem_(quit_item)
         self.status_item.setMenu_(self.status_menu)
 
-    def _truncate_status(self, text, limit=72):
-        if len(text) <= limit:
-            return text
-        return text[: limit - 3] + "..."
+    def _marshal(self, fn):
+        callAfter(fn)
+
+    def _refresh_menu(self):
+        self._update_menu_status()
 
     def _on_status(self, status, text):
         self.current_status = status
@@ -230,51 +232,15 @@ class MacOSMenuBarApp:
             button.setToolTip_(f"{APP_NAME} - {self.status_text}")
             self._update_status_badge(button)
 
-    def _get_connection_action_title(self):
-        state = self.worker.get_state()
-        if state.is_stopping:
-            return "Stopping..."
-        if state.running:
-            return "Disconnect"
-        return "Connect"
-
     def _update_connection_item(self):
         if self.connection_item is None:
             return
         state = self.worker.get_state()
-        self.connection_item.setTitle_(self._get_connection_action_title())
+        self.connection_item.setTitle_(self.connection_action_title())
         self.connection_item.setEnabled_(not state.is_stopping)
 
     def toggle_connection(self):
-        if self.worker.get_state().is_stopping:
-            return
-        threading.Thread(target=self._toggle_connection, daemon=True).start()
-
-    def _toggle_connection(self):
-        if self.worker.get_state().running:
-            logger.info("macOS menu-bar disconnect requested")
-            self.controller.disconnect()
-            return
-
-        config = self.controller.load_config()
-        if not config["username"] or not config["apikey"]:
-            logger.info(
-                (
-                    "macOS menu-bar connect blocked missing_credentials "
-                    "username_present=%s apikey_present=%s"
-                ),
-                bool(config["username"]),
-                bool(config["apikey"]),
-            )
-            self.worker.set_ra_status(False)
-            self.worker.status_callback("error", "Username or API Key missing")
-            callAfter(self.open_settings)
-            return
-
-        logger.info("macOS menu-bar connect requested")
-        if not self.controller.start_saved_session():
-            logger.warning("macOS menu-bar connect request did not start worker")
-            callAfter(self._update_menu_status)
+        self._request_toggle_connection()
 
     def _badge_color_for_status(self):
         if self.current_status == "connected":

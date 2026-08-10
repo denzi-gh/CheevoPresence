@@ -23,6 +23,7 @@ from desktop.runtime.storage import (
     TRAY_INACTIVE_ICON_FILE,
 )
 from desktop.shell.ipc import SettingsHostService
+from desktop.shell.tray_base import TrayControllerBase
 
 SHUTDOWN_GRACE_SECONDS = 8
 SHUTDOWN_WATCHDOG_SECONDS = 12
@@ -46,7 +47,7 @@ def load_icon_image(path):
         return None
 
 
-class TrayApp:
+class TrayApp(TrayControllerBase):
 
     def __init__(self, controller: AppController, open_settings_on_launch=False):
         self.controller = controller
@@ -107,47 +108,22 @@ class TrayApp:
         except Exception:  # pystray teardown race; menu refresh is best-effort
             logger.debug("Tray menu update failed", exc_info=True)
 
+    # pystray callbacks run off the main thread already, so UI updates just
+    # re-render the menu. there is no separate UI thread to marshal onto
+    def _marshal(self, fn):
+        fn()
+
+    def _refresh_menu(self):
+        self._update_menu()
+
     def _get_connection_action_text(self, _item=None):
-        state = self.worker.get_state()
-        if state.is_stopping:
-            return "Stopping..."
-        if state.running:
-            return "Disconnect"
-        return "Connect"
+        return self.connection_action_title()
 
     def _is_connection_action_enabled(self, _item=None):
         return not self.worker.get_state().is_stopping
 
     def _on_toggle_connection(self, icon, item):
-        if self._shutdown_started or self.worker.get_state().is_stopping:
-            return
-        threading.Thread(target=self._toggle_connection, daemon=True).start()
-
-    def _toggle_connection(self):
-        if self.worker.get_state().running:
-            logger.info("Tray disconnect requested")
-            self.controller.disconnect()
-            return
-
-        config = self.controller.load_config()
-        if not config["username"] or not config["apikey"]:
-            logger.info(
-                (
-                    "Tray connect blocked missing_credentials "
-                    "username_present=%s apikey_present=%s"
-                ),
-                bool(config["username"]),
-                bool(config["apikey"]),
-            )
-            self.worker.set_ra_status(False)
-            self.worker.status_callback("error", "Username or API Key missing")
-            self._on_settings(None, None)
-            return
-
-        logger.info("Tray connect requested")
-        if not self.controller.start_saved_session():
-            logger.warning("Tray connect request did not start worker")
-            self._update_menu()
+        self._request_toggle_connection()
 
     def _on_settings(self, icon, item):
         if self._shutdown_started:
