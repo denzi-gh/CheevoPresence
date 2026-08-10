@@ -1,0 +1,2 @@
+# Build-time-only tooling for packaging the desktop app
+pyinstaller==6.19.0

@@ -8,7 +8,6 @@ cd "$project_root"
 build_venv_dir="$project_root/build/macos/venv"
 build_python_marker="$build_venv_dir/.base_python"
 dependency_marker="$build_venv_dir/.dependencies.sha256"
-pyinstaller_version="6.19.0"
 codesign_identity="${CHEEVO_MACOS_CODESIGN_IDENTITY:--}"
 
 python_supports_tk() {
@@ -31,7 +30,8 @@ dependency_fingerprint() {
     cat requirements/base.txt
     printf '\n'
     cat requirements/macos.txt
-    printf '\npyinstaller==%s\n' "${pyinstaller_version}"
+    printf '\n'
+    cat requirements/build.txt
   } | shasum -a 256 | awk '{print $1}'
 }
 
@@ -109,7 +109,7 @@ ensure_build_venv() {
 
   if [[ "${should_install}" -eq 1 ]]; then
     "${build_venv_dir}/bin/python" -m pip install --disable-pip-version-check --upgrade pip setuptools wheel
-    "${build_venv_dir}/bin/python" -m pip install --disable-pip-version-check -r requirements/macos.txt "pyinstaller==${pyinstaller_version}"
+    "${build_venv_dir}/bin/python" -m pip install --disable-pip-version-check -r requirements/macos.txt -r requirements/build.txt
     printf '%s\n' "${current_fingerprint}" > "${dependency_marker}"
   fi
 }
