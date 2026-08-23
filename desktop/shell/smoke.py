@@ -1,0 +1,119 @@
+from __future__ import annotations
+
+import logging
+import os
+import subprocess
+import sys
+import threading
+import time
+
+from desktop.core.constants import (
+    LINUX_SETTINGS_CLIENT_FLAG,
+    MAC_SETTINGS_CLIENT_FLAG,
+    WINDOWS_SETTINGS_CLIENT_FLAG,
+)
+from desktop.core.log_events import AREA_STARTUP, log_event
+from desktop.runtime.controller import AppController
+from desktop.shell.ipc import SettingsHostService
+from desktop.shell.web_settings import SETTINGS_UI_ENV
+
+logger = logging.getLogger(__name__)
+
+_CLIENT_FLAGS = {
+    "windows": WINDOWS_SETTINGS_CLIENT_FLAG,
+    "macos": MAC_SETTINGS_CLIENT_FLAG,
+    "linux": LINUX_SETTINGS_CLIENT_FLAG,
+}
+
+MIN_ALIVE_SECONDS = 10.0
+MIN_GET_STATE_REQUESTS = 3
+MIN_POLL_SPAN_SECONDS = 3.0
+DEFAULT_DEADLINE_SECONDS = 60.0
+
+
+def _settings_command(client_flag):
+    # Same command shape as the tray/menu-bar hosts use.
+    if getattr(sys, "frozen", False):
+        return [sys.executable, client_flag]
+    return [sys.executable, os.path.abspath(sys.argv[0]), client_flag]
+
+
+def run_smoke(platform_name, platform, deadline_seconds=None):
+    deadline = deadline_seconds or DEFAULT_DEADLINE_SECONDS
+
+    def _watchdog_fired():
+        log_event(
+            logger,
+            AREA_STARTUP,
+            "smoke_timeout",
+            level=logging.ERROR,
+            deadline_sec=deadline,
+        )
+        os._exit(2)
+
+    watchdog = threading.Timer(deadline, _watchdog_fired)
+    watchdog.daemon = True
+    watchdog.start()
+
+    poll_lock = threading.Lock()
+    poll_times = []
+
+    def _on_request(method):
+        if method == "get_state":
+            with poll_lock:
+                poll_times.append(time.monotonic())
+
+    # No worker start: the smoke test needs no credentials and no Discord.
+    controller = AppController(platform=platform)
+    service = SettingsHostService(controller, on_request=_on_request)
+    service.start()
+    child = None
+    try:
+        env = os.environ.copy()
+        env.update(service.get_launch_env())
+        env[SETTINGS_UI_ENV] = "native"
+        child = subprocess.Popen(_settings_command(_CLIENT_FLAGS[platform_name]), env=env)
+        log_event(logger, AREA_STARTUP, "smoke_child_started", pid=child.pid)
+
+        started = time.monotonic()
+        while True:
+            if child.poll() is not None:
+                log_event(
+                    logger,
+                    AREA_STARTUP,
+                    "smoke_failed",
+                    level=logging.ERROR,
+                    reason="child_exited",
+                    exit_code=child.returncode,
+                )
+                return 1
+            with poll_lock:
+                polls = list(poll_times)
+            alive_sec = time.monotonic() - started
+            if (
+                alive_sec >= MIN_ALIVE_SECONDS
+                and len(polls) >= MIN_GET_STATE_REQUESTS
+                and polls[-1] - polls[0] >= MIN_POLL_SPAN_SECONDS
+            ):
+                log_event(
+                    logger,
+                    AREA_STARTUP,
+                    "smoke_passed",
+                    polls=len(polls),
+                    alive_sec=round(alive_sec, 1),
+                )
+                return 0
+            time.sleep(0.25)
+    finally:
+        watchdog.cancel()
+        if child is not None and child.poll() is None:
+            child.terminate()
+            try:
+                child.wait(timeout=5)
+            except subprocess.TimeoutExpired:
+                child.kill()
+        service.stop()
+        try:
+            controller.shutdown(timeout=5)
+        except Exception:  # noqa: BLE001 teardown is best-effort; the verdict is already decided
+            logger.debug("smoke teardown failed", exc_info=True)

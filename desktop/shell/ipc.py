@@ -113,9 +113,10 @@ def _format_ipc_error(exc):
 
 class SettingsHostService:
 
-    def __init__(self, controller, on_quit=None):
+    def __init__(self, controller, on_quit=None, on_request=None):
         self.controller = controller
         self.on_quit = on_quit
+        self.on_request = on_request
         self.address = ""
         self.auth_token = secrets.token_hex(32)
         self.listener = None
@@ -236,6 +237,8 @@ class SettingsHostService:
                 request = _read_message(conn)
                 method = request.get("method")
                 response = {"ok": True, "result": self._dispatch(request)}
+                if self.on_request:
+                    self.on_request(method)
                 if self._should_log_request(method, start):
                     log_event(
                         logger,

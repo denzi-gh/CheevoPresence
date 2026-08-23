@@ -59,6 +59,25 @@ jobs:
             Write-Warning "Defender scan did not complete cleanly (exit $LASTEXITCODE)"
           }
 
+      # Launches the packaged exe in --smoke mode: it must open the real
+      # settings child process and sustain IPC polls (checks for crashes and surch)
+      - name: smoke test exe
+        shell: pwsh
+        run: |
+          $process = Start-Process -FilePath "dist/CheevoPresence.exe" -ArgumentList "--smoke" -PassThru -Wait
+          if ($process.ExitCode -ne 0) {
+            Write-Error "Smoke test failed with exit code $($process.ExitCode)"
+            exit 1
+          }
+
+      - name: upload smoke log
+        if: failure()
+        uses: actions/upload-artifact@v7
+        with:
+          name: windows-smoke-cheevo.log
+          path: ~/AppData/Roaming/CheevoPresence/logs/cheevo.log
+          if-no-files-found: ignore
+
       - name: prepare artifact
         shell: pwsh
         run: |
@@ -116,6 +135,18 @@ jobs:
       - name: build app
         run: ./build_macos.sh
 
+      - name: smoke test app
+        shell: bash
+        run: dist/CheevoPresence.app/Contents/MacOS/CheevoPresence --smoke
+
+      - name: upload smoke log
+        if: failure()
+        uses: actions/upload-artifact@v7
+        with:
+          name: macos-${{ matrix.arch }}-smoke-cheevo.log
+          path: ~/Library/Application Support/CheevoPresence/logs/cheevo.log
+          if-no-files-found: ignore
+
       - name: prepare artifact
         shell: bash
         run: |
@@ -159,10 +190,23 @@ jobs:
             gir1.2-gtk-3.0 \
             gir1.2-webkit2-4.0 \
             gir1.2-ayatanaappindicator3-0.1 \
-            libayatana-appindicator3-1
+            libayatana-appindicator3-1 \
+            xvfb
 
       - name: build binary
         run: ./build_linux.sh
+
+      - name: smoke test binary
+        shell: bash
+        run: xvfb-run -a dist/CheevoPresence --smoke
+
+      - name: upload smoke log
+        if: failure()
+        uses: actions/upload-artifact@v7
+        with:
+          name: linux-smoke-cheevo.log
+          path: ~/.local/state/CheevoPresence/logs/cheevo.log
+          if-no-files-found: ignore
 
       - name: prepare artifact
         shell: bash
