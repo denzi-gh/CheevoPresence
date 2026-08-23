@@ -14,7 +14,7 @@ from desktop.core.constants import (
 )
 from desktop.core.log_events import AREA_STARTUP, log_event
 from desktop.runtime.controller import AppController
-from desktop.shell.ipc import SettingsHostService
+from desktop.shell.ipc import RemoteAppController, SettingsHostService
 from desktop.shell.web_settings import SETTINGS_UI_ENV
 
 logger = logging.getLogger(__name__)
@@ -36,6 +36,32 @@ def _settings_command(client_flag):
     if getattr(sys, "frozen", False):
         return [sys.executable, client_flag]
     return [sys.executable, os.path.abspath(sys.argv[0]), client_flag]
+
+
+def _verify_quit_roundtrip(service, quit_event):
+    # Drives the real quit path
+    try:
+        RemoteAppController(service.address, service.auth_token).quit_app()
+    except Exception:  # noqa: BLE001 verdict boundary; the failure reason is in the log
+        log_event(
+            logger,
+            AREA_STARTUP,
+            "smoke_failed",
+            level=logging.ERROR,
+            exc_info=True,
+            reason="quit_request_failed",
+        )
+        return False
+    if not quit_event.wait(timeout=5):
+        log_event(
+            logger,
+            AREA_STARTUP,
+            "smoke_failed",
+            level=logging.ERROR,
+            reason="quit_callback_missing",
+        )
+        return False
+    return True
 
 
 def run_smoke(platform_name, platform, deadline_seconds=None):
@@ -65,7 +91,12 @@ def run_smoke(platform_name, platform, deadline_seconds=None):
 
     # No worker start: the smoke test needs no credentials and no Discord.
     controller = AppController(platform=platform)
-    service = SettingsHostService(controller, on_request=_on_request)
+    quit_event = threading.Event()
+    service = SettingsHostService(
+        controller,
+        on_quit=quit_event.set,
+        on_request=_on_request,
+    )
     service.start()
     child = None
     try:
@@ -95,6 +126,8 @@ def run_smoke(platform_name, platform, deadline_seconds=None):
                 and len(polls) >= MIN_GET_STATE_REQUESTS
                 and polls[-1] - polls[0] >= MIN_POLL_SPAN_SECONDS
             ):
+                if not _verify_quit_roundtrip(service, quit_event):
+                    return 1
                 log_event(
                     logger,
                     AREA_STARTUP,
