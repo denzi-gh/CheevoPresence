@@ -660,8 +660,35 @@ class BrowserFallbackTests(unittest.TestCase):
         calls = []
         window.api.set_window(SimpleNamespace(restore=lambda: calls.append("restore")))
 
-        self.assertTrue(window._focus_native_window())
+        with patch("desktop.shell.web_settings.sys.platform", "linux"):
+            self.assertTrue(window._focus_native_window())
         self.assertEqual(["restore"], calls)
+
+    def test_focus_native_window_defers_restore_to_the_main_thread_on_macos(self):
+        window = self._window()
+        calls = []
+        window.api.set_window(SimpleNamespace(restore=lambda: calls.append("restore")))
+
+        with patch("desktop.shell.web_settings.sys.platform", "darwin"), patch(
+            "desktop.shell.web_settings._macos_call_after"
+        ) as call_after:
+            self.assertTrue(window._focus_native_window())
+
+        call_after.assert_called_once_with(window.api.window.restore)
+        self.assertEqual([], calls)
+
+    def test_focus_native_window_never_calls_appkit_cross_thread(self):
+        window = self._window()
+        calls = []
+        window.api.set_window(SimpleNamespace(restore=lambda: calls.append("restore")))
+
+        with patch("desktop.shell.web_settings.sys.platform", "darwin"), patch(
+            "desktop.shell.web_settings._macos_call_after",
+            side_effect=RuntimeError("no run loop"),
+        ):
+            self.assertFalse(window._focus_native_window())
+
+        self.assertEqual([], calls)
 
     def test_present_reopens_the_tab_when_there_is_no_native_window(self):
         window = self._window()

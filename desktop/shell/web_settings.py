@@ -7,6 +7,7 @@ import hmac
 import json
 import logging
 import os
+import sys
 import threading
 import time
 from dataclasses import asdict, is_dataclass
@@ -508,6 +509,24 @@ class WebSettingsAPI:
             self.on_close()
 
 
+def _macos_call_after(fn):
+    from PyObjCTools import AppHelper
+
+    AppHelper.callAfter(fn)
+
+
+def _invoke_native_window_call(fn):
+    if sys.platform == "darwin":
+        try:
+            _macos_call_after(fn)
+        except Exception:
+            logger.debug("main-thread dispatch unavailable", exc_info=True)
+            return False
+        return True
+    fn()
+    return True
+
+
 class WebSettingsWindow:
 
     def __init__(self, controller, on_close=None, on_quit=None, on_ready=None):
@@ -537,8 +556,7 @@ class WebSettingsWindow:
         window = self.api.window
         if window is None:
             return False
-        window.restore()
-        return True
+        return _invoke_native_window_call(window.restore)
 
     def _notify_ready(self):
         if self._ready_notified or not self.on_ready:
