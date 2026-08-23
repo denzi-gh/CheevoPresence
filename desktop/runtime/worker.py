@@ -66,7 +66,7 @@ def mode_from_summary(user_data):
                 date = datetime.strptime(
                     str(entry.get("DateAwarded", "")),
                     "%Y-%m-%d %H:%M:%S",
-                )
+                ).replace(tzinfo=timezone.utc)
             except ValueError:
                 continue
             hardcore = coerce_progress_int(entry.get("HardcoreAchieved", 0))
