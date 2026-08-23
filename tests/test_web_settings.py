@@ -128,6 +128,7 @@ class WebSettingsTests(unittest.TestCase):
                 "show_profile_button": True,
                 "show_gamepage_button": False,
                 "show_achievement_progress": False,
+                "show_total_playtime": False,
                 "dev_mode": False,
                 "interval": 10,
                 "timeout": 260,
@@ -136,6 +137,7 @@ class WebSettingsTests(unittest.TestCase):
 
         self.assertTrue(result["success"])
         self.assertEqual("new-user", controller.connected_config["username"])
+        self.assertFalse(controller.connected_config["show_total_playtime"])
         self.assertTrue(controller.connected_config["start_on_boot"])
         self.assertFalse(
             controller.connected_config["use_retroachievements_developer_titles"]

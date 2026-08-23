@@ -11,7 +11,7 @@ function bindElements() {
   var ids = [
     "usernameInput", "usernameCheck", "apikeyInput", "revealKey",
     "intervalInput", "timeoutInput",
-    "profileCheck", "gamepageCheck", "achievementCheck", "bootCheck",
+    "profileCheck", "gamepageCheck", "achievementCheck", "playtimeCheck", "bootCheck",
     "devActivityCheck", "devSetsCheck",
     "discordDot", "discordStatus", "raDot", "raStatus",
     "roleBadge", "roleIcon", "roleLabel",
@@ -96,6 +96,7 @@ function formPayload() {
     show_profile_button: els.profileCheck.checked,
     show_gamepage_button: els.gamepageCheck.checked,
     show_achievement_progress: els.achievementCheck.checked,
+    show_total_playtime: els.playtimeCheck.checked,
     start_on_boot: els.bootCheck.checked,
     use_retroachievements_developer_titles: els.devActivityCheck.checked,
     show_developer_sets_button: els.devSetsCheck.checked
@@ -111,6 +112,7 @@ function applyConfig(config) {
   els.profileCheck.checked = !!config.show_profile_button;
   els.gamepageCheck.checked = !!config.show_gamepage_button;
   els.achievementCheck.checked = !!config.show_achievement_progress;
+  els.playtimeCheck.checked = !!config.show_total_playtime;
   els.bootCheck.checked = !!config.start_on_boot;
   els.devActivityCheck.checked = !!config.use_retroachievements_developer_titles;
   els.devSetsCheck.checked = !!config.show_developer_sets_button;
@@ -145,7 +147,7 @@ function setControlsEnabled(state) {
   var devEnabled = !!state.developer_settings_unlocked && generalEnabled;
   var inputs = [
     els.usernameInput, els.apikeyInput, els.intervalInput, els.timeoutInput,
-    els.profileCheck, els.gamepageCheck, els.achievementCheck, els.bootCheck
+    els.profileCheck, els.gamepageCheck, els.achievementCheck, els.playtimeCheck, els.bootCheck
   ];
   for (var i = 0; i < inputs.length; i += 1) { inputs[i].disabled = !generalEnabled; }
   els.devActivityCheck.disabled = !devEnabled;
@@ -443,7 +445,7 @@ function bindEvents() {
 
   var autosaveInputs = [
     els.intervalInput, els.timeoutInput, els.profileCheck, els.gamepageCheck,
-    els.achievementCheck, els.bootCheck, els.devActivityCheck, els.devSetsCheck
+    els.achievementCheck, els.playtimeCheck, els.bootCheck, els.devActivityCheck, els.devSetsCheck
   ];
   for (i = 0; i < autosaveInputs.length; i += 1) {
     autosaveInputs[i].addEventListener("change", scheduleSave);

@@ -11,6 +11,7 @@ from pypresence import Presence
 from desktop.core.api import (
     format_api_error,
     ra_get_game,
+    ra_get_game_info_and_user_progress,
     ra_get_user_profile_v2,
     ra_get_user_progress,
     ra_get_user_summary,
@@ -105,6 +106,7 @@ class RPCWorker:
         )
         self._current_game_id = None
         self._play_mode = None
+        self._playtime_start = None
         self.current_status = "disconnected"
         self.status_text = "Not running"
         self.ra_connected = False
@@ -284,6 +286,7 @@ class RPCWorker:
                 log_event(logger, AREA_WORKER, "stop_skipped", reason="already_stopped")
                 self._disconnect_rpc()
                 self._current_game_id = None
+                self._playtime_start = None
                 self.set_ra_status(False)
                 self.status_callback("disconnected", "Stopped")
                 return True
@@ -343,6 +346,27 @@ class RPCWorker:
         if mode != self._play_mode:
             self._play_mode = mode
             log_event(logger, AREA_RA, "play_mode_changed", mode=mode)
+
+    def _seed_playtime_start(self, username, apikey, game_id):
+        # Backdates Discord's elapsed timer to the user's total playtime for the game
+        self._playtime_start = None
+        if not self._config_snapshot().get("show_total_playtime", True):
+            return
+        try:
+            payload = ra_get_game_info_and_user_progress(username, apikey, game_id)
+        except (requests.RequestException, APIResponseError) as exc:
+            log_event(
+                logger,
+                AREA_RA,
+                "playtime_seed_failed",
+                level=logging.WARNING,
+                error_type=exc.__class__.__name__,
+            )
+            return
+        playtime = coerce_progress_int(payload.get("UserTotalPlaytime", 0))
+        if playtime > 0:
+            self._playtime_start = int(time.time()) - playtime
+            log_event(logger, AREA_RA, "playtime_seeded", playtime_sec=playtime)
 
     def _clear_mirrored_presence(self):
         with self._state_lock:
@@ -486,6 +510,7 @@ class RPCWorker:
                             log_event(logger, AREA_RA, "no_game_detected")
                         self._disconnect_rpc()
                         self._current_game_id = None
+                        self._playtime_start = None
                         self.status_callback("disconnected", "Not playing")
                         consecutive_errors = 0
                         self._sleep(interval)
@@ -517,6 +542,7 @@ class RPCWorker:
                             )
                         self._disconnect_rpc()
                         self._current_game_id = None
+                        self._playtime_start = None
                         self.status_callback("disconnected", "Not actively playing")
                         consecutive_errors = 0
                         self._sleep(interval)
@@ -535,6 +561,13 @@ class RPCWorker:
                         self._current_game_id = last_game_id
                         if self.rpc_connected:
                             self.start_time = int(time.time())
+                        self._seed_playtime_start(username, apikey, last_game_id)
+
+
+                    playtime_enabled = self._config_snapshot().get("show_total_playtime", True)
+                    start_time = (
+                        self._playtime_start if playtime_enabled else None
+                    ) or self.start_time
 
                     presence_builder = self._presence_builder()
                     presence = presence_builder.build(
@@ -543,7 +576,7 @@ class RPCWorker:
                         rich_presence_message=rp_msg,
                         game_data=game_data,
                         progress_data=progress_data,
-                        start_time=self.start_time,
+                        start_time=start_time,
                         play_mode=self._play_mode,
                     )
 
@@ -661,6 +694,7 @@ class RPCWorker:
             self._disconnect_rpc()
             self._current_game_id = None
             self._play_mode = None
+            self._playtime_start = None
             self.set_ra_status(False)
             self._current_thread_done()
             if self._stop_event.is_set():

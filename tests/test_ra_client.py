@@ -58,6 +58,17 @@ class RAClientTests(unittest.TestCase):
         self.assertTrue(session.calls[1]["url"].endswith("/API_GetUserProgress.php"))
         self.assertEqual({"u": "user", "y": "key", "i": 123}, session.calls[1]["params"])
 
+    def test_get_game_info_and_user_progress_uses_expected_endpoint(self):
+        session = FakeSession(FakeResponse({}))
+        client = RAClient(session=session)
+
+        client.get_game_info_and_user_progress("user", "key", 668)
+
+        self.assertTrue(
+            session.calls[0]["url"].endswith("/API_GetGameInfoAndUserProgress.php")
+        )
+        self.assertEqual({"u": "user", "y": "key", "g": 668}, session.calls[0]["params"])
+
     def test_get_user_profile_v2_uses_api_host_header_and_parses_visible_role(self):
         session = FakeSession(
             FakeResponse(

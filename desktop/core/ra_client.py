@@ -57,6 +57,12 @@ class RAClient:
             {"u": username, "y": apikey, "i": game_id},
         )
 
+    def get_game_info_and_user_progress(self, username, apikey, game_id):
+        return self._get_json_dict(
+            "API_GetGameInfoAndUserProgress.php",
+            {"u": username, "y": apikey, "g": game_id},
+        )
+
     def get_user_profile_v2(self, username, apikey):
         safe_username = quote(str(username).strip(), safe="")
         response = self.session.get(

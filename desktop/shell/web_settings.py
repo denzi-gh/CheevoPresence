@@ -289,6 +289,12 @@ class WebSettingsAPI:
                     base.get("show_achievement_progress", False),
                 )
             ),
+            "show_total_playtime": bool(
+                visible.get(
+                    "show_total_playtime",
+                    base.get("show_total_playtime", True),
+                )
+            ),
             "dev_mode": bool(base.get("dev_mode", False)),
             "use_retroachievements_developer_titles": bool(developer_titles),
             "show_developer_sets_button": bool(developer_sets_button),
