@@ -105,6 +105,7 @@ class RPCWorker:
             status_callback=self.status_callback,
         )
         self._current_game_id = None
+        self._game_data = None
         self._play_mode = None
         self._playtime_start = None
         self.current_status = "disconnected"
@@ -285,8 +286,7 @@ class RPCWorker:
             if not self.running and not (thread and thread.is_alive()):
                 log_event(logger, AREA_WORKER, "stop_skipped", reason="already_stopped")
                 self._disconnect_rpc()
-                self._current_game_id = None
-                self._playtime_start = None
+                self._clear_game_state()
                 self.set_ra_status(False)
                 self.status_callback("disconnected", "Stopped")
                 return True
@@ -340,6 +340,11 @@ class RPCWorker:
         self._disconnect_rpc()
         self.set_ra_status(False)
         self.status_callback("error", "API error: unexpected response")
+
+    def _clear_game_state(self):
+        self._current_game_id = None
+        self._game_data = None
+        self._playtime_start = None
 
     def _update_play_mode(self, user_data):
         mode = mode_from_summary(user_data)
@@ -509,8 +514,7 @@ class RPCWorker:
                         if self.status_text != "Not playing":
                             log_event(logger, AREA_RA, "no_game_detected")
                         self._disconnect_rpc()
-                        self._current_game_id = None
-                        self._playtime_start = None
+                        self._clear_game_state()
                         self.status_callback("disconnected", "Not playing")
                         consecutive_errors = 0
                         self._sleep(interval)
@@ -541,27 +545,28 @@ class RPCWorker:
                                 timeout_sec=timeout_sec,
                             )
                         self._disconnect_rpc()
-                        self._current_game_id = None
-                        self._playtime_start = None
+                        self._clear_game_state()
                         self.status_callback("disconnected", "Not actively playing")
                         consecutive_errors = 0
                         self._sleep(interval)
                         continue
 
-                    game_data = ra_get_game(username, apikey, last_game_id)
-                    if self._should_stop():
-                        break
-
-                    progress_data = ra_get_user_progress(username, apikey, last_game_id)
-                    if self._should_stop():
-                        break
+                    progress_data = user_data.get("Awarded")
+                    if not isinstance(progress_data, dict):
+                        raise APIResponseError
+                    if str(last_game_id) not in progress_data:
+                        progress_data = ra_get_user_progress(username, apikey, last_game_id)
 
                     game_changed = last_game_id != self._current_game_id
                     if game_changed:
+                        self._game_data = ra_get_game(username, apikey, last_game_id)
                         self._current_game_id = last_game_id
                         if self.rpc_connected:
                             self.start_time = int(time.time())
                         self._seed_playtime_start(username, apikey, last_game_id)
+                    game_data = self._game_data
+                    if self._should_stop():
+                        break
 
 
                     playtime_enabled = self._config_snapshot().get("show_total_playtime", True)
@@ -692,9 +697,8 @@ class RPCWorker:
                 self._sleep(wait)
         finally:
             self._disconnect_rpc()
-            self._current_game_id = None
+            self._clear_game_state()
             self._play_mode = None
-            self._playtime_start = None
             self.set_ra_status(False)
             self._current_thread_done()
             if self._stop_event.is_set():

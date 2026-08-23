@@ -35,6 +35,13 @@ def _summary_payload():
         "LastGameID": 123,
         "RichPresenceMsg": SECRET_RP_TEXT,
         "RichPresenceMsgDate": datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M:%S"),
+        "Awarded": {
+            "123": {
+                "NumPossibleAchievements": 10,
+                "NumAchieved": 4,
+                "NumAchievedHardcore": 3,
+            }
+        },
     }
 
 
@@ -44,16 +51,6 @@ def _game_payload():
         "ConsoleName": "NES",
         "ConsoleID": "7",
         "ImageIcon": "/Images/000123.png",
-    }
-
-
-def _progress_payload():
-    return {
-        "123": {
-            "NumPossibleAchievements": 10,
-            "NumAchieved": 4,
-            "NumAchievedHardcore": 3,
-        }
     }
 
 
@@ -86,10 +83,6 @@ class WorkerLoggingTests(unittest.TestCase):
                 return_value=_summary_payload(),
             ),
             patch("desktop.runtime.worker.ra_get_game", return_value=_game_payload()),
-            patch(
-                "desktop.runtime.worker.ra_get_user_progress",
-                return_value=_progress_payload(),
-            ),
             self.assertLogs("desktop.runtime.worker", level="INFO") as logs,
         ):
             worker._loop()

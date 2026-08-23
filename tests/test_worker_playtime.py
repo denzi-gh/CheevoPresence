@@ -38,6 +38,7 @@ def _summary(game_id=668):
         "RichPresenceMsg": "Playing Level 1",
         "RichPresenceMsgDate": datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M:%S"),
         "RecentAchievements": {},
+        "Awarded": _progress(game_id),
     }
 
 
@@ -86,7 +87,8 @@ class WorkerPlaytimeTests(unittest.TestCase):
         with (
             patch("desktop.runtime.worker.ra_get_user_summary", return_value=_summary()),
             patch("desktop.runtime.worker.ra_get_game", return_value=_game()),
-            patch("desktop.runtime.worker.ra_get_user_progress", return_value=_progress()),
+            # The Awarded block covers the game, so the fallback must not fire.
+            patch("desktop.runtime.worker.ra_get_user_progress", side_effect=[]),
             patch(
                 "desktop.runtime.worker.ra_get_game_info_and_user_progress",
                 side_effect=game_infos,
