@@ -172,15 +172,17 @@ class WorkerPlayModeTests(unittest.TestCase):
         progress_calls.assert_not_called()
 
     def test_missing_awarded_entry_falls_back_to_the_progress_endpoint(self):
-        _worker, updates, _summary_calls, progress_calls, _output = self._run_loop(
-            summaries=[_summary(recent={}, awarded={})],
-            games=[_game()],
-            progresses=[_progress()],
-            stop_after=1,
-        )
+        for awarded in ({}, []):
+            with self.subTest(awarded=awarded):
+                _worker, updates, _summary_calls, progress_calls, _output = self._run_loop(
+                    summaries=[_summary(recent={}, awarded=awarded)],
+                    games=[_game()],
+                    progresses=[_progress()],
+                    stop_after=1,
+                )
 
-        self.assertEqual(1, progress_calls.call_count)
-        self.assertEqual("\U0001F3C6 4/10", updates[0]["state"])
+                self.assertEqual(1, progress_calls.call_count)
+                self.assertEqual("\U0001F3C6 4/10", updates[0]["state"])
 
 
 if __name__ == "__main__":

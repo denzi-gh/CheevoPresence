@@ -552,9 +552,7 @@ class RPCWorker:
                         continue
 
                     progress_data = user_data.get("Awarded")
-                    if not isinstance(progress_data, dict):
-                        raise APIResponseError
-                    if str(last_game_id) not in progress_data:
+                    if not isinstance(progress_data, dict) or str(last_game_id) not in progress_data:
                         progress_data = ra_get_user_progress(username, apikey, last_game_id)
 
                     game_changed = last_game_id != self._current_game_id
