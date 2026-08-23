@@ -24,8 +24,13 @@ def trimmer(text, max_units=128):
 _DEFAULT_CLIENT = RAClient()
 
 
-def ra_get_user_summary(username, apikey):
-    return _DEFAULT_CLIENT.get_user_summary(username, apikey)
+def ra_get_user_summary(username, apikey, recent_games=0, recent_achievements=0):
+    return _DEFAULT_CLIENT.get_user_summary(
+        username,
+        apikey,
+        recent_games=recent_games,
+        recent_achievements=recent_achievements,
+    )
 
 
 def ra_get_user_profile_v2(username, apikey):

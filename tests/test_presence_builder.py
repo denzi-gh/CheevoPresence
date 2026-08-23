@@ -54,7 +54,9 @@ class PresenceBuilderTests(unittest.TestCase):
         self.assertEqual(ActivityType.PLAYING, result.update_kwargs["activity_type"])
         self.assertEqual("Mega Game", result.update_kwargs["name"])
         self.assertEqual("Playing Level 1", result.update_kwargs["details"])
-        self.assertEqual("\U0001F3C6 Softcore", result.update_kwargs["state"])
+        # Without a known play mode the state shows the plain counter, and the
+        # party is suppressed so Discord does not render "4/10 (4 of 10)".
+        self.assertEqual("\U0001F3C6 4/10", result.update_kwargs["state"])
         self.assertEqual(99, result.update_kwargs["start"])
         self.assertEqual(
             "https://media.retroachievements.org/Images/000123.png",
@@ -63,8 +65,8 @@ class PresenceBuilderTests(unittest.TestCase):
         self.assertEqual("4/10 achievements", result.update_kwargs["large_text"])
         self.assertEqual("nes-icon", result.update_kwargs["small_image"])
         self.assertEqual("NES", result.update_kwargs["small_text"])
-        self.assertEqual("ra_123", result.update_kwargs["party_id"])
-        self.assertEqual([4, 10], result.update_kwargs["party_size"])
+        self.assertNotIn("party_id", result.update_kwargs)
+        self.assertNotIn("party_size", result.update_kwargs)
         self.assertEqual(2, result.button_count)
         self.assertEqual("some user's RA Page", result.update_kwargs["buttons"][1]["label"])
         self.assertEqual(
@@ -72,17 +74,32 @@ class PresenceBuilderTests(unittest.TestCase):
             result.update_kwargs["buttons"][1]["url"],
         )
 
-    def test_hardcore_progress_uses_hardcore_count(self):
+    def test_hardcore_play_mode_uses_hardcore_word_and_count(self):
         result = self._builder().build(
             "user",
             123,
             "Playing",
             _game(),
-            _progress(NumAchieved=4, NumAchievedHardcore=4),
+            _progress(NumAchieved=4, NumAchievedHardcore=3),
             1,
+            play_mode="hardcore",
         )
 
         self.assertEqual("\U0001F3C6 Hardcore", result.update_kwargs["state"])
+        self.assertEqual([3, 10], result.update_kwargs["party_size"])
+
+    def test_softcore_play_mode_uses_softcore_word_and_total_unlocks(self):
+        result = self._builder().build(
+            "user",
+            123,
+            "Playing",
+            _game(),
+            _progress(NumAchieved=4, NumAchievedHardcore=3),
+            1,
+            play_mode="softcore",
+        )
+
+        self.assertEqual("\U0001F3C6 Softcore", result.update_kwargs["state"])
         self.assertEqual([4, 10], result.update_kwargs["party_size"])
 
     def test_can_hide_buttons_and_achievement_counter(self):

@@ -32,11 +32,17 @@ class RAClient:
             raise APIResponseError
         return data
 
-    def get_user_summary(self, username, apikey):
+    def get_user_summary(self, username, apikey, recent_games=0, recent_achievements=0):
         no_cache = datetime.now(tz=timezone.utc).strftime("%d%m%Y%H%M%S")
         return self._get_json_dict(
             "API_GetUserSummary.php",
-            {"u": username, "y": apikey, "g": 0, "a": 0, "noCache": no_cache},
+            {
+                "u": username,
+                "y": apikey,
+                "g": recent_games,
+                "a": recent_achievements,
+                "noCache": no_cache,
+            },
         )
 
     def get_game(self, username, apikey, game_id):
