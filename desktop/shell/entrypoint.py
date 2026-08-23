@@ -48,6 +48,7 @@ def run_shell(platform_name, run_app):
         return
 
     log_event(logger, AREA_STARTUP, "single_instance_acquired", mode=mode)
+    platform.cleanup_startup_artifacts()
     controller = AppController(platform=platform)
     run_app(controller, tray_mode=tray_mode)
 

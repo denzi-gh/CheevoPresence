@@ -14,7 +14,7 @@ import time
 from tkinter import messagebox
 
 from desktop.core.constants import APP_NAME
-from desktop.core.log_events import AREA_AUTOSTART, log_event
+from desktop.core.log_events import AREA_AUTOSTART, AREA_UPDATE, log_event
 from desktop.platform.base import PlatformServices
 from desktop.platform.windows_secrets import protect_api_key, unprotect_api_key
 
@@ -213,19 +213,35 @@ def _replace_file_with_retries(source_path, target_path, log_path, attempts=60):
     return False
 
 
-def _spawn_cleanup(cleanup_paths):
-    paths = [path for path in cleanup_paths if path and os.path.isdir(path)]
-    if not paths:
-        return
-    quoted = " & ".join(f'rmdir /s /q "{path}"' for path in paths)
-    subprocess.Popen(
-        [
-            "cmd.exe",
-            "/c",
-            f'ping 127.0.0.1 -n 4 >NUL & {quoted}',
-        ],
-        creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0),
-    )
+def cleanup_stale_update_artifacts(
+    temp_root=None,
+    prefixes=("CheevoPresence-update-", "CheevoPresence-download-"),
+):
+    root = temp_root or tempfile.gettempdir()
+    try:
+        entries = os.listdir(root)
+    except OSError:
+        return 0
+    removed = 0
+    remaining = 0
+    for name in entries:
+        path = os.path.join(root, name)
+        if not name.startswith(tuple(prefixes)) or not os.path.isdir(path):
+            continue
+        shutil.rmtree(path, ignore_errors=True)
+        if os.path.isdir(path):
+            remaining += 1
+        else:
+            removed += 1
+    if removed or remaining:
+        log_event(
+            logger,
+            AREA_UPDATE,
+            "stale_update_artifacts_swept",
+            removed=removed,
+            remaining=remaining,
+        )
+    return removed
 
 
 def _parse_update_helper_args(argv):
@@ -260,7 +276,6 @@ def handle_special_args(argv):
     target_path = options.get("target")
     source_path = options.get("source")
     relaunch_args = _decode_relaunch_args(options.get("relaunch_args"))
-    cleanup_paths = [helper_dir]
     parent_pid = 0
     try:
         parent_pid = int(options.get("parent_pid") or 0)
@@ -277,8 +292,6 @@ def handle_special_args(argv):
 
     replaced = _replace_file_with_retries(source_path, target_path, log_path)
     launch_path = target_path if replaced else source_path
-    if replaced:
-        cleanup_paths.append(os.path.dirname(source_path))
 
     try:
         _append_update_log(log_path, f"Launching {launch_path}")
@@ -289,7 +302,8 @@ def handle_special_args(argv):
     except Exception as exc:  # noqa: BLE001 helper must finish the swap; failure is in the update log
         _append_update_log(log_path, f"Launch failed: {exc}")
 
-    _spawn_cleanup(cleanup_paths)
+    if replaced:
+        shutil.rmtree(os.path.dirname(source_path), ignore_errors=True)
     _append_update_log(log_path, "Helper finished.")
     return True
 
@@ -504,3 +518,10 @@ class WindowsPlatformServices(PlatformServices):
 
     def handle_special_args(self, argv):
         return handle_special_args(argv)
+
+    def cleanup_startup_artifacts(self):
+        threading.Thread(
+            target=cleanup_stale_update_artifacts,
+            daemon=True,
+            name="UpdateArtifactSweep",
+        ).start()

@@ -37,6 +37,28 @@ jobs:
         shell: pwsh
         run: ./build_exe.ps1
 
+      # Temporary Windows Defender scan to scan for false positive. This is a small measure to (hopefully) catch false positives
+      - name: defender scan
+        shell: pwsh
+        run: |
+          $mpCmdRun = Join-Path $env:ProgramFiles "Windows Defender/MpCmdRun.exe"
+          if (-not (Test-Path $mpCmdRun)) {
+            Write-Warning "MpCmdRun.exe not found; skipping Defender scan"
+            exit 0
+          }
+          & $mpCmdRun -SignatureUpdate
+          if ($LASTEXITCODE -ne 0) {
+            Write-Warning "Defender signature update failed (exit $LASTEXITCODE); scanning with the runner's signatures"
+          }
+          & $mpCmdRun -Scan -ScanType 3 -File "$PWD/dist/CheevoPresence.exe" -DisableRemediation
+          if ($LASTEXITCODE -eq 2) {
+            Write-Error "Windows Defender flagged dist/CheevoPresence.exe"
+            exit 1
+          }
+          if ($LASTEXITCODE -ne 0) {
+            Write-Warning "Defender scan did not complete cleanly (exit $LASTEXITCODE)"
+          }
+
       - name: prepare artifact
         shell: pwsh
         run: |
