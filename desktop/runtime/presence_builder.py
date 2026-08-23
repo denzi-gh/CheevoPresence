@@ -8,6 +8,9 @@ from pypresence import ActivityType
 from desktop.core.api import trimmer
 from desktop.core.ra_client import APIResponseError
 
+PLAY_MODE_HARDCORE = "hardcore"
+PLAY_MODE_SOFTCORE = "softcore"
+
 DEVELOPER_ACTIVITY_TITLES = {
     "developing achievements": "Developing RetroAchievements",
     "fixing achievements": "Fixing RetroAchievements",
@@ -36,14 +39,16 @@ def coerce_progress_int(value):
         return 0
 
 
-def build_achievement_state(total, achieved, achieved_hc):
+def build_achievement_state(total, achieved, achieved_hc, play_mode=None):
     if total <= 0:
         return "No achievements available", 0
     if achieved <= 0:
         return "No achievements yet", 0
-    if achieved_hc < achieved:
+    if play_mode == PLAY_MODE_HARDCORE:
+        return "\U0001F3C6 Hardcore", achieved_hc
+    if play_mode == PLAY_MODE_SOFTCORE:
         return "\U0001F3C6 Softcore", achieved
-    return "\U0001F3C6 Hardcore", achieved_hc
+    return f"\U0001F3C6 {achieved}/{total}", achieved
 
 
 def is_developer_activity(rich_presence_message):
@@ -78,7 +83,17 @@ class PresenceBuilder:
         self.config = config
         self.console_icons = console_icons
 
-    def build(self, username, last_game_id, rich_presence_message, game_data, progress_data, start_time):
+    def build(
+        self,
+        username,
+        last_game_id,
+        rich_presence_message,
+        game_data,
+        progress_data,
+        start_time,
+        *,
+        play_mode=None,
+    ):
         game_title = game_data.get("GameTitle", "Unknown")
         if not isinstance(game_title, str):
             raise APIResponseError
@@ -114,10 +129,17 @@ class PresenceBuilder:
             total,
             achieved,
             achieved_hc,
+            play_mode,
         )
 
         show_achievement_progress = self.config.get("show_achievement_progress", True)
-        party = [achievement_count, total] if show_achievement_progress and total > 0 else None
+        # While the mode is unknown the state already shows the counter
+        neutral_counter_state = play_mode is None and total > 0 and achieved > 0
+        party = (
+            [achievement_count, total]
+            if show_achievement_progress and total > 0 and not neutral_counter_state
+            else None
+        )
         if show_achievement_progress and total > 0:
             large_tooltip = f"{achievement_count}/{total} achievements"
         else:

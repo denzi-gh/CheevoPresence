@@ -35,12 +35,48 @@ from desktop.runtime.discord_gateway import (
     is_discord_unavailable_error,
     safe_exception_name,
 )
-from desktop.runtime.presence_builder import PresenceBuilder, coerce_progress_int
+from desktop.runtime.presence_builder import (
+    PLAY_MODE_HARDCORE,
+    PLAY_MODE_SOFTCORE,
+    PresenceBuilder,
+    coerce_progress_int,
+)
 from desktop.runtime.state import MirroredPresence, WorkerState
 from desktop.runtime.storage import load_config, load_console_icons
 
 logger = logging.getLogger(__name__)
 ROLE_REFRESH_INTERVAL_SECONDS = 15 * 60
+
+# GetUserSummary only surfaces achievements from the recently played games
+SUMMARY_RECENT_GAMES = 10
+
+
+def mode_from_summary(user_data):
+    games = user_data.get("RecentAchievements") if isinstance(user_data, dict) else None
+    if not isinstance(games, dict):
+        return None
+    latest = None
+    for achievements in games.values():
+        if not isinstance(achievements, dict):
+            continue
+        for entry in achievements.values():
+            if not isinstance(entry, dict):
+                continue
+            try:
+                date = datetime.strptime(
+                    str(entry.get("DateAwarded", "")),
+                    "%Y-%m-%d %H:%M:%S",
+                ).replace(tzinfo=timezone.utc)
+            except ValueError:
+                continue
+            hardcore = coerce_progress_int(entry.get("HardcoreAchieved", 0))
+            # Tuple order lets the hardcore flag win a samesecond tie
+            candidate = (date, hardcore)
+            if latest is None or candidate > latest:
+                latest = candidate
+    if latest is None:
+        return None
+    return PLAY_MODE_HARDCORE if latest[1] else PLAY_MODE_SOFTCORE
 
 
 class RPCWorker:
@@ -68,6 +104,7 @@ class RPCWorker:
             status_callback=self.status_callback,
         )
         self._current_game_id = None
+        self._play_mode = None
         self.current_status = "disconnected"
         self.status_text = "Not running"
         self.ra_connected = False
@@ -301,6 +338,12 @@ class RPCWorker:
         self.set_ra_status(False)
         self.status_callback("error", "API error: unexpected response")
 
+    def _update_play_mode(self, user_data):
+        mode = mode_from_summary(user_data)
+        if mode != self._play_mode:
+            self._play_mode = mode
+            log_event(logger, AREA_RA, "play_mode_changed", mode=mode)
+
     def _clear_mirrored_presence(self):
         with self._state_lock:
             self.mirrored_presence = None
@@ -406,9 +449,15 @@ class RPCWorker:
 
             while not self._should_stop():
                 try:
-                    user_data = ra_get_user_summary(username, apikey)
+                    user_data = ra_get_user_summary(
+                        username,
+                        apikey,
+                        recent_games=SUMMARY_RECENT_GAMES,
+                        recent_achievements=1,
+                    )
                     if self._should_stop():
                         break
+                    self._update_play_mode(user_data)
 
                     was_ra_connected = self.ra_connected
                     self.set_ra_status(True)
@@ -495,6 +544,7 @@ class RPCWorker:
                         game_data=game_data,
                         progress_data=progress_data,
                         start_time=self.start_time,
+                        play_mode=self._play_mode,
                     )
 
                     if not self._connect_rpc():
@@ -526,6 +576,7 @@ class RPCWorker:
                         console_name=presence.console_name,
                         pipe=self.rpc_pipe,
                         achievements=f"{presence.achievement_count}/{presence.achievement_total}",
+                        mode=self._play_mode,
                         buttons=presence.button_count,
                         developer_activity=presence.developer_activity,
                     )
@@ -609,6 +660,7 @@ class RPCWorker:
         finally:
             self._disconnect_rpc()
             self._current_game_id = None
+            self._play_mode = None
             self.set_ra_status(False)
             self._current_thread_done()
             if self._stop_event.is_set():
