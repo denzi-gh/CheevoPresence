@@ -58,6 +58,9 @@ class PlatformServices:
     def handle_special_args(self, argv):
         return False
 
+    def cleanup_startup_artifacts(self):
+        return None
+
     def open_path(self, path):
         if not path:
             return False
