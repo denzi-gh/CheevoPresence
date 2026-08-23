@@ -359,7 +359,7 @@ def set_autostart(enable):
     try:
         import winreg
 
-        key = winreg.OpenKey(winreg.HKEY_CURRENT_USER, STARTUP_REG_KEY, 0, winreg.KEY_SET_VALUE)
+        key = winreg.CreateKeyEx(winreg.HKEY_CURRENT_USER, STARTUP_REG_KEY, 0, winreg.KEY_SET_VALUE)
         try:
             if enable:
                 exe = get_exe_path()

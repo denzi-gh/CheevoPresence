@@ -1,0 +1,116 @@
+name: smoke
+
+# Source-mode smoke test: launches the real app with --smoke on every OS so
+# bugs that only appear when the actual settings child process runs
+on:
+  pull_request:
+    paths:
+      - "desktop/**"
+      - "launch_windows.py"
+      - "launch_macos.py"
+      - "launch_linux.py"
+      - "requirements/**"
+      - ".github/workflows/smoke.yml"
+
+permissions:
+  contents: read
+
+concurrency:
+  group: smoke-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  smoke:
+    name: smoke (${{ matrix.os }})
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 15
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [windows-latest, macos-latest, ubuntu-22.04]
+
+    steps:
+      - name: checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+
+      - name: setup python
+        if: runner.os != 'Linux'
+        uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7
+        with:
+          python-version: "3.12"
+          cache: pip
+          cache-dependency-path: |
+            requirements/base.txt
+            requirements/windows.txt
+            requirements/macos.txt
+
+      - name: install dependencies (windows)
+        if: runner.os == 'Windows'
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install -r requirements/windows.txt
+
+      - name: install dependencies (macos)
+        if: runner.os == 'macOS'
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install -r requirements/macos.txt
+
+      # The Linux GTK/WebKit stack comes from apt, so the venv must see the
+      # system site-packages (same approach as build_linux.sh).
+      - name: install dependencies (linux)
+        if: runner.os == 'Linux'
+        shell: bash
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y \
+            python3-venv \
+            python3-pip \
+            python3-tk \
+            python3-gi \
+            python3-gi-cairo \
+            gir1.2-gtk-3.0 \
+            gir1.2-webkit2-4.0 \
+            gir1.2-ayatanaappindicator3-0.1 \
+            libayatana-appindicator3-1 \
+            xvfb
+          python3 -m venv --system-site-packages .smoke-venv
+          .smoke-venv/bin/python -m pip install --upgrade pip
+          .smoke-venv/bin/python -m pip install -r requirements/linux.txt
+
+      - name: run smoke (windows)
+        if: runner.os == 'Windows'
+        run: python launch_windows.py --smoke
+
+      - name: run smoke (macos)
+        if: runner.os == 'macOS'
+        run: python launch_macos.py --smoke
+
+      - name: run smoke (linux)
+        if: runner.os == 'Linux'
+        shell: bash
+        run: xvfb-run -a .smoke-venv/bin/python launch_linux.py --smoke
+
+      - name: upload smoke log (windows)
+        if: failure() && runner.os == 'Windows'
+        uses: actions/upload-artifact@v7
+        with:
+          name: smoke-windows-cheevo.log
+          path: ~/AppData/Roaming/CheevoPresence/logs/cheevo.log
+          if-no-files-found: ignore
+
+      - name: upload smoke log (macos)
+        if: failure() && runner.os == 'macOS'
+        uses: actions/upload-artifact@v7
+        with:
+          name: smoke-macos-cheevo.log
+          path: ~/Library/Application Support/CheevoPresence/logs/cheevo.log
+          if-no-files-found: ignore
+
+      - name: upload smoke log (linux)
+        if: failure() && runner.os == 'Linux'
+        uses: actions/upload-artifact@v7
+        with:
+          name: smoke-linux-cheevo.log
+          path: ~/.local/state/CheevoPresence/logs/cheevo.log
+          if-no-files-found: ignore

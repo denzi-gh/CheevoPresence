@@ -9,7 +9,7 @@ so each shell only supplies its own ``run_app`` hook.
 import logging
 import sys
 
-from desktop.core.constants import EXIT_APP_FLAG, TRAY_FLAG
+from desktop.core.constants import EXIT_APP_FLAG, SMOKE_FLAG, TRAY_FLAG
 from desktop.core.log_events import AREA_STARTUP, log_event
 from desktop.platform import get_platform_services
 from desktop.runtime.controller import AppController
@@ -31,6 +31,11 @@ def run_shell(platform_name, run_app):
     setup_logging(platform)
     log_startup_diagnostics(platform)
     log_event(logger, AREA_STARTUP, "entrypoint_started", platform=platform_name, mode=mode)
+
+    if SMOKE_FLAG in sys.argv:
+        from desktop.shell.smoke import run_smoke
+
+        sys.exit(run_smoke(platform_name, platform))
 
     if platform.handle_special_args(sys.argv):
         log_event(logger, AREA_STARTUP, "platform_helper_handled", platform=platform_name)
