@@ -10,6 +10,7 @@ import time
 from desktop.core.constants import (
     LINUX_SETTINGS_CLIENT_FLAG,
     MAC_SETTINGS_CLIENT_FLAG,
+    TRAY_FLAG,
     WINDOWS_SETTINGS_CLIENT_FLAG,
 )
 from desktop.core.log_events import AREA_STARTUP, log_event
@@ -28,14 +29,15 @@ _CLIENT_FLAGS = {
 MIN_ALIVE_SECONDS = 10.0
 MIN_GET_STATE_REQUESTS = 3
 MIN_POLL_SPAN_SECONDS = 3.0
+SECOND_INSTANCE_TIMEOUT_SECONDS = 15.0
 DEFAULT_DEADLINE_SECONDS = 60.0
 
 
-def _settings_command(client_flag):
+def _app_command(flag):
     # Same command shape as the tray/menu-bar hosts use.
     if getattr(sys, "frozen", False):
-        return [sys.executable, client_flag]
-    return [sys.executable, os.path.abspath(sys.argv[0]), client_flag]
+        return [sys.executable, flag]
+    return [sys.executable, os.path.abspath(sys.argv[0]), flag]
 
 
 def _verify_quit_roundtrip(service, quit_event):
@@ -59,6 +61,39 @@ def _verify_quit_roundtrip(service, quit_event):
             "smoke_failed",
             level=logging.ERROR,
             reason="quit_callback_missing",
+        )
+        return False
+    return True
+
+
+def _verify_second_instance_blocked():
+    # While the smoke holds the single-instance lock, a second app process
+    # must back off and exit cleanly
+    probe = subprocess.Popen(_app_command(TRAY_FLAG))
+    try:
+        exit_code = probe.wait(timeout=SECOND_INSTANCE_TIMEOUT_SECONDS)
+    except subprocess.TimeoutExpired:
+        probe.terminate()
+        try:
+            probe.wait(timeout=5)
+        except subprocess.TimeoutExpired:
+            probe.kill()
+        log_event(
+            logger,
+            AREA_STARTUP,
+            "smoke_failed",
+            level=logging.ERROR,
+            reason="second_instance_not_blocked",
+        )
+        return False
+    if exit_code != 0:
+        log_event(
+            logger,
+            AREA_STARTUP,
+            "smoke_failed",
+            level=logging.ERROR,
+            reason="second_instance_crashed",
+            exit_code=exit_code,
         )
         return False
     return True
@@ -89,6 +124,19 @@ def run_smoke(platform_name, platform, deadline_seconds=None):
             with poll_lock:
                 poll_times.append(time.monotonic())
 
+    # Hold the lock ourselves so the second-instance probe has something to
+    # collide with
+    if not platform.acquire_single_instance():
+        log_event(
+            logger,
+            AREA_STARTUP,
+            "smoke_failed",
+            level=logging.ERROR,
+            reason="single_instance_unavailable",
+        )
+        watchdog.cancel()
+        return 1
+
     # No worker start: the smoke test needs no credentials and no Discord.
     controller = AppController(platform=platform)
     quit_event = threading.Event()
@@ -103,7 +151,7 @@ def run_smoke(platform_name, platform, deadline_seconds=None):
         env = os.environ.copy()
         env.update(service.get_launch_env())
         env[SETTINGS_UI_ENV] = "native"
-        child = subprocess.Popen(_settings_command(_CLIENT_FLAGS[platform_name]), env=env)
+        child = subprocess.Popen(_app_command(_CLIENT_FLAGS[platform_name]), env=env)
         log_event(logger, AREA_STARTUP, "smoke_child_started", pid=child.pid)
 
         started = time.monotonic()
@@ -127,6 +175,8 @@ def run_smoke(platform_name, platform, deadline_seconds=None):
                 and polls[-1] - polls[0] >= MIN_POLL_SPAN_SECONDS
             ):
                 if not _verify_quit_roundtrip(service, quit_event):
+                    return 1
+                if not _verify_second_instance_blocked():
                     return 1
                 log_event(
                     logger,
