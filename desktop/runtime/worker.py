@@ -11,6 +11,7 @@ from pypresence import Presence
 from desktop.core.api import (
     format_api_error,
     ra_get_game,
+    ra_get_game_info_and_user_progress,
     ra_get_user_profile_v2,
     ra_get_user_progress,
     ra_get_user_summary,
@@ -104,7 +105,9 @@ class RPCWorker:
             status_callback=self.status_callback,
         )
         self._current_game_id = None
+        self._game_data = None
         self._play_mode = None
+        self._playtime_start = None
         self.current_status = "disconnected"
         self.status_text = "Not running"
         self.ra_connected = False
@@ -283,7 +286,7 @@ class RPCWorker:
             if not self.running and not (thread and thread.is_alive()):
                 log_event(logger, AREA_WORKER, "stop_skipped", reason="already_stopped")
                 self._disconnect_rpc()
-                self._current_game_id = None
+                self._clear_game_state()
                 self.set_ra_status(False)
                 self.status_callback("disconnected", "Stopped")
                 return True
@@ -338,11 +341,37 @@ class RPCWorker:
         self.set_ra_status(False)
         self.status_callback("error", "API error: unexpected response")
 
+    def _clear_game_state(self):
+        self._current_game_id = None
+        self._game_data = None
+        self._playtime_start = None
+
     def _update_play_mode(self, user_data):
         mode = mode_from_summary(user_data)
         if mode != self._play_mode:
             self._play_mode = mode
             log_event(logger, AREA_RA, "play_mode_changed", mode=mode)
+
+    def _seed_playtime_start(self, username, apikey, game_id):
+        # Backdates Discord's elapsed timer to the user's total playtime for the game
+        self._playtime_start = None
+        if not self._config_snapshot().get("show_total_playtime", True):
+            return
+        try:
+            payload = ra_get_game_info_and_user_progress(username, apikey, game_id)
+        except (requests.RequestException, APIResponseError) as exc:
+            log_event(
+                logger,
+                AREA_RA,
+                "playtime_seed_failed",
+                level=logging.WARNING,
+                error_type=exc.__class__.__name__,
+            )
+            return
+        playtime = coerce_progress_int(payload.get("UserTotalPlaytime", 0))
+        if playtime > 0:
+            self._playtime_start = int(time.time()) - playtime
+            log_event(logger, AREA_RA, "playtime_seeded", playtime_sec=playtime)
 
     def _clear_mirrored_presence(self):
         with self._state_lock:
@@ -485,7 +514,7 @@ class RPCWorker:
                         if self.status_text != "Not playing":
                             log_event(logger, AREA_RA, "no_game_detected")
                         self._disconnect_rpc()
-                        self._current_game_id = None
+                        self._clear_game_state()
                         self.status_callback("disconnected", "Not playing")
                         consecutive_errors = 0
                         self._sleep(interval)
@@ -516,25 +545,32 @@ class RPCWorker:
                                 timeout_sec=timeout_sec,
                             )
                         self._disconnect_rpc()
-                        self._current_game_id = None
+                        self._clear_game_state()
                         self.status_callback("disconnected", "Not actively playing")
                         consecutive_errors = 0
                         self._sleep(interval)
                         continue
 
-                    game_data = ra_get_game(username, apikey, last_game_id)
-                    if self._should_stop():
-                        break
-
-                    progress_data = ra_get_user_progress(username, apikey, last_game_id)
-                    if self._should_stop():
-                        break
+                    progress_data = user_data.get("Awarded")
+                    if not isinstance(progress_data, dict) or str(last_game_id) not in progress_data:
+                        progress_data = ra_get_user_progress(username, apikey, last_game_id)
 
                     game_changed = last_game_id != self._current_game_id
                     if game_changed:
+                        self._game_data = ra_get_game(username, apikey, last_game_id)
                         self._current_game_id = last_game_id
                         if self.rpc_connected:
                             self.start_time = int(time.time())
+                        self._seed_playtime_start(username, apikey, last_game_id)
+                    game_data = self._game_data
+                    if self._should_stop():
+                        break
+
+
+                    playtime_enabled = self._config_snapshot().get("show_total_playtime", True)
+                    start_time = (
+                        self._playtime_start if playtime_enabled else None
+                    ) or self.start_time
 
                     presence_builder = self._presence_builder()
                     presence = presence_builder.build(
@@ -543,7 +579,7 @@ class RPCWorker:
                         rich_presence_message=rp_msg,
                         game_data=game_data,
                         progress_data=progress_data,
-                        start_time=self.start_time,
+                        start_time=start_time,
                         play_mode=self._play_mode,
                     )
 
@@ -659,7 +695,7 @@ class RPCWorker:
                 self._sleep(wait)
         finally:
             self._disconnect_rpc()
-            self._current_game_id = None
+            self._clear_game_state()
             self._play_mode = None
             self.set_ra_status(False)
             self._current_thread_done()

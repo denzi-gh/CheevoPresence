@@ -10,6 +10,7 @@ _BOOL_FIELDS = (
     "show_profile_button",
     "show_gamepage_button",
     "show_achievement_progress",
+    "show_total_playtime",
     "dev_mode",
     "use_retroachievements_developer_titles",
     "show_developer_sets_button",
@@ -45,6 +46,7 @@ class AppConfig:
     show_profile_button: bool = True
     show_gamepage_button: bool = True
     show_achievement_progress: bool = True
+    show_total_playtime: bool = True
     dev_mode: bool = False
     use_retroachievements_developer_titles: bool = True
     show_developer_sets_button: bool = True

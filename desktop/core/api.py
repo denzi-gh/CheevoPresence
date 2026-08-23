@@ -45,6 +45,10 @@ def ra_get_user_progress(username, apikey, game_id):
     return _DEFAULT_CLIENT.get_user_progress(username, apikey, game_id)
 
 
+def ra_get_game_info_and_user_progress(username, apikey, game_id):
+    return _DEFAULT_CLIENT.get_game_info_and_user_progress(username, apikey, game_id)
+
+
 def format_api_error(exc):
     if isinstance(exc, requests.Timeout):
         return "API error: request timed out"
