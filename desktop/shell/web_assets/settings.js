@@ -11,11 +11,12 @@ function bindElements() {
   var ids = [
     "usernameInput", "usernameCheck", "apikeyInput", "revealKey",
     "intervalInput", "timeoutInput",
-    "profileCheck", "gamepageCheck", "achievementCheck", "playtimeCheck", "bootCheck",
+    "profileCheck", "gamepageCheck", "achievementCheck", "playtimeCheck",
+    "consoleNameCheck", "gameTypeCheck", "bootCheck",
     "devActivityCheck", "devSetsCheck",
     "discordDot", "discordStatus", "raDot", "raStatus",
     "roleBadge", "roleIcon", "roleLabel",
-    "behaviourNotice", "radevNotice",
+    "behaviourScreen", "behaviourNotice", "radevScreen", "radevNotice",
     "devBanner", "roleBadgeDev", "roleIconDev", "roleLabelDev",
     "mirrorCard", "mirrorIconImg", "mirrorIconFallback",
     "mirrorTitle", "mirrorDetails", "mirrorSub", "mirrorActions",
@@ -97,6 +98,8 @@ function formPayload() {
     show_gamepage_button: els.gamepageCheck.checked,
     show_achievement_progress: els.achievementCheck.checked,
     show_total_playtime: els.playtimeCheck.checked,
+    show_console_name_in_title: els.consoleNameCheck.checked,
+    strip_game_type_from_title: els.gameTypeCheck.checked,
     start_on_boot: els.bootCheck.checked,
     use_retroachievements_developer_titles: els.devActivityCheck.checked,
     show_developer_sets_button: els.devSetsCheck.checked
@@ -113,6 +116,8 @@ function applyConfig(config) {
   els.gamepageCheck.checked = !!config.show_gamepage_button;
   els.achievementCheck.checked = !!config.show_achievement_progress;
   els.playtimeCheck.checked = !!config.show_total_playtime;
+  els.consoleNameCheck.checked = !!config.show_console_name_in_title;
+  els.gameTypeCheck.checked = !!config.strip_game_type_from_title;
   els.bootCheck.checked = !!config.start_on_boot;
   els.devActivityCheck.checked = !!config.use_retroachievements_developer_titles;
   els.devSetsCheck.checked = !!config.show_developer_sets_button;
@@ -145,9 +150,12 @@ function setControlsEnabled(state) {
   var worker = state.worker || {};
   var generalEnabled = !worker.is_busy && !state.is_connecting;
   var devEnabled = !!state.developer_settings_unlocked && generalEnabled;
+  els.behaviourScreen.classList.toggle("settings-disabled", !generalEnabled);
+  els.radevScreen.classList.toggle("settings-disabled", !devEnabled);
   var inputs = [
     els.usernameInput, els.apikeyInput, els.intervalInput, els.timeoutInput,
-    els.profileCheck, els.gamepageCheck, els.achievementCheck, els.playtimeCheck, els.bootCheck
+    els.profileCheck, els.gamepageCheck, els.achievementCheck, els.playtimeCheck,
+    els.consoleNameCheck, els.gameTypeCheck, els.bootCheck
   ];
   for (var i = 0; i < inputs.length; i += 1) { inputs[i].disabled = !generalEnabled; }
   els.devActivityCheck.disabled = !devEnabled;
@@ -445,7 +453,8 @@ function bindEvents() {
 
   var autosaveInputs = [
     els.intervalInput, els.timeoutInput, els.profileCheck, els.gamepageCheck,
-    els.achievementCheck, els.playtimeCheck, els.bootCheck, els.devActivityCheck, els.devSetsCheck
+    els.achievementCheck, els.playtimeCheck, els.consoleNameCheck, els.gameTypeCheck,
+    els.bootCheck, els.devActivityCheck, els.devSetsCheck
   ];
   for (i = 0; i < autosaveInputs.length; i += 1) {
     autosaveInputs[i].addEventListener("change", scheduleSave);

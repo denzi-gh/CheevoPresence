@@ -295,6 +295,18 @@ class WebSettingsAPI:
                     base.get("show_total_playtime", True),
                 )
             ),
+            "show_console_name_in_title": bool(
+                visible.get(
+                    "show_console_name_in_title",
+                    base.get("show_console_name_in_title", False),
+                )
+            ),
+            "strip_game_type_from_title": bool(
+                visible.get(
+                    "strip_game_type_from_title",
+                    base.get("strip_game_type_from_title", False),
+                )
+            ),
             "dev_mode": bool(base.get("dev_mode", False)),
             "use_retroachievements_developer_titles": bool(developer_titles),
             "show_developer_sets_button": bool(developer_sets_button),

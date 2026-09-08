@@ -1,5 +1,6 @@
 """Build Discord Rich Presence payloads from RetroAchievements data."""
 
+import re
 from dataclasses import dataclass
 from urllib.parse import quote
 
@@ -17,6 +18,7 @@ DEVELOPER_ACTIVITY_TITLES = {
     "inspecting memory": "Inspecting Memory for RetroAchievements",
 }
 DEVELOPER_ACTIVITY_MESSAGES = frozenset(DEVELOPER_ACTIVITY_TITLES)
+GAME_TYPE_PREFIX_PATTERN = re.compile(r"^(?:~[^~\r\n]+~\s*)+")
 
 
 @dataclass(frozen=True)
@@ -67,6 +69,18 @@ def build_display_game_title(game_title, developer_activity):
     return game_title
 
 
+def strip_game_type_prefix(game_title):
+    """Remove RetroAchievements' leading ``~Type~`` title markers."""
+    stripped = GAME_TYPE_PREFIX_PATTERN.sub("", game_title).lstrip()
+    return stripped or game_title
+
+
+def format_game_title(game_title, console_name, show_console_name):
+    if show_console_name:
+        return f"{game_title} ({console_name})"
+    return game_title
+
+
 def build_activity_fields(game_title, rich_presence_message, use_developer_titles):
     developer_key = _normalize_developer_activity(rich_presence_message)
     developer_activity = developer_key in DEVELOPER_ACTIVITY_MESSAGES
@@ -98,15 +112,22 @@ class PresenceBuilder:
         if not isinstance(game_title, str):
             raise APIResponseError
 
-        display_name, details, developer_activity = build_activity_fields(
-            game_title,
-            rich_presence_message,
-            self.config.get("use_retroachievements_developer_titles", True),
-        )
-
         console_name = game_data.get("ConsoleName", "Unknown")
         if not isinstance(console_name, str):
             raise APIResponseError
+
+        if self.config.get("strip_game_type_from_title", False):
+            game_title = strip_game_type_prefix(game_title)
+        activity_game_title = format_game_title(
+            game_title,
+            console_name,
+            show_console_name=self.config.get("show_console_name_in_title", False),
+        )
+        display_name, details, developer_activity = build_activity_fields(
+            activity_game_title,
+            rich_presence_message,
+            self.config.get("use_retroachievements_developer_titles", True),
+        )
 
         console_id = str(game_data.get("ConsoleID", "0"))
         image_icon = game_data.get("ImageIcon", "")
