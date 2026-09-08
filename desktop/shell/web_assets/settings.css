@@ -326,6 +326,52 @@ button, input, select { font-family: inherit; }
 .number-row input::-webkit-inner-spin-button,
 .number-row input::-webkit-outer-spin-button { margin: 0; appearance: none; }
 
+/* Behaviour */
+.behaviour-scroll {
+  margin-top: 18px;
+  margin-right: -8px;
+  padding-right: 8px;
+}
+.behaviour-layout { display: flex; flex-direction: column; gap: 14px; padding-bottom: 4px; }
+.behaviour-columns {
+  display: grid;
+  grid-template-columns: minmax(0, 1.08fr) minmax(0, .92fr);
+  align-items: start;
+  gap: 14px;
+}
+.behaviour-stack { display: flex; flex-direction: column; gap: 14px; }
+.settings-card {
+  min-width: 0;
+  overflow: hidden;
+  border: 1px solid #2e313a;
+  border-radius: 10px;
+  background: #20222a;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, .3);
+}
+.settings-card-head {
+  display: flex;
+  align-items: flex-start;
+  gap: 9px;
+  padding: 10px 14px 9px;
+  border-bottom: 1px solid #2e313a;
+  background: linear-gradient(180deg, rgba(255, 255, 255, .018), transparent);
+}
+.settings-card-title,
+.settings-card-sub { display: block; }
+.settings-card-title { color: #f0f1f3; font-size: 13px; font-weight: 700; }
+.settings-card-sub { margin-top: 2px; color: #7f848d; font-size: 11.5px; line-height: 1.2; }
+.timing-fields { margin-top: 0; padding: 10px 14px 12px; }
+.timing-fields .field { flex: 1; min-width: 0; }
+.timing-fields input { height: 36px; padding-top: 8px; padding-bottom: 8px; }
+.settings-card-options .toggle-row { padding: 10px 14px; }
+.settings-card-options .tr-main { min-width: 0; }
+.settings-card-options .tr-title { font-size: 12.5px; }
+.settings-card-options .tr-sub { line-height: 1.25; }
+
+@media (max-width: 680px) {
+  .behaviour-columns { grid-template-columns: 1fr; }
+}
+
 .username-wrap { position: relative; display: block; }
 .username-check {
   position: absolute; top: 50%; right: 11px; transform: translateY(-50%);
@@ -374,6 +420,7 @@ button, input, select { font-family: inherit; }
 }
 .toggle-row input:checked + .switch { background: #d99f2b; }
 .toggle-row input:checked + .switch::after { left: 18px; }
+.toggle-row input:focus-visible + .switch { box-shadow: 0 0 0 3px rgba(217, 159, 43, .2); }
 .toggle-row input:disabled + .switch { opacity: .6; }
 
 .screen-foot { display: flex; align-items: center; flex: 0 0 auto; padding-top: 20px; gap: 12px; }

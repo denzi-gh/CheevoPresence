@@ -123,49 +123,78 @@
       <section class="screen" data-screen="behaviour">
         <div class="screen-head"><div><h1>Behaviour</h1><p>How presence updates and what Discord shows</p></div><span class="locked-notice hidden" id="behaviourNotice">Disconnect to edit settings</span></div>
 
-        <div class="screen-scroll">
-        <div class="number-row">
-          <label class="field"><span>Poll Interval (s)</span><input id="intervalInput" type="number" min="5" max="120" step="1"></label>
-          <label class="field"><span>Timeout (s)</span><input id="timeoutInput" type="number" min="0" max="3600" step="10"></label>
-        </div>
+        <div class="screen-scroll behaviour-scroll">
+          <div class="behaviour-layout">
+            <section class="settings-card timing-card">
+              <div class="settings-card-head">
+                <span class="settings-card-title">Activity timing</span>
+              </div>
+              <div class="number-row timing-fields">
+                <label class="field"><span>Poll interval (seconds)</span><input id="intervalInput" type="number" min="5" max="120" step="1"></label>
+                <label class="field"><span>Inactive timeout (seconds)</span><input id="timeoutInput" type="number" min="0" max="3600" step="10"></label>
+              </div>
+            </section>
 
-        <div class="toggles">
-          <label class="toggle-row tall"><span class="tr-main">
-              <span class="tr-title">Show profile button</span>
-              <span class="tr-sub">Adds a button linking to your RA profile</span>
-            </span>
-            <input id="profileCheck" type="checkbox"><span class="switch"></span></label>
-          <label class="toggle-row tall"><span class="tr-main">
-              <span class="tr-title">Show game page button</span>
-              <span class="tr-sub">Adds a button linking to the game's RA page</span>
-            </span>
-            <input id="gamepageCheck" type="checkbox"><span class="switch"></span></label>
-          <label class="toggle-row tall"><span class="tr-main">
-              <span class="tr-title">Show achievement counter</span>
-              <span class="tr-sub">Shows your progress in the presence</span>
-            </span>
-            <input id="achievementCheck" type="checkbox"><span class="switch"></span></label>
-          <label class="toggle-row tall"><span class="tr-main">
-              <span class="tr-title">Show total playtime</span>
-              <span class="tr-sub">Discord's timer starts at your total playtime for the game on RetroAchievements</span>
-            </span>
-            <input id="playtimeCheck" type="checkbox"><span class="switch"></span></label>
-          <label class="toggle-row tall"><span class="tr-main">
-              <span class="tr-title">Show console name in game title</span>
-              <span class="tr-sub">Displays titles like Mario Kart Wii (Wii)</span>
-            </span>
-            <input id="consoleNameCheck" type="checkbox"><span class="switch"></span></label>
-          <label class="toggle-row tall"><span class="tr-main">
-              <span class="tr-title">Hide game type from title</span>
-              <span class="tr-sub">Removes prefixes such as ~Hack~ and ~Homebrew~</span>
-            </span>
-            <input id="gameTypeCheck" type="checkbox"><span class="switch"></span></label>
-          <label class="toggle-row tall"><span class="tr-main">
-              <span class="tr-title">Start on boot</span>
-              <span class="tr-sub">Launches CheevoPresence when you log in</span>
-            </span>
-            <input id="bootCheck" type="checkbox"><span class="switch"></span></label>
-        </div>
+            <div class="behaviour-columns">
+              <section class="settings-card">
+                <div class="settings-card-head">
+                  <span class="settings-card-title">Presence</span>
+                </div>
+                <div class="settings-card-options">
+                  <label class="toggle-row"><span class="tr-main">
+                      <span class="tr-title">Achievement counter</span>
+                      <span class="tr-sub">Show progress toward the game's achievements</span>
+                    </span>
+                    <input id="achievementCheck" type="checkbox"><span class="switch"></span></label>
+                  <label class="toggle-row"><span class="tr-main">
+                      <span class="tr-title">Total playtime</span>
+                      <span class="tr-sub">Discord's timer starts at your total playtime for the current game</span>
+                    </span>
+                    <input id="playtimeCheck" type="checkbox"><span class="switch"></span></label>
+                  <label class="toggle-row"><span class="tr-main">
+                      <span class="tr-title">Console in game title</span>
+                      <span class="tr-sub">Append the platform, for example (Wii)</span>
+                    </span>
+                    <input id="consoleNameCheck" type="checkbox"><span class="switch"></span></label>
+                  <label class="toggle-row"><span class="tr-main">
+                      <span class="tr-title">Hide game type</span>
+                      <span class="tr-sub">Remove prefixes like ~Hack~ or ~Homebrew~</span>
+                    </span>
+                    <input id="gameTypeCheck" type="checkbox"><span class="switch"></span></label>
+                </div>
+              </section>
+
+              <div class="behaviour-stack">
+                <section class="settings-card">
+                  <div class="settings-card-head">
+                    <span class="settings-card-title">Discord buttons</span>
+                  </div>
+                  <div class="settings-card-options">
+                    <label class="toggle-row"><span class="tr-main">
+                        <span class="tr-title">Profile button</span>
+                        <span class="tr-sub">Opens your RA profile</span>
+                      </span>
+                      <input id="profileCheck" type="checkbox"><span class="switch"></span></label>
+                    <label class="toggle-row"><span class="tr-main">
+                        <span class="tr-title">Game page button</span>
+                        <span class="tr-sub">Opens the current game on RA</span>
+                      </span>
+                      <input id="gamepageCheck" type="checkbox"><span class="switch"></span></label>
+                  </div>
+                </section>
+
+                <section class="settings-card">
+                  <div class="settings-card-options">
+                    <label class="toggle-row"><span class="tr-main">
+                        <span class="tr-title">Start on boot</span>
+                        <span class="tr-sub">Run after you sign in</span>
+                      </span>
+                      <input id="bootCheck" type="checkbox"><span class="switch"></span></label>
+                  </div>
+                </section>
+              </div>
+            </div>
+          </div>
         </div>
       </section>
 
