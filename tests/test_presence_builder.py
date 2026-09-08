@@ -223,6 +223,55 @@ class PresenceBuilderTests(unittest.TestCase):
         self.assertEqual("Mega Game", result.update_kwargs["name"])
         self.assertEqual("Playing Level 2", result.update_kwargs["details"])
 
+    def test_can_show_console_name_in_game_title(self):
+        result = self._builder(show_console_name_in_title=True).build(
+            "user",
+            123,
+            "Playing Level 2",
+            _game(GameTitle="Mario Kart Wii", ConsoleName="Wii"),
+            _progress(),
+            1,
+        )
+
+        self.assertEqual("Mario Kart Wii (Wii)", result.update_kwargs["name"])
+        self.assertEqual("Mario Kart Wii", result.game_title)
+
+    def test_can_strip_game_type_prefix_from_title(self):
+        for raw_title, expected in (
+            ("~Hack~ Newer: Falling Leaf", "Newer: Falling Leaf"),
+            ("~Homebrew~ My Game", "My Game"),
+            ("~Prototype~ ~Demo~ Test Game", "Test Game"),
+        ):
+            with self.subTest(raw_title=raw_title):
+                result = self._builder(strip_game_type_from_title=True).build(
+                    "user",
+                    123,
+                    "Playing",
+                    _game(GameTitle=raw_title),
+                    _progress(),
+                    1,
+                )
+
+                self.assertEqual(expected, result.update_kwargs["name"])
+                self.assertEqual(expected, result.game_title)
+
+    def test_game_title_options_apply_to_developer_activity_details(self):
+        result = self._builder(
+            show_console_name_in_title=True,
+            strip_game_type_from_title=True,
+        ).build(
+            "user",
+            123,
+            "Developing Achievements",
+            _game(GameTitle="~Hack~ Newer: Falling Leaf", ConsoleName="Wii"),
+            _progress(),
+            1,
+        )
+
+        self.assertEqual("Developing RetroAchievements", result.update_kwargs["name"])
+        self.assertEqual("Newer: Falling Leaf (Wii)", result.update_kwargs["details"])
+        self.assertEqual("Newer: Falling Leaf", result.game_title)
+
     def test_rejects_unexpected_payload_shapes(self):
         with self.assertRaises(APIResponseError):
             self._builder().build("user", 123, "Playing", _game(GameTitle=123), _progress(), 1)

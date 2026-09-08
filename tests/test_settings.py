@@ -4,6 +4,23 @@ from desktop.core.settings import normalize_config
 
 
 class SettingsTests(unittest.TestCase):
+    def test_game_title_options_default_to_disabled_when_missing(self):
+        cfg = normalize_config({})
+
+        self.assertFalse(cfg["show_console_name_in_title"])
+        self.assertFalse(cfg["strip_game_type_from_title"])
+
+    def test_game_title_options_accept_string_values(self):
+        cfg = normalize_config(
+            {
+                "show_console_name_in_title": "on",
+                "strip_game_type_from_title": "yes",
+            }
+        )
+
+        self.assertTrue(cfg["show_console_name_in_title"])
+        self.assertTrue(cfg["strip_game_type_from_title"])
+
     def test_dev_mode_defaults_to_disabled_when_missing(self):
         cfg = normalize_config({})
 

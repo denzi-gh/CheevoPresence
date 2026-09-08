@@ -123,6 +123,7 @@
       <section class="screen" data-screen="behaviour">
         <div class="screen-head"><div><h1>Behaviour</h1><p>How presence updates and what Discord shows</p></div><span class="locked-notice hidden" id="behaviourNotice">Disconnect to edit settings</span></div>
 
+        <div class="screen-scroll">
         <div class="number-row">
           <label class="field"><span>Poll Interval (s)</span><input id="intervalInput" type="number" min="5" max="120" step="1"></label>
           <label class="field"><span>Timeout (s)</span><input id="timeoutInput" type="number" min="0" max="3600" step="10"></label>
@@ -150,10 +151,21 @@
             </span>
             <input id="playtimeCheck" type="checkbox"><span class="switch"></span></label>
           <label class="toggle-row tall"><span class="tr-main">
+              <span class="tr-title">Show console name in game title</span>
+              <span class="tr-sub">Displays titles like Mario Kart Wii (Wii)</span>
+            </span>
+            <input id="consoleNameCheck" type="checkbox"><span class="switch"></span></label>
+          <label class="toggle-row tall"><span class="tr-main">
+              <span class="tr-title">Hide game type from title</span>
+              <span class="tr-sub">Removes prefixes such as ~Hack~ and ~Homebrew~</span>
+            </span>
+            <input id="gameTypeCheck" type="checkbox"><span class="switch"></span></label>
+          <label class="toggle-row tall"><span class="tr-main">
               <span class="tr-title">Start on boot</span>
               <span class="tr-sub">Launches CheevoPresence when you log in</span>
             </span>
             <input id="bootCheck" type="checkbox"><span class="switch"></span></label>
+        </div>
         </div>
       </section>
 

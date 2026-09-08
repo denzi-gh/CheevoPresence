@@ -110,6 +110,8 @@ class WebSettingsTests(unittest.TestCase):
                 "show_profile_button": False,
                 "show_gamepage_button": True,
                 "show_achievement_progress": True,
+                "show_console_name_in_title": False,
+                "strip_game_type_from_title": False,
                 "dev_mode": True,
                 "use_retroachievements_developer_titles": False,
                 "show_developer_sets_button": False,
@@ -129,6 +131,8 @@ class WebSettingsTests(unittest.TestCase):
                 "show_gamepage_button": False,
                 "show_achievement_progress": False,
                 "show_total_playtime": False,
+                "show_console_name_in_title": True,
+                "strip_game_type_from_title": True,
                 "dev_mode": False,
                 "interval": 10,
                 "timeout": 260,
@@ -138,6 +142,8 @@ class WebSettingsTests(unittest.TestCase):
         self.assertTrue(result["success"])
         self.assertEqual("new-user", controller.connected_config["username"])
         self.assertFalse(controller.connected_config["show_total_playtime"])
+        self.assertTrue(controller.connected_config["show_console_name_in_title"])
+        self.assertTrue(controller.connected_config["strip_game_type_from_title"])
         self.assertTrue(controller.connected_config["start_on_boot"])
         self.assertFalse(
             controller.connected_config["use_retroachievements_developer_titles"]
@@ -152,6 +158,8 @@ class WebSettingsTests(unittest.TestCase):
                 "show_profile_button": True,
                 "show_gamepage_button": True,
                 "show_achievement_progress": True,
+                "show_console_name_in_title": False,
+                "strip_game_type_from_title": False,
                 "dev_mode": True,
                 "use_retroachievements_developer_titles": True,
                 "show_developer_sets_button": True,
@@ -172,6 +180,8 @@ class WebSettingsTests(unittest.TestCase):
                     "show_profile_button": False,
                     "show_gamepage_button": True,
                     "show_achievement_progress": False,
+                    "show_console_name_in_title": True,
+                    "strip_game_type_from_title": True,
                     "use_retroachievements_developer_titles": False,
                     "show_developer_sets_button": False,
                     "interval": 15,
@@ -186,6 +196,8 @@ class WebSettingsTests(unittest.TestCase):
         self.assertIsNone(controller.connected_config)
         self.assertEqual("new-user", controller.saved_config["username"])
         self.assertTrue(controller.saved_config["start_on_boot"])
+        self.assertTrue(controller.saved_config["show_console_name_in_title"])
+        self.assertTrue(controller.saved_config["strip_game_type_from_title"])
         self.assertFalse(
             controller.saved_config["use_retroachievements_developer_titles"]
         )
@@ -561,6 +573,15 @@ class SettingsServerTests(unittest.TestCase):
                 status, body = self._send("GET", path)
                 self.assertEqual(404, status)
                 self.assertNotIn(self.token, body)
+
+    def test_page_contains_game_title_option_controls(self):
+        status, body = self._send("GET", f"/settings?k={self.token}")
+
+        self.assertEqual(200, status)
+        self.assertIn('id="consoleNameCheck"', body)
+        self.assertIn('id="gameTypeCheck"', body)
+        self.assertIn("show_console_name_in_title", body)
+        self.assertIn("strip_game_type_from_title", body)
 
     def test_foreign_host_or_origin_is_rejected(self):
         status, body = self._send("GET", f"/settings?k={self.token}", host="cheevo.example")

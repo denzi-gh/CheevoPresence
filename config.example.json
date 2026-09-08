@@ -5,6 +5,8 @@
   "show_gamepage_button": true,
   "show_achievement_progress": true,
   "show_total_playtime": true,
+  "show_console_name_in_title": false,
+  "strip_game_type_from_title": true,
   "dev_mode": false,
   "use_retroachievements_developer_titles": true,
   "interval": 5,
