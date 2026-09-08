@@ -176,9 +176,15 @@ button, input, select { font-family: inherit; }
 }
 .screen-head p { margin: 4px 0 0; color: #8b9099; font-size: 13px; font-weight: 400; }
 .locked-notice {
-  align-self: flex-start; margin-left: auto; padding: 4px 10px;
-  border: 1px solid #2e313a; border-radius: 6px; background: #20222a;
-  color: #6b7079; font-size: 11px; font-weight: 500; white-space: nowrap;
+  display: inline-flex;
+  align-items: center;
+  align-self: flex-start;
+  margin-left: auto;
+  padding: 5px 0;
+  color: #efc66b;
+  font-size: 11px;
+  font-weight: 600;
+  white-space: nowrap;
 }
 
 .section-label {
@@ -333,6 +339,12 @@ button, input, select { font-family: inherit; }
   padding-right: 8px;
 }
 .behaviour-layout { display: flex; flex-direction: column; gap: 14px; padding-bottom: 4px; }
+.settings-disabled .behaviour-layout,
+.settings-disabled > .toggles {
+  opacity: .52;
+  filter: saturate(.55);
+  transition: opacity .15s ease, filter .15s ease;
+}
 .behaviour-columns {
   display: grid;
   grid-template-columns: minmax(0, 1.08fr) minmax(0, .92fr);

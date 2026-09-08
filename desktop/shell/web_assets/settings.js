@@ -16,7 +16,7 @@ function bindElements() {
     "devActivityCheck", "devSetsCheck",
     "discordDot", "discordStatus", "raDot", "raStatus",
     "roleBadge", "roleIcon", "roleLabel",
-    "behaviourNotice", "radevNotice",
+    "behaviourScreen", "behaviourNotice", "radevScreen", "radevNotice",
     "devBanner", "roleBadgeDev", "roleIconDev", "roleLabelDev",
     "mirrorCard", "mirrorIconImg", "mirrorIconFallback",
     "mirrorTitle", "mirrorDetails", "mirrorSub", "mirrorActions",
@@ -150,6 +150,8 @@ function setControlsEnabled(state) {
   var worker = state.worker || {};
   var generalEnabled = !worker.is_busy && !state.is_connecting;
   var devEnabled = !!state.developer_settings_unlocked && generalEnabled;
+  els.behaviourScreen.classList.toggle("settings-disabled", !generalEnabled);
+  els.radevScreen.classList.toggle("settings-disabled", !devEnabled);
   var inputs = [
     els.usernameInput, els.apikeyInput, els.intervalInput, els.timeoutInput,
     els.profileCheck, els.gamepageCheck, els.achievementCheck, els.playtimeCheck,
