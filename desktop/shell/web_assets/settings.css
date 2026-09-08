@@ -348,6 +348,7 @@ button, input, select { font-family: inherit; }
   background: #20222a;
   box-shadow: 0 1px 2px rgba(0, 0, 0, .3);
 }
+.timing-card { overflow: visible; }
 .settings-card-head {
   display: flex;
   align-items: flex-start;
@@ -363,6 +364,95 @@ button, input, select { font-family: inherit; }
 .timing-fields { margin-top: 0; padding: 10px 14px 12px; }
 .timing-fields .field { flex: 1; min-width: 0; }
 .timing-fields input { height: 36px; padding-top: 8px; padding-bottom: 8px; }
+.timing-label {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-bottom: 7px;
+  color: #8b9099;
+  font-size: 12px;
+  font-weight: 600;
+}
+.info-tip {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 15px;
+  height: 15px;
+  flex: 0 0 15px;
+  padding: 0;
+  border: 1px solid #555a63;
+  border-radius: 3px;
+  outline: none;
+  background: transparent;
+  color: #9ba0a8;
+  cursor: help;
+}
+.info-tip:hover,
+.info-tip:focus-visible { border-color: #d99f2b; color: #e0a93c; }
+.info-glyph {
+  display: block;
+  width: 10px;
+  height: 10px;
+  overflow: visible;
+  fill: currentColor;
+  stroke: currentColor;
+  stroke-width: 2;
+  stroke-linecap: round;
+}
+.info-glyph circle { stroke: none; }
+.info-tooltip {
+  position: absolute;
+  top: calc(100% + 8px);
+  left: 50%;
+  z-index: 10;
+  width: 240px;
+  padding: 8px 10px;
+  transform: translateX(-50%) translateY(3px);
+  visibility: hidden;
+  opacity: 0;
+  border: 1px solid #41454e;
+  border-radius: 7px;
+  background: #111216;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, .38);
+  color: #c8cbd1;
+  font-size: 11px;
+  font-weight: 500;
+  line-height: 1.35;
+  text-align: left;
+  pointer-events: none;
+  transition: opacity .12s ease, transform .12s ease, visibility .12s;
+}
+.info-tooltip::after {
+  content: "";
+  position: absolute;
+  bottom: 100%;
+  left: 50%;
+  margin-left: -5px;
+  border: 5px solid transparent;
+  border-bottom-color: #41454e;
+}
+.timing-fields .field:last-child .info-tooltip {
+  right: -10px;
+  left: auto;
+  transform: translateY(3px);
+}
+.timing-fields .field:last-child .info-tooltip::after {
+  right: 12px;
+  left: auto;
+  margin-left: 0;
+}
+.info-tip:hover .info-tooltip,
+.info-tip:focus-visible .info-tooltip {
+  transform: translateX(-50%) translateY(0);
+  visibility: visible;
+  opacity: 1;
+}
+.timing-fields .field:last-child .info-tip:hover .info-tooltip,
+.timing-fields .field:last-child .info-tip:focus-visible .info-tooltip {
+  transform: translateY(0);
+}
 .settings-card-options .toggle-row { padding: 10px 14px; }
 .settings-card-options .tr-main { min-width: 0; }
 .settings-card-options .tr-title { font-size: 12.5px; }

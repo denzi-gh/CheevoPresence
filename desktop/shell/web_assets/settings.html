@@ -130,8 +130,20 @@
                 <span class="settings-card-title">Activity timing</span>
               </div>
               <div class="number-row timing-fields">
-                <label class="field"><span>Poll interval (seconds)</span><input id="intervalInput" type="number" min="5" max="120" step="1"></label>
-                <label class="field"><span>Inactive timeout (seconds)</span><input id="timeoutInput" type="number" min="0" max="3600" step="10"></label>
+                <div class="field">
+                  <div class="timing-label">
+                    <label for="intervalInput">Poll interval (seconds)</label>
+                    <button class="info-tip" type="button" aria-label="About poll interval" aria-describedby="pollIntervalHelp"><svg class="info-glyph" viewBox="0 0 16 16" aria-hidden="true"><circle cx="8" cy="4" r="1.25"></circle><path d="M8 7v5"></path></svg><span class="info-tooltip" id="pollIntervalHelp" role="tooltip">How often CheevoPresence checks RetroAchievements for updated activity.<br><br>Recommended: 15 seconds</span></button>
+                  </div>
+                  <input id="intervalInput" type="number" min="5" max="120" step="1">
+                </div>
+                <div class="field">
+                  <div class="timing-label">
+                    <label for="timeoutInput">Inactive timeout (seconds)</label>
+                    <button class="info-tip" type="button" aria-label="About inactive timeout" aria-describedby="inactiveTimeoutHelp"><svg class="info-glyph" viewBox="0 0 16 16" aria-hidden="true"><circle cx="8" cy="4" r="1.25"></circle><path d="M8 7v5"></path></svg><span class="info-tooltip" id="inactiveTimeoutHelp" role="tooltip">How long ago your latest RetroAchievements activity can be before Discord presence is cleared. Set to 0 to disable the timeout.<br><br>Recommended: 180 seconds</span></button>
+                  </div>
+                  <input id="timeoutInput" type="number" min="0" max="3600" step="10">
+                </div>
               </div>
             </section>
 
