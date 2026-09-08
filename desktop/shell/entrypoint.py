@@ -28,30 +28,28 @@ def run_shell(platform_name, run_app):
     tray_mode = TRAY_FLAG in sys.argv
     mode = "tray" if tray_mode else "settings"
     platform = get_platform_services()
-    setup_logging(platform)
-    log_startup_diagnostics(platform)
-    log_event(logger, AREA_STARTUP, "entrypoint_started", platform=platform_name, mode=mode)
+
+    if platform.handle_special_args(sys.argv):
+        return
+
+    if EXIT_APP_FLAG in sys.argv:
+        platform.request_running_app_exit()
+        return
 
     if SMOKE_FLAG in sys.argv:
         from desktop.shell.smoke import run_smoke
 
         sys.exit(run_smoke(platform_name, platform))
 
-    if platform.handle_special_args(sys.argv):
-        log_event(logger, AREA_STARTUP, "platform_helper_handled", platform=platform_name)
-        return
-
-    if EXIT_APP_FLAG in sys.argv:
-        requested = platform.request_running_app_exit()
-        log_event(logger, AREA_STARTUP, "external_exit_requested", success=requested)
-        return
-
     if not platform.acquire_single_instance():
-        log_event(logger, AREA_STARTUP, "duplicate_instance_blocked", mode=mode)
         if not tray_mode:
             platform.notify_already_running()
         return
 
+    # Only the process holding the real app instance lock canopen and rotate cheevo.log
+    setup_logging(platform)
+    log_startup_diagnostics(platform)
+    log_event(logger, AREA_STARTUP, "entrypoint_started", platform=platform_name, mode=mode)
     log_event(logger, AREA_STARTUP, "single_instance_acquired", mode=mode)
     platform.cleanup_startup_artifacts()
     controller = AppController(platform=platform)

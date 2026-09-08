@@ -41,6 +41,10 @@ from desktop.runtime.storage import (
     GENERATED_MENU_BAR_TEMPLATE_ICON_FILE,
     MENU_BAR_TEMPLATE_ICON_FILE,
 )
+from desktop.shell.settings_process import (
+    finish_settings_output_capture,
+    launch_settings_process,
+)
 from desktop.shell.tray_base import TrayControllerBase
 
 logger = logging.getLogger(__name__)
@@ -312,11 +316,9 @@ class MacOSMenuBarApp(TrayControllerBase):
             return
         command, env = self._build_settings_command()
         try:
-            self._settings_process = subprocess.Popen(
+            self._settings_process = launch_settings_process(
                 command,
                 start_new_session=True,
-                stdout=subprocess.DEVNULL,
-                stderr=subprocess.DEVNULL,
                 env=env,
             )
         except (OSError, ValueError) as exc:
@@ -357,6 +359,8 @@ class MacOSMenuBarApp(TrayControllerBase):
 
     def _stop_settings_process(self):
         if not self._is_settings_process_running():
+            if self._settings_process is not None:
+                finish_settings_output_capture(self._settings_process)
             self._settings_process = None
             return
         self._settings_process.terminate()
@@ -365,6 +369,8 @@ class MacOSMenuBarApp(TrayControllerBase):
         except subprocess.TimeoutExpired:
             logger.warning("macOS settings process did not terminate; killing")
             self._settings_process.kill()
+            self._settings_process.wait(timeout=1)
+        finish_settings_output_capture(self._settings_process)
         logger.info("macOS settings process stopped")
         self._settings_process = None
 

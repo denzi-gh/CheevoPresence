@@ -52,17 +52,16 @@ def _show_startup_error(message):
 
 
 def main():
-    from desktop.platform import get_platform_services
-    from desktop.runtime.logging_setup import setup_logging
+    from desktop.runtime.logging_setup import setup_child_logging
     from desktop.shell.ipc import (
         SETTINGS_ADDRESS_ENV,
         SETTINGS_AUTH_ENV,
         RemoteAppController,
     )
 
-    # The settings client runs as its own process; route it into the same
-    # cheevo.log so [SETTINGS]/[IPC] lines stay in one file.
-    setup_logging(get_platform_services())
+    # The host is the sole cheevo.log writer. It captures and forwards this
+    # structured stream, including stderr output from early/native failures.
+    setup_child_logging()
     log_event(logger, AREA_SETTINGS, "client_started", pid=os.getpid())
 
     address = os.environ.get(SETTINGS_ADDRESS_ENV)

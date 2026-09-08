@@ -23,6 +23,10 @@ from desktop.runtime.storage import (
     TRAY_INACTIVE_ICON_FILE,
 )
 from desktop.shell.ipc import SettingsHostService
+from desktop.shell.settings_process import (
+    finish_settings_output_capture,
+    launch_settings_process,
+)
 from desktop.shell.tray_base import TrayControllerBase
 
 SHUTDOWN_GRACE_SECONDS = 8
@@ -137,12 +141,7 @@ class TrayApp(TrayControllerBase):
         env = os.environ.copy()
         env.update(self._settings_service.get_launch_env())
         try:
-            self._settings_process = subprocess.Popen(
-                command,
-                env=env,
-                stdout=subprocess.DEVNULL,
-                stderr=subprocess.DEVNULL,
-            )
+            self._settings_process = launch_settings_process(command, env)
         except Exception:
             logger.exception("Windows settings client launch failed")
             self._settings_process = None
@@ -165,7 +164,10 @@ class TrayApp(TrayControllerBase):
         process = self._settings_process
         self._settings_process = None
         self._settings_open = False
-        if process is None or process.poll() is not None:
+        if process is None:
+            return
+        if process.poll() is not None:
+            finish_settings_output_capture(process)
             return
         process.terminate()
         try:
@@ -173,6 +175,7 @@ class TrayApp(TrayControllerBase):
         except subprocess.TimeoutExpired:
             process.kill()
             process.wait(timeout=1)
+        finish_settings_output_capture(process)
 
     def quit_app(self):
         with self._shutdown_lock:

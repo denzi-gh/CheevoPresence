@@ -40,6 +40,7 @@ class FakeSettingsProcess:
     def __init__(self, signal_error=None):
         self.pid = 4613
         self.returncode = None
+        self.stdout = None
         self.signals = []
         self._signal_error = signal_error
 

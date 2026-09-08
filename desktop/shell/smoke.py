@@ -15,7 +15,13 @@ from desktop.core.constants import (
 )
 from desktop.core.log_events import AREA_STARTUP, log_event
 from desktop.runtime.controller import AppController
+from desktop.runtime.diagnostics import log_startup_diagnostics
+from desktop.runtime.logging_setup import setup_logging
 from desktop.shell.ipc import RemoteAppController, SettingsHostService
+from desktop.shell.settings_process import (
+    finish_settings_output_capture,
+    launch_settings_process,
+)
 from desktop.shell.web_settings import SETTINGS_UI_ENV
 
 logger = logging.getLogger(__name__)
@@ -127,15 +133,12 @@ def run_smoke(platform_name, platform, deadline_seconds=None):
     # Hold the lock ourselves so the second-instance probe has something to
     # collide with
     if not platform.acquire_single_instance():
-        log_event(
-            logger,
-            AREA_STARTUP,
-            "smoke_failed",
-            level=logging.ERROR,
-            reason="single_instance_unavailable",
-        )
         watchdog.cancel()
         return 1
+
+    setup_logging(platform)
+    log_startup_diagnostics(platform)
+    log_event(logger, AREA_STARTUP, "smoke_started", platform=platform_name)
 
     # No worker start: the smoke test needs no credentials and no Discord.
     controller = AppController(platform=platform)
@@ -151,7 +154,10 @@ def run_smoke(platform_name, platform, deadline_seconds=None):
         env = os.environ.copy()
         env.update(service.get_launch_env())
         env[SETTINGS_UI_ENV] = "native"
-        child = subprocess.Popen(_app_command(_CLIENT_FLAGS[platform_name]), env=env)
+        child = launch_settings_process(
+            _app_command(_CLIENT_FLAGS[platform_name]),
+            env,
+        )
         log_event(logger, AREA_STARTUP, "smoke_child_started", pid=child.pid)
 
         started = time.monotonic()
@@ -195,6 +201,9 @@ def run_smoke(platform_name, platform, deadline_seconds=None):
                 child.wait(timeout=5)
             except subprocess.TimeoutExpired:
                 child.kill()
+                child.wait(timeout=1)
+        if child is not None:
+            finish_settings_output_capture(child)
         service.stop()
         try:
             controller.shutdown(timeout=5)
