@@ -88,56 +88,56 @@ jobs:
           fetch-depth: 1
 
       - name: download windows artifact
-        uses: actions/download-artifact@v8
+        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8
         with:
           name: CheevoPresence.exe
           path: downloaded/windows
           skip-decompress: true
 
       - name: download windows checksum
-        uses: actions/download-artifact@v8
+        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8
         with:
           name: CheevoPresence.exe.sha256
           path: downloaded/windows
           skip-decompress: true
 
       - name: download macos artifact (arm64)
-        uses: actions/download-artifact@v8
+        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8
         with:
           name: CheevoPresence-macos-arm64.zip
           path: downloaded/macos
           skip-decompress: true
 
       - name: download macos checksum (arm64)
-        uses: actions/download-artifact@v8
+        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8
         with:
           name: CheevoPresence-macos-arm64.zip.sha256
           path: downloaded/macos
           skip-decompress: true
 
       - name: download macos artifact (x86_64)
-        uses: actions/download-artifact@v8
+        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8
         with:
           name: CheevoPresence-macos-x86_64.zip
           path: downloaded/macos
           skip-decompress: true
 
       - name: download macos checksum (x86_64)
-        uses: actions/download-artifact@v8
+        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8
         with:
           name: CheevoPresence-macos-x86_64.zip.sha256
           path: downloaded/macos
           skip-decompress: true
 
       - name: download linux artifact
-        uses: actions/download-artifact@v8
+        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8
         with:
           name: CheevoPresence-linux-x86_64.tar.gz
           path: downloaded/linux
           skip-decompress: true
 
       - name: download linux checksum
-        uses: actions/download-artifact@v8
+        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8
         with:
           name: CheevoPresence-linux-x86_64.tar.gz.sha256
           path: downloaded/linux
