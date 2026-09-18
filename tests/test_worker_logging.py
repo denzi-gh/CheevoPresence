@@ -92,9 +92,10 @@ class WorkerLoggingTests(unittest.TestCase):
         output = self._run_one_loop_with_logs(self._make_worker())
 
         self.assertIn("[RA] connection_succeeded", output)
-        self.assertIn("[DISCORD] presence_update_attempt game_id=123", output)
-        self.assertIn("[DISCORD] presence_update_succeeded game_id=123", output)
+        self.assertIn("[RA] session_active game_id=123", output)
         self.assertIn("achievements=4/10", output)
+        self.assertNotIn("presence_update_attempt", output)
+        self.assertNotIn("presence_update_succeeded", output)
         self.assertNotIn(SECRET_USERNAME, output)
         self.assertNotIn(SECRET_API_KEY, output)
         self.assertNotIn(SECRET_RP_TEXT, output)

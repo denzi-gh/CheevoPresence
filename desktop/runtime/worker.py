@@ -590,23 +590,18 @@ class RPCWorker:
                     if self._should_stop():
                         break
 
-                    # Status changes (new game) are logged at INFO; steady-state
-                    # refreshes every few seconds stay at DEBUG to keep the log small.
-                    presence_level = logging.INFO if game_changed else logging.DEBUG
-                    if game_changed:
-                        log_event(
-                            logger,
-                            AREA_RA,
-                            "session_active",
-                            game_id=last_game_id,
-                            console=presence.console_name,
-                            rich_presence_present=bool(rp_msg),
+                    with self._state_lock:
+                        published_game_changed = (
+                            self.mirrored_presence is None
+                            or self.mirrored_presence.game_id != last_game_id
                         )
+                    # Attempts and steady-state refreshes are DEBUG-only. A
+                    # successful newly published presence is the INFO transition.
                     log_event(
                         logger,
                         AREA_DISCORD,
                         "presence_update_attempt",
-                        level=presence_level,
+                        level=logging.DEBUG,
                         game_id=last_game_id,
                         console_id=presence.console_id,
                         console_name=presence.console_name,
@@ -630,11 +625,28 @@ class RPCWorker:
                         )
                         raise
                     self._set_mirrored_presence(last_game_id, presence)
+                    if published_game_changed:
+                        log_event(
+                            logger,
+                            AREA_RA,
+                            "session_active",
+                            game_id=last_game_id,
+                            console=presence.console_name,
+                            rich_presence_present=bool(rp_msg),
+                            pipe=self.rpc_pipe,
+                            achievements=(
+                                f"{presence.achievement_count}/"
+                                f"{presence.achievement_total}"
+                            ),
+                            mode=self._play_mode,
+                            buttons=presence.button_count,
+                            developer_activity=presence.developer_activity,
+                        )
                     log_event(
                         logger,
                         AREA_DISCORD,
                         "presence_update_succeeded",
-                        level=presence_level,
+                        level=logging.DEBUG,
                         game_id=last_game_id,
                         pipe=self.rpc_pipe,
                         achievements=f"{presence.achievement_count}/{presence.achievement_total}",
@@ -672,7 +684,7 @@ class RPCWorker:
                             logger,
                             AREA_DISCORD,
                             "unavailable_during_loop",
-                            level=logging.WARNING,
+                            level=logging.DEBUG,
                             error_type=safe_exception_name(exc),
                             consecutive_errors=consecutive_errors,
                         )
@@ -691,7 +703,13 @@ class RPCWorker:
 
                 wait = backoff.delay_for(consecutive_errors)
                 if consecutive_errors > 0:
-                    log_event(logger, AREA_WORKER, "backing_off", wait_sec=wait)
+                    log_event(
+                        logger,
+                        AREA_WORKER,
+                        "backing_off",
+                        level=logging.DEBUG,
+                        wait_sec=wait,
+                    )
                 self._sleep(wait)
         finally:
             self._disconnect_rpc()

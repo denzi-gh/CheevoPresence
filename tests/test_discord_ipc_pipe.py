@@ -49,7 +49,7 @@ class DiscordIpcPipeTests(unittest.TestCase):
         }
         worker = self._make_worker()
 
-        with self.assertLogs("desktop.runtime.discord_gateway", level="INFO") as logs:
+        with self.assertLogs("desktop.runtime.discord_gateway", level="DEBUG") as logs:
             self.assertTrue(worker._connect_rpc())
 
         self.assertEqual([0, 1], FakePresence.attempts)
@@ -59,9 +59,10 @@ class DiscordIpcPipeTests(unittest.TestCase):
         self.assertTrue(worker.rpc_connected)
         self.assertEqual("connected", worker.current_status)
         output = "\n".join(logs.output)
-        self.assertIn("[DISCORD] ipc_connect_attempt pipe=0", output)
-        self.assertIn("[DISCORD] ipc_pipe_unavailable pipe=0", output)
+        self.assertIn("[DISCORD] ipc_probe_fallback selected_pipe=1", output)
+        self.assertIn("pipe_failures=0:InvalidPipe", output)
         self.assertIn("[DISCORD] ipc_connected pipe=1", output)
+        self.assertIn("DEBUG:desktop.runtime.discord_gateway", logs.output[0])
 
     def test_connect_prefers_last_working_pipe(self):
         worker = self._make_worker()
@@ -101,6 +102,30 @@ class DiscordIpcPipeTests(unittest.TestCase):
         self.assertFalse(worker.rpc_connected)
         self.assertEqual("error", worker.current_status)
         self.assertEqual("Discord is not open", worker.status_text)
+
+    def test_repeated_unavailable_checks_emit_one_warning_until_recovery(self):
+        FakePresence.failures = {
+            pipe: pypresence_exceptions.InvalidPipe()
+            for pipe in range(10)
+        }
+        worker = self._make_worker()
+
+        with self.assertLogs("desktop.runtime.discord_gateway", level="WARNING") as logs:
+            self.assertFalse(worker._connect_rpc())
+            self.assertFalse(worker._connect_rpc())
+
+        output = "\n".join(logs.output)
+        self.assertEqual(1, output.count("[DISCORD] ipc_unavailable"))
+        self.assertIn("reason=discord_not_open", output)
+
+        FakePresence.failures = {}
+        with self.assertLogs("desktop.runtime.discord_gateway", level="INFO") as recovery_logs:
+            self.assertTrue(worker._connect_rpc())
+
+        recovery = "\n".join(recovery_logs.output)
+        self.assertIn("[DISCORD] ipc_connected", recovery)
+        self.assertIn("recovered_from=discord_not_open", recovery)
+        self.assertIn("failed_attempts=2", recovery)
 
     def test_connect_does_not_retry_invalid_client_id(self):
         FakePresence.failures = {

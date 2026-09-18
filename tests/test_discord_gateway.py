@@ -1,3 +1,4 @@
+import logging
 import threading
 import unittest
 from typing import ClassVar
@@ -87,6 +88,17 @@ class DiscordPresenceGatewayTests(unittest.TestCase):
         self.assertTrue(presence.closed)
         self.assertIsNone(gateway.rpc)
         self.assertFalse(gateway.rpc_connected)
+
+    def test_reusing_connected_pipe_is_debug_only(self):
+        gateway = self._gateway()
+        self.assertTrue(gateway.connect())
+
+        with self.assertLogs("desktop.runtime.discord_gateway", level="DEBUG") as logs:
+            self.assertTrue(gateway.connect())
+
+        self.assertEqual(1, len(logs.records))
+        self.assertEqual(logging.DEBUG, logs.records[0].levelno)
+        self.assertIn("[DISCORD] ipc_already_connected", logs.records[0].getMessage())
 
     def test_update_after_disconnect_raises_pipe_closed(self):
         gateway = self._gateway()

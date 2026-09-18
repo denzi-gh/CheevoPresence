@@ -73,6 +73,9 @@ class DiscordPresenceGateway:
         self.rpc_connected = False
         self.rpc_pipe = None
         self.start_time = None
+        self._connect_failure_reason = None
+        self._connect_failure_started_at = None
+        self._connect_failure_attempts = 0
 
     def _set_status(self, status, text):
         if self.status_callback:
@@ -96,15 +99,58 @@ class DiscordPresenceGateway:
         except TypeError:
             return self.presence_factory(self.client_id, pipe=pipe)
 
-    def connect_pipe(self, pipe):
+    def _report_connect_failure(self, event, reason, level, **fields):
+        now = time.monotonic()
+        if self._connect_failure_reason == reason:
+            self._connect_failure_attempts += 1
+            log_event(
+                logger,
+                AREA_DISCORD,
+                "ipc_connect_retry_failed",
+                level=logging.DEBUG,
+                reason=reason,
+                failed_attempts=self._connect_failure_attempts,
+                failure_duration_ms=self._connect_failure_duration_ms(now),
+                **fields,
+            )
+            return
+
+        self._connect_failure_reason = reason
+        self._connect_failure_started_at = now
+        self._connect_failure_attempts = 1
         log_event(
             logger,
             AREA_DISCORD,
-            "ipc_connect_attempt",
-            pipe=pipe,
-            timeout_sec=self.connect_timeout,
+            event,
+            level=level,
+            reason=reason,
+            failed_attempts=1,
+            **fields,
         )
-        start = time.monotonic()
+
+    def _connect_failure_duration_ms(self, now=None):
+        if self._connect_failure_started_at is None:
+            return 0
+        now = time.monotonic() if now is None else now
+        return round((now - self._connect_failure_started_at) * 1000)
+
+    def _take_recovery_fields(self):
+        if self._connect_failure_reason is None:
+            return {}
+        fields = {
+            "recovered_from": self._connect_failure_reason,
+            "failed_attempts": self._connect_failure_attempts,
+            "failure_duration_ms": self._connect_failure_duration_ms(),
+        }
+        self._clear_connect_failure()
+        return fields
+
+    def _clear_connect_failure(self):
+        self._connect_failure_reason = None
+        self._connect_failure_started_at = None
+        self._connect_failure_attempts = 0
+
+    def connect_pipe(self, pipe):
         rpc = self._create_presence(pipe)
         done = threading.Event()
         errors = []
@@ -129,15 +175,7 @@ class DiscordPresenceGateway:
                 raise pypresence_exceptions.ConnectionTimeout
             if errors:
                 raise errors[0]
-        except Exception as exc:
-            log_event(
-                logger,
-                AREA_DISCORD,
-                "ipc_connect_failed",
-                pipe=pipe,
-                error_type=safe_exception_name(exc),
-                elapsed_ms=round((time.monotonic() - start) * 1000),
-            )
+        except Exception:
             close_rpc_client(rpc)
             raise
         return rpc
@@ -145,13 +183,20 @@ class DiscordPresenceGateway:
     def connect(self):
         with self._lock:
             if self.rpc_connected:
-                log_event(logger, AREA_DISCORD, "ipc_already_connected", pipe=self.rpc_pipe)
+                log_event(
+                    logger,
+                    AREA_DISCORD,
+                    "ipc_already_connected",
+                    level=logging.DEBUG,
+                    pipe=self.rpc_pipe,
+                )
                 return True
             close_rpc_client(self.rpc)
             self.rpc = None
             self.rpc_connected = False
             self.start_time = None
             start = time.monotonic()
+            pipe_failures = []
 
             for pipe in self.pipe_order():
                 try:
@@ -159,56 +204,62 @@ class DiscordPresenceGateway:
                     self.rpc_connected = True
                     self.rpc_pipe = pipe
                     self.start_time = int(time.time())
+                    recovery_fields = self._take_recovery_fields()
+                    if pipe_failures:
+                        log_event(
+                            logger,
+                            AREA_DISCORD,
+                            "ipc_probe_fallback",
+                            level=logging.DEBUG,
+                            selected_pipe=pipe,
+                            pipe_failures=",".join(pipe_failures),
+                        )
                     log_event(
                         logger,
                         AREA_DISCORD,
                         "ipc_connected",
                         pipe=pipe,
+                        pipes_checked=len(pipe_failures) + 1,
                         elapsed_ms=round((time.monotonic() - start) * 1000),
+                        **recovery_fields,
                     )
                     self._set_status("connected", "Connected to Discord")
                     return True
-                except pypresence_exceptions.InvalidID:
+                except pypresence_exceptions.InvalidID as exc:
                     self.rpc = None
-                    log_event(
-                        logger,
-                        AREA_DISCORD,
+                    pipe_failures.append(f"{pipe}:{safe_exception_name(exc)}")
+                    self._report_connect_failure(
                         "ipc_connect_failed",
-                        level=logging.ERROR,
+                        "invalid_client_id",
+                        logging.ERROR,
                         pipe=pipe,
-                        reason="invalid_client_id",
+                        pipe_failures=",".join(pipe_failures),
                     )
                     self._set_status("error", "Discord connection failed")
                     return False
                 except Exception as exc:  # noqa: BLE001 pypresence raises assorted types; classified below
                     self.rpc = None
+                    pipe_failures.append(f"{pipe}:{safe_exception_name(exc)}")
                     if is_discord_unavailable_error(exc):
-                        log_event(
-                            logger,
-                            AREA_DISCORD,
-                            "ipc_pipe_unavailable",
-                            pipe=pipe,
-                            error_type=safe_exception_name(exc),
-                        )
                         continue
-                    log_event(
-                        logger,
-                        AREA_DISCORD,
+                    self._report_connect_failure(
                         "ipc_connect_failed",
-                        level=logging.WARNING,
+                        "unexpected_error",
+                        logging.WARNING,
                         pipe=pipe,
                         error_type=safe_exception_name(exc),
+                        pipe_failures=",".join(pipe_failures),
                     )
                     self._set_status("error", "Discord connection failed")
                     return False
 
             self.rpc_pipe = None
-            log_event(
-                logger,
-                AREA_DISCORD,
+            self._report_connect_failure(
                 "ipc_unavailable",
-                level=logging.WARNING,
-                reason="discord_not_open",
+                "discord_not_open",
+                logging.WARNING,
+                pipes_checked=len(pipe_failures),
+                pipe_failures=",".join(pipe_failures),
             )
             self._set_status("error", "Discord is not open")
             return False
@@ -249,3 +300,4 @@ class DiscordPresenceGateway:
             self.rpc = None
             self.rpc_connected = False
             self.start_time = None
+            self._clear_connect_failure()
