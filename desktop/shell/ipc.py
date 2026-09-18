@@ -27,7 +27,7 @@ _MAX_MESSAGE_BYTES = 1024 * 1024
 _TCP_ADDRESS_PREFIX = "tcp://"
 # The settings UI polls these methods ~once per second; log them at most this
 # often so cheevo.log stays readable. Failures and other methods always log.
-IPC_THROTTLED_METHODS = frozenset({"get_state"})
+IPC_THROTTLED_METHODS = frozenset({"get_state", "tail_logs"})
 IPC_LOG_THROTTLE_SECONDS = 60
 
 
@@ -208,6 +208,10 @@ class SettingsHostService:
             return {"success": self.controller.disconnect()}
         if method == "install_update":
             return _serialize_dataclass(self.controller.install_update())
+        if method == "tail_logs":
+            return self.controller.tail_logs(params.get("lines", 200))
+        if method == "set_log_level":
+            return self.controller.set_log_level(params.get("level"))
         if method == "quit_app":
             if self.on_quit:
                 threading.Thread(target=self.on_quit, daemon=True).start()
@@ -391,6 +395,12 @@ class RemoteAppController:
         result = UpdateInstallResult(**(self._request("install_update") or {}))
         self.poll_runtime_state()
         return result
+
+    def tail_logs(self, lines=200):
+        return self._request("tail_logs", lines=lines)
+
+    def set_log_level(self, level):
+        return self._request("set_log_level", level=level)
 
     def quit_app(self):
         self._request("quit_app")

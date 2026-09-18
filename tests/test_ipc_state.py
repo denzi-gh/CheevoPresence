@@ -69,6 +69,12 @@ class FakeController:
     def load_config(self):
         return dict(self.config)
 
+    def tail_logs(self, lines=200):
+        return {"lines": [f"last {lines}"], "path": "logs", "level": "INFO"}
+
+    def set_log_level(self, level):
+        return {"success": True, "level": str(level).upper()}
+
 
 class IpcStateTests(unittest.TestCase):
     def test_service_state_uses_worker_snapshot(self):
@@ -141,6 +147,11 @@ class IpcStateTests(unittest.TestCase):
                 self.assertTrue(client.config["apikey_present"])
                 self.assertEqual("connected", client.worker.current_status)
                 self.assertEqual("Mega Game", client.worker.mirrored_presence.title)
+                self.assertEqual(["last 25"], client.tail_logs(25)["lines"])
+                self.assertEqual(
+                    {"success": True, "level": "DEBUG"},
+                    client.set_log_level("debug"),
+                )
             finally:
                 service.stop()
 

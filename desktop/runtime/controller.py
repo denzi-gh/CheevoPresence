@@ -24,7 +24,14 @@ from desktop.core.ra_client import APIResponseError, RAClient
 from desktop.core.roles import debug_forced_role_permission, resolve_dev_mode
 from desktop.core.settings import normalize_config
 from desktop.platform import get_platform_services
+from desktop.runtime.logging_setup import (
+    get_log_level,
+    normalize_log_level,
+    set_log_level,
+    tail_log_lines,
+)
 from desktop.runtime.storage import (
+    get_log_dir,
     load_config,
     load_console_icons,
     save_config,
@@ -63,6 +70,8 @@ class SettingsController(Protocol):
     def connect(self, config: dict) -> ConnectResult: ...
     def disconnect(self) -> bool: ...
     def install_update(self) -> UpdateInstallResult: ...
+    def tail_logs(self, lines: int = 200) -> dict: ...
+    def set_log_level(self, level: str) -> dict: ...
 
 
 class AppController:
@@ -92,6 +101,27 @@ class AppController:
         self.config = load_config(self.platform)
         self.worker.replace_config(self.config)
         return dict(self.config)
+
+    def tail_logs(self, lines=200):
+        return {
+            "lines": tail_log_lines(self.platform, lines),
+            "path": get_log_dir(self.platform),
+            "level": logging.getLevelName(get_log_level()),
+        }
+
+    def set_log_level(self, level):
+        target = normalize_log_level(level)
+        previous = get_log_level()
+        fields = {
+            "previous_level": logging.getLevelName(previous),
+            "new_level": logging.getLevelName(target),
+        }
+        if target >= previous:
+            log_event(logger, AREA_SETTINGS, "log_level_changed", **fields)
+        applied = set_log_level(target)
+        if target < previous:
+            log_event(logger, AREA_SETTINGS, "log_level_changed", **fields)
+        return {"success": True, "level": logging.getLevelName(applied)}
 
     def save_config(self, config):
         with self._action_lock:

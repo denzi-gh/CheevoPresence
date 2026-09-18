@@ -57,6 +57,9 @@ class FakeController:
         self.saved_config = None
         self.disconnected = False
         self.update_status = update_status or UpdateStatus()
+        self.log_tail_lines = ["host log one", "host log two"]
+        self.log_tail_limit = None
+        self.log_level = None
 
     def load_config(self):
         return dict(self.config)
@@ -77,6 +80,18 @@ class FakeController:
     def disconnect(self):
         self.disconnected = True
         return True
+
+    def tail_logs(self, lines=200):
+        self.log_tail_limit = lines
+        return {
+            "lines": list(self.log_tail_lines),
+            "path": "HOST_LOG_DIR",
+            "level": "INFO",
+        }
+
+    def set_log_level(self, level):
+        self.log_level = level
+        return {"success": True, "level": str(level).upper()}
 
 
 def _presence_snapshot():
@@ -408,27 +423,16 @@ class WebSettingsTests(unittest.TestCase):
             self.assertTrue(result["success"])
             self.assertEqual(tmpdir, platform.opened_path)
 
-    def test_tail_logs_returns_recent_lines_path_and_level(self):
+    def test_tail_logs_delegates_to_authoritative_host(self):
         controller = FakeController({})
         api = WebSettingsAPI(controller)
 
-        with tempfile.TemporaryDirectory() as tmpdir:
-            log_file = f"{tmpdir}/cheevo.log"
-            with open(log_file, "w", encoding="utf-8") as handle:
-                handle.write("one\ntwo\nthree\n")
+        result = api.tail_logs(lines=2)
 
-            with patch(
-                "desktop.shell.web_settings.get_platform_services",
-                return_value=FakePlatform(),
-            ), patch("desktop.shell.web_settings.get_log_dir", return_value=tmpdir), patch(
-                "desktop.shell.web_settings.get_log_file",
-                return_value=log_file,
-            ):
-                result = api.tail_logs(lines=2)
-
-        self.assertEqual(["two", "three"], result["lines"])
-        self.assertEqual(tmpdir, result["path"])
-        self.assertIn(result["level"], {"DEBUG", "INFO", "WARNING", "ERROR", "CRITICAL"})
+        self.assertEqual(["host log one", "host log two"], result["lines"])
+        self.assertEqual("HOST_LOG_DIR", result["path"])
+        self.assertEqual("INFO", result["level"])
+        self.assertEqual(2, controller.log_tail_limit)
 
     def test_set_log_level_updates_app_logger_and_handler(self):
         from desktop.runtime.logging_setup import HANDLER_MARKER, LOGGER_NAME
@@ -445,12 +449,14 @@ class WebSettingsTests(unittest.TestCase):
         original_logger_level = app_logger.level
         original_root_level = root.level
         try:
-            result = api.set_log_level("DEBUG")
+            with patch.dict(os.environ, {}):
+                result = api.set_log_level("DEBUG")
 
             self.assertTrue(result["success"])
             self.assertEqual("DEBUG", result["level"])
+            self.assertEqual("DEBUG", controller.log_level)
             # Both the app logger and its file handler must drop to DEBUG for
-            # the toggle to reach cheevo.log...
+            # the child process to forward debug records to the host...
             self.assertEqual(logging.DEBUG, app_logger.level)
             self.assertEqual(logging.DEBUG, handler.level)
             # ...and the root logger must be left alone (the old bug).

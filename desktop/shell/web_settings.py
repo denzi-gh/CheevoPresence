@@ -19,13 +19,11 @@ from desktop.core.constants import APP_NAME, APP_VERSION, RA_SETTINGS_URL
 from desktop.core.log_events import AREA_SETTINGS, log_event, register_log_secret
 from desktop.core.settings import normalize_config
 from desktop.platform import get_platform_services
-from desktop.runtime.logging_setup import get_log_level
 from desktop.runtime.logging_setup import set_log_level as apply_log_level
 from desktop.runtime.storage import (
     APP_ICON_PNG_FILE,
     get_config_dir,
     get_log_dir,
-    get_log_file,
     get_resource_dir,
 )
 from desktop.shell.settings_presenter import truncate_status_text
@@ -430,27 +428,13 @@ class WebSettingsAPI:
         return {"success": bool(success), "path": log_dir}
 
     def tail_logs(self, lines=200):
-        platform = get_platform_services()
-        path = get_log_file(platform)
-        try:
-            limit = int(lines or 200)
-        except (TypeError, ValueError):
-            limit = 200
-        limit = max(1, min(limit, 1000))
-        out = []
-        try:
-            with open(path, "r", encoding="utf-8", errors="replace") as handle:
-                out = handle.read().splitlines()[-limit:]
-        except OSError:
-            out = []
-        level = logging.getLevelName(get_log_level())
-        return {"lines": out, "path": get_log_dir(platform), "level": level}
+        return self.controller.tail_logs(lines)
 
     def set_log_level(self, level):
-        name = str(level or "INFO").upper()
-        value = getattr(logging, name, logging.INFO)
-        apply_log_level(value)
-        return {"success": True, "level": logging.getLevelName(value)}
+        result = self.controller.set_log_level(level)
+        if result.get("success"):
+            apply_log_level(result.get("level"))
+        return result
 
     def copy_diagnostics(self):
         import platform as platform_module

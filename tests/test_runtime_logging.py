@@ -5,16 +5,22 @@ import re
 import tempfile
 import unittest
 from logging.handlers import RotatingFileHandler
+from unittest.mock import patch
 
 from desktop.core.log_events import register_log_secret
+from desktop.runtime.controller import AppController
 from desktop.runtime.logging_setup import (
     BACKUP_COUNT,
     HANDLER_MARKER,
+    LOG_LEVEL_ENV,
     MAX_LOG_BYTES,
     decode_child_log_line,
     get_log_level,
+    normalize_log_level,
+    set_log_level,
     setup_child_logging,
     setup_logging,
+    tail_log_lines,
 )
 from desktop.runtime.storage import get_log_dir, get_log_file
 
@@ -128,6 +134,69 @@ class RuntimeLoggingTests(unittest.TestCase):
             ]
             self.assertEqual(logging.DEBUG, handlers[0].level)
             self._close_runtime_handlers()
+
+    def test_set_log_level_updates_runtime_handlers_and_future_children(self):
+        app_logger = logging.getLogger("desktop")
+        original_level = app_logger.level
+        handler = logging.NullHandler()
+        setattr(handler, HANDLER_MARKER, True)
+        handler.setLevel(logging.INFO)
+        app_logger.addHandler(handler)
+        try:
+            with patch.dict(os.environ, {LOG_LEVEL_ENV: ""}):
+                self.assertEqual(logging.DEBUG, set_log_level("debug"))
+                self.assertEqual(logging.DEBUG, app_logger.level)
+                self.assertEqual(logging.DEBUG, handler.level)
+                self.assertEqual("DEBUG", os.environ[LOG_LEVEL_ENV])
+        finally:
+            app_logger.removeHandler(handler)
+            handler.close()
+            app_logger.setLevel(original_level)
+
+    def test_log_level_rejects_unknown_and_ambiguous_values(self):
+        for value in ("verbose", logging.NOTSET, True, None):
+            with self.subTest(value=value), self.assertRaises(ValueError):
+                normalize_log_level(value)
+
+    def test_tail_log_lines_returns_bounded_recent_output(self):
+        with tempfile.TemporaryDirectory() as tmpdir:
+            platform = FakePlatform(tmpdir)
+            log_file = setup_logging(platform)
+            logging.getLogger("desktop.test").info("tail first")
+            logging.getLogger("desktop.test").info("tail second")
+            logging.getLogger("desktop.test").info("tail third")
+
+            tail = tail_log_lines(platform, lines=2)
+
+            self.assertEqual(2, len(tail))
+            self.assertIn("tail second", tail[0])
+            self.assertIn("tail third", tail[1])
+            self.assertEqual([], tail_log_lines(FakePlatform(f"{tmpdir}-missing")))
+            self.assertTrue(os.path.exists(log_file))
+            self._close_runtime_handlers()
+
+    def test_controller_exposes_host_log_tail_and_level(self):
+        with tempfile.TemporaryDirectory() as tmpdir, patch.dict(
+            os.environ,
+            {LOG_LEVEL_ENV: ""},
+        ):
+            platform = FakePlatform(tmpdir)
+            setup_logging(platform)
+            try:
+                logging.getLogger("desktop.test").info("controller tail marker")
+                controller = object.__new__(AppController)
+                controller.platform = platform
+
+                tail = controller.tail_logs(lines=1)
+                level = controller.set_log_level("ERROR")
+
+                self.assertIn("controller tail marker", tail["lines"][0])
+                self.assertEqual(get_log_dir(platform), tail["path"])
+                self.assertEqual("INFO", tail["level"])
+                self.assertEqual({"success": True, "level": "ERROR"}, level)
+                self.assertEqual(logging.ERROR, get_log_level())
+            finally:
+                self._close_runtime_handlers()
 
     def test_file_formatter_redacts_direct_exceptions_into_one_line(self):
         with tempfile.TemporaryDirectory() as tmpdir:

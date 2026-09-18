@@ -31,15 +31,38 @@ LOG_SESSION_ENV = "CHEEVO_LOG_SESSION"
 LOG_LEVEL_ENV = "CHEEVO_LOG_LEVEL"
 _LOG_SESSION_ID = os.environ.get(LOG_SESSION_ENV, "").strip() or secrets.token_hex(4)
 MAX_LOG_RECORD_CHARS = 64 * 1024
+LOG_TAIL_MAX_LINES = 1000
+LOG_TAIL_CHUNK_BYTES = 8192
+LOG_LEVELS = {
+    "DEBUG": logging.DEBUG,
+    "INFO": logging.INFO,
+    "WARNING": logging.WARNING,
+    "ERROR": logging.ERROR,
+    "CRITICAL": logging.CRITICAL,
+}
 
 
 def _resolve_level(level):
     requested = os.environ.get(LOG_LEVEL_ENV, "").strip().upper()
     if requested:
-        resolved = logging.getLevelName(requested)
-        if isinstance(resolved, int):
-            return resolved
-    return level
+        try:
+            return normalize_log_level(requested)
+        except ValueError:
+            pass
+    return normalize_log_level(level)
+
+
+def normalize_log_level(level):
+    if isinstance(level, str):
+        resolved = LOG_LEVELS.get(level.strip().upper())
+    elif isinstance(level, int) and not isinstance(level, bool):
+        resolved = level if level in LOG_LEVELS.values() else None
+    else:
+        resolved = None
+    if resolved is None:
+        allowed = ", ".join(LOG_LEVELS)
+        raise ValueError(f"Log level must be one of: {allowed}.")
+    return resolved
 
 
 def _is_runtime_handler(handler):
@@ -232,9 +255,60 @@ def get_log_level():
 
 def set_log_level(level):
     """Set the app logger's level *and* its file handler's level."""
+    level = normalize_log_level(level)
     logger = logging.getLogger(LOGGER_NAME)
     logger.setLevel(level)
     for handler in logger.handlers:
         if _is_runtime_handler(handler):
             handler.setLevel(level)
+    os.environ[LOG_LEVEL_ENV] = logging.getLevelName(level)
     return logger.level
+
+
+def _read_last_lines(path, limit):
+    """Read only enough of a UTF-8 log file to return its final lines."""
+    chunks = []
+    newline_count = 0
+    with open(path, "rb") as handle:
+        handle.seek(0, os.SEEK_END)
+        position = handle.tell()
+        while position > 0 and newline_count <= limit:
+            chunk_size = min(LOG_TAIL_CHUNK_BYTES, position)
+            position -= chunk_size
+            handle.seek(position)
+            chunk = handle.read(chunk_size)
+            chunks.append(chunk)
+            newline_count += chunk.count(b"\n")
+    text = b"".join(reversed(chunks)).decode("utf-8", errors="replace")
+    return text.splitlines()[-limit:]
+
+
+def tail_log_lines(platform=None, lines=200):
+    """Return a bounded tail while coordinating with the host file handler."""
+    try:
+        limit = int(lines or 200)
+    except (TypeError, ValueError):
+        limit = 200
+    limit = max(1, min(limit, LOG_TAIL_MAX_LINES))
+
+    log_file = get_log_file(platform)
+    logger = logging.getLogger(LOGGER_NAME)
+    handler = next(
+        (
+            candidate
+            for candidate in logger.handlers
+            if _is_runtime_handler(candidate) and _same_log_file(candidate, log_file)
+        ),
+        None,
+    )
+    if handler is not None:
+        handler.acquire()
+    try:
+        if handler is not None:
+            handler.flush()
+        return _read_last_lines(log_file, limit)
+    except OSError:
+        return []
+    finally:
+        if handler is not None:
+            handler.release()
