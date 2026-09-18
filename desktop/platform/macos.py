@@ -15,7 +15,7 @@ import threading
 from pathlib import Path
 
 from desktop.core.constants import APP_NAME, TRAY_FLAG
-from desktop.core.log_events import AREA_AUTOSTART, log_event
+from desktop.core.log_events import AREA_AUTOSTART, AREA_PLATFORM, log_event
 from desktop.platform.generic import GenericPlatformServices
 from desktop.platform.macos_keychain import (
     protect_api_key,
@@ -353,7 +353,13 @@ def start_exit_listener(callback):
             listener.close()
         except OSError:
             pass
-        logger.warning("macOS exit listener could not start", exc_info=True)
+        log_event(
+            logger,
+            AREA_PLATFORM,
+            "exit_listener_start_failed",
+            level=logging.WARNING,
+            exc_info=True,
+        )
         return None
 
     stop_event = threading.Event()

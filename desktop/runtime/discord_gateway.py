@@ -25,8 +25,14 @@ def close_rpc_client(rpc):
         return
     try:
         rpc.close()
-    except Exception:  # best-effort close of a possibly dead pipe
-        logger.debug("RPC client close failed", exc_info=True)
+    except Exception:  # noqa: BLE001 best-effort close of a possibly dead pipe
+        log_event(
+            logger,
+            AREA_DISCORD,
+            "client_close_failed",
+            level=logging.DEBUG,
+            exc_info=True,
+        )
 
 
 def is_discord_unavailable_error(exc):

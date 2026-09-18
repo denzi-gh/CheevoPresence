@@ -3,7 +3,12 @@ import subprocess
 import unittest
 from unittest import mock
 
-from desktop.runtime.logging_setup import ChildLogFormatter
+from desktop.core.log_events import register_log_secret
+from desktop.runtime.logging_setup import (
+    LOG_SESSION_ENV,
+    ChildLogFormatter,
+    get_log_session_id,
+)
 from desktop.shell import settings_process
 
 
@@ -42,6 +47,24 @@ class SettingsProcessLoggingTests(unittest.TestCase):
         self.assertIn("native library diagnostic", logs.output[0])
         self.assertIn("pid=8124", logs.output[0])
 
+    def test_child_protocol_redacts_registered_secrets(self):
+        secret = "SETTINGS_CHILD_SECRET"
+        register_log_secret(secret)
+        record = logging.LogRecord(
+            "desktop.shell.settings_client",
+            logging.ERROR,
+            "",
+            0,
+            f"child failed with {secret}",
+            (),
+            None,
+        )
+
+        encoded = ChildLogFormatter().format(record)
+
+        self.assertNotIn(secret, encoded)
+        self.assertIn("<redacted>", encoded)
+
     def test_launcher_captures_both_stdout_and_stderr(self):
         fake_process = FakeProcess()
         with mock.patch.object(
@@ -58,7 +81,7 @@ class SettingsProcessLoggingTests(unittest.TestCase):
         self.assertIs(fake_process, result)
         popen.assert_called_once_with(
             ["python", "settings-client"],
-            env={"ENV": "value"},
+            env={"ENV": "value", LOG_SESSION_ENV: get_log_session_id()},
             start_new_session=True,
             stdout=subprocess.PIPE,
             stderr=subprocess.STDOUT,

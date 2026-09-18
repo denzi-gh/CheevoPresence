@@ -207,5 +207,11 @@ def run_smoke(platform_name, platform, deadline_seconds=None):
         service.stop()
         try:
             controller.shutdown(timeout=5)
-        except Exception:
-            logger.debug("smoke teardown failed", exc_info=True)
+        except Exception:  # noqa: BLE001 smoke teardown is best-effort
+            log_event(
+                logger,
+                AREA_STARTUP,
+                "smoke_teardown_failed",
+                level=logging.DEBUG,
+                exc_info=True,
+            )

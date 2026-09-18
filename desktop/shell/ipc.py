@@ -14,7 +14,7 @@ import time
 import uuid
 from dataclasses import asdict
 
-from desktop.core.log_events import AREA_IPC, log_event
+from desktop.core.log_events import AREA_IPC, log_event, register_log_secret
 from desktop.runtime.controller import ConnectResult
 from desktop.runtime.state import WorkerState
 from desktop.runtime.update_service import UpdateInstallResult, UpdateStatus
@@ -119,6 +119,7 @@ class SettingsHostService:
         self.on_request = on_request
         self.address = ""
         self.auth_token = secrets.token_hex(32)
+        register_log_secret(self.auth_token)
         self.listener = None
         self.thread = None
         self._uses_unix_socket = False
@@ -328,6 +329,7 @@ class RemoteAppController:
         self.auth_token = auth_token or os.environ.get(SETTINGS_AUTH_ENV, "").strip()
         if not self.address or not self.auth_token:
             raise RuntimeError("Missing settings bootstrap environment.")
+        register_log_secret(self.auth_token)
         self.worker = RemoteWorkerProxy()
         self.platform = RemotePlatformProxy()
         self.config = {}

@@ -13,7 +13,7 @@ import tempfile
 import threading
 
 from desktop.core.constants import APP_NAME, TRAY_FLAG
-from desktop.core.log_events import AREA_AUTOSTART, log_event
+from desktop.core.log_events import AREA_AUTOSTART, AREA_PLATFORM, log_event
 from desktop.platform.generic import GenericPlatformServices
 from desktop.platform.linux_secrets import protect_api_key, unprotect_api_key
 
@@ -193,7 +193,13 @@ def notify_already_running():
             timeout=2,
         )
     except (OSError, subprocess.SubprocessError):
-        logger.debug("notify-send unavailable", exc_info=True)
+        log_event(
+            logger,
+            AREA_PLATFORM,
+            "notify_send_unavailable",
+            level=logging.DEBUG,
+            exc_info=True,
+        )
 
 
 def request_running_app_exit():

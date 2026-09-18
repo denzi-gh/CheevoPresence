@@ -8,7 +8,7 @@ import sys
 import tempfile
 
 from desktop.core.constants import APP_NAME, UPDATE_TEST_FILE_NAME
-from desktop.core.log_events import AREA_CONFIG, log_event
+from desktop.core.log_events import AREA_CONFIG, log_event, register_log_secret
 from desktop.core.settings import DEFAULT_CONFIG, migrate_config, normalize_config
 from desktop.platform import get_platform_services
 
@@ -94,6 +94,7 @@ def load_config(platform=None):
                 saved = json.load(handle)
             saved = migrate_config(saved)
             cfg = normalize_config(saved, decode_api_key=platform.unprotect_api_key)
+            register_log_secret(cfg.get("apikey"))
             if source != config_file:
                 save_config(cfg, platform)
                 migrated = True
@@ -147,9 +148,11 @@ def save_config(cfg, platform=None):
     config_dir = get_config_dir(platform)
     config_file = get_config_file(platform)
     cfg = normalize_config(cfg, decode_api_key=platform.unprotect_api_key)
+    register_log_secret(cfg.get("apikey"))
     apikey_present = bool(cfg.get("apikey"))
     stored_cfg = {key: value for key, value in cfg.items() if key != "apikey"}
     protected_apikey = platform.protect_api_key(cfg["apikey"])
+    register_log_secret(protected_apikey)
     if protected_apikey:
         stored_cfg["apikey_protected"] = protected_apikey
 

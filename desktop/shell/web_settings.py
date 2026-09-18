@@ -16,7 +16,7 @@ from typing import TYPE_CHECKING
 from urllib.parse import parse_qs, urlparse
 
 from desktop.core.constants import APP_NAME, APP_VERSION, RA_SETTINGS_URL
-from desktop.core.log_events import AREA_SETTINGS, log_event
+from desktop.core.log_events import AREA_SETTINGS, log_event, register_log_secret
 from desktop.core.settings import normalize_config
 from desktop.platform import get_platform_services
 from desktop.runtime.logging_setup import get_log_level
@@ -244,6 +244,7 @@ class WebSettingsAPI:
     def load_config(self):
         with self._lock:
             self.cfg = dict(self.controller.load_config())
+            register_log_secret(self.cfg.get("apikey"))
             return {
                 "config": dict(self.cfg),
                 "state": self._state_payload(),
@@ -316,6 +317,7 @@ class WebSettingsAPI:
             "interval": visible.get("interval", base.get("interval", 5)),
             "timeout": visible.get("timeout", base.get("timeout", 130)),
         }
+        register_log_secret(merged.get("apikey"))
         return normalize_config(merged)
 
     def save_config(self, payload):
@@ -537,8 +539,14 @@ def _invoke_native_window_call(fn):
     if sys.platform == "darwin":
         try:
             _macos_call_after(fn)
-        except Exception:
-            logger.debug("main-thread dispatch unavailable", exc_info=True)
+        except Exception:  # noqa: BLE001 optional native dispatch boundary
+            log_event(
+                logger,
+                AREA_SETTINGS,
+                "main_thread_dispatch_unavailable",
+                level=logging.DEBUG,
+                exc_info=True,
+            )
             return False
         return True
     fn()
@@ -592,6 +600,7 @@ class WebSettingsWindow:
 
     def _start_server(self):
         token = os.urandom(16).hex()
+        register_log_secret(token)
         page = _settings_html().replace(
             "__CHEEVO_API_TOKEN__",
             token,
@@ -717,12 +726,24 @@ class WebSettingsWindow:
         self.api.set_window(window)
         try:
             window.events.closed += self.api.on_window_closed
-        except Exception:
-            logger.debug("pywebview closed event unavailable", exc_info=True)
+        except Exception:  # noqa: BLE001 optional pywebview event API
+            log_event(
+                logger,
+                AREA_SETTINGS,
+                "webview_closed_event_unavailable",
+                level=logging.DEBUG,
+                exc_info=True,
+            )
         try:
             window.events.shown += self._focus_native_window
-        except Exception: 
-            logger.debug("pywebview shown event unavailable", exc_info=True)
+        except Exception:  # noqa: BLE001 optional pywebview event API
+            log_event(
+                logger,
+                AREA_SETTINGS,
+                "webview_shown_event_unavailable",
+                level=logging.DEBUG,
+                exc_info=True,
+            )
         self._notify_ready()
         webview.start(started.set, debug=False)
 

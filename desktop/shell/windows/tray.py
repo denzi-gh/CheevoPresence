@@ -15,6 +15,12 @@ from desktop.core.constants import (
     RA_SETTINGS_URL,
     WINDOWS_SETTINGS_CLIENT_FLAG,
 )
+from desktop.core.log_events import (
+    AREA_SETTINGS,
+    AREA_SHUTDOWN,
+    AREA_TRAY,
+    log_event,
+)
 from desktop.runtime.controller import AppController
 from desktop.runtime.storage import (
     APP_ICON_FILE,
@@ -109,8 +115,14 @@ class TrayApp(TrayControllerBase):
             return
         try:
             self.icon.update_menu()
-        except Exception:  # pystray teardown race; menu refresh is best-effort
-            logger.debug("Tray menu update failed", exc_info=True)
+        except Exception:  # noqa: BLE001 pystray teardown race; best-effort
+            log_event(
+                logger,
+                AREA_TRAY,
+                "menu_update_failed",
+                level=logging.DEBUG,
+                exc_info=True,
+            )
 
     # pystray callbacks run off the main thread already, so UI updates just
     # re-render the menu. there is no separate UI thread to marshal onto
@@ -142,12 +154,18 @@ class TrayApp(TrayControllerBase):
         env.update(self._settings_service.get_launch_env())
         try:
             self._settings_process = launch_settings_process(command, env)
-        except Exception:
-            logger.exception("Windows settings client launch failed")
+        except Exception:  # noqa: BLE001 process launch boundary; failure is logged
+            log_event(
+                logger,
+                AREA_SETTINGS,
+                "client_launch_failed",
+                level=logging.ERROR,
+                exc_info=True,
+            )
             self._settings_process = None
             self._settings_open = False
             return False
-        logger.info("Windows settings client launched pid=%s", self._settings_process.pid)
+        log_event(logger, AREA_SETTINGS, "client_launch", pid=self._settings_process.pid)
         self._settings_open = True
         return False
 
@@ -183,7 +201,7 @@ class TrayApp(TrayControllerBase):
                 return
             self._shutdown_started = True
 
-        logger.info("Windows tray shutdown requested")
+        log_event(logger, AREA_SHUTDOWN, "tray_requested")
         self.controller.set_status_callback(None)
         self._shutdown_watchdog = threading.Timer(
             SHUTDOWN_WATCHDOG_SECONDS,
@@ -203,13 +221,19 @@ class TrayApp(TrayControllerBase):
             if self.icon:
                 try:
                     self.icon.stop()
-                    logger.info("Windows tray icon stopped")
-                except Exception:
-                    logger.exception("Windows tray icon stop failed")
+                    log_event(logger, AREA_TRAY, "icon_stopped")
+                except Exception:  # noqa: BLE001 pystray teardown boundary
+                    log_event(
+                        logger,
+                        AREA_TRAY,
+                        "icon_stop_failed",
+                        level=logging.ERROR,
+                        exc_info=True,
+                    )
             self._stop_settings_client()
             self._settings_service.stop()
             stopped = self.controller.shutdown(timeout=SHUTDOWN_GRACE_SECONDS)
-            logger.info("Windows tray shutdown cleanup completed stopped=%s", stopped)
+            log_event(logger, AREA_SHUTDOWN, "tray_cleanup_completed", stopped=stopped)
         finally:
             self._shutdown_done.set()
             if self._shutdown_watchdog:
@@ -217,7 +241,12 @@ class TrayApp(TrayControllerBase):
 
     def _force_exit(self):
         if not self._shutdown_done.is_set():
-            logger.critical("Windows tray shutdown watchdog forcing process exit")
+            log_event(
+                logger,
+                AREA_SHUTDOWN,
+                "watchdog_force_exit",
+                level=logging.CRITICAL,
+            )
             os._exit(0)
 
     def _on_quit(self, icon, item):
@@ -259,7 +288,7 @@ class TrayApp(TrayControllerBase):
         self._exit_listener = self.platform.start_exit_listener(self.quit_app)
         self._update_icon()
 
-        logger.info("Windows tray run started")
+        log_event(logger, AREA_TRAY, "run_started")
         self.controller.start_saved_session()
         if self.open_settings_on_launch:
             self.open_settings()
@@ -269,4 +298,4 @@ class TrayApp(TrayControllerBase):
         finally:
             self._settings_service.stop()
             self._stop_settings_client()
-            logger.info("Windows tray run exited")
+            log_event(logger, AREA_TRAY, "run_exited")

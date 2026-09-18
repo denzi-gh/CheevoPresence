@@ -10,6 +10,16 @@ from typing import Any, Protocol
 import requests
 
 from desktop.core.api import format_api_error
+from desktop.core.log_events import (
+    AREA_AUTOSTART,
+    AREA_CONFIG,
+    AREA_RA,
+    AREA_SETTINGS,
+    AREA_SHUTDOWN,
+    AREA_STARTUP,
+    AREA_WORKER,
+    log_event,
+)
 from desktop.core.ra_client import APIResponseError, RAClient
 from desktop.core.roles import debug_forced_role_permission, resolve_dev_mode
 from desktop.core.settings import normalize_config
@@ -60,9 +70,11 @@ class AppController:
     def __init__(self, platform=None, ra_client=None):
         self.platform = platform or get_platform_services()
         self.ra_client = ra_client or RAClient()
-        logger.info(
-            "Controller initializing platform=%s",
-            self.platform.__class__.__name__,
+        log_event(
+            logger,
+            AREA_STARTUP,
+            "controller_initializing",
+            platform=self.platform.__class__.__name__,
         )
         self._action_lock = threading.Lock()
         self.config = load_config(self.platform)
@@ -92,16 +104,27 @@ class AppController:
             if bool(self.config["start_on_boot"]) != previous_start_on_boot:
                 autostart_error = self.platform.set_autostart(self.config["start_on_boot"])
                 if autostart_error:
-                    logger.warning("Autostart update failed error=%s", autostart_error)
+                    log_event(
+                        logger,
+                        AREA_AUTOSTART,
+                        "update_failed",
+                        level=logging.WARNING,
+                        detail=autostart_error,
+                    )
                     self.config["start_on_boot"] = self.platform.is_autostart_enabled()
                     warning_title = "Startup Setting Failed"
                     warning_message = autostart_error
 
             try:
                 save_config(self.config, self.platform)
-                logger.info("Configuration saved")
             except OSError:
-                logger.exception("Configuration save failed")
+                log_event(
+                    logger,
+                    AREA_CONFIG,
+                    "controller_save_failed",
+                    level=logging.ERROR,
+                    exc_info=True,
+                )
                 return {
                     "success": False,
                     "config": dict(self.config),
@@ -129,32 +152,39 @@ class AppController:
         with self._action_lock:
             config = self.load_config()
             if not config["username"] or not config["apikey"]:
-                logger.info(
-                    (
-                        "Saved session not started missing_credentials "
-                        "username_present=%s apikey_present=%s"
-                    ),
-                    bool(config["username"]),
-                    bool(config["apikey"]),
+                log_event(
+                    logger,
+                    AREA_WORKER,
+                    "saved_session_skipped",
+                    reason="missing_credentials",
+                    username_present=bool(config["username"]),
+                    apikey_present=bool(config["apikey"]),
                 )
                 return False
-            logger.info("Starting saved session")
+            log_event(logger, AREA_WORKER, "saved_session_start")
             return self.worker.start(config)
 
     def connect(self, config):
         with self._action_lock:
             self.config = normalize_config(config)
-            logger.info(
-                "Connect requested username_present=%s apikey_present=%s start_on_boot=%s",
-                bool(self.config["username"]),
-                bool(self.config["apikey"]),
-                bool(self.config["start_on_boot"]),
+            log_event(
+                logger,
+                AREA_SETTINGS,
+                "connect_requested",
+                username_present=bool(self.config["username"]),
+                apikey_present=bool(self.config["apikey"]),
+                start_on_boot=bool(self.config["start_on_boot"]),
             )
             try:
                 save_config(self.config, self.platform)
-                logger.info("Configuration saved")
             except OSError:
-                logger.exception("Configuration save failed")
+                log_event(
+                    logger,
+                    AREA_CONFIG,
+                    "controller_save_failed",
+                    level=logging.ERROR,
+                    exc_info=True,
+                )
                 return ConnectResult(
                     success=False,
                     config=dict(self.config),
@@ -166,7 +196,13 @@ class AppController:
             warning_message = None
             autostart_error = self.platform.set_autostart(self.config["start_on_boot"])
             if autostart_error:
-                logger.warning("Autostart update failed error=%s", autostart_error)
+                log_event(
+                    logger,
+                    AREA_AUTOSTART,
+                    "update_failed",
+                    level=logging.WARNING,
+                    detail=autostart_error,
+                )
                 self.config["start_on_boot"] = self.platform.is_autostart_enabled()
                 try:
                     save_config(self.config, self.platform)
@@ -180,11 +216,15 @@ class AppController:
                     self.config["username"],
                     self.config["apikey"],
                 )
-                logger.info("RetroAchievements credential validation succeeded")
+                log_event(logger, AREA_RA, "credential_validation_succeeded")
             except requests.RequestException as exc:
-                logger.warning(
-                    "RetroAchievements credential validation failed error=%s",
-                    format_api_error(exc),
+                log_event(
+                    logger,
+                    AREA_RA,
+                    "credential_validation_failed",
+                    level=logging.WARNING,
+                    error_type=exc.__class__.__name__,
+                    detail=format_api_error(exc),
                 )
                 return ConnectResult(
                     success=False,
@@ -195,8 +235,12 @@ class AppController:
                     error_message=format_api_error(exc),
                 )
             except APIResponseError:
-                logger.warning(
-                    "RetroAchievements credential validation returned unexpected payload"
+                log_event(
+                    logger,
+                    AREA_RA,
+                    "credential_validation_failed",
+                    level=logging.WARNING,
+                    reason="unexpected_payload",
                 )
                 return ConnectResult(
                     success=False,
@@ -206,8 +250,15 @@ class AppController:
                     error_title="Connection Failed",
                     error_message="API error: unexpected response",
                 )
-            except Exception:
-                logger.exception("RetroAchievements credential validation failed unexpectedly")
+            except Exception:  # noqa: BLE001 credential boundary; failure is logged
+                log_event(
+                    logger,
+                    AREA_RA,
+                    "credential_validation_failed",
+                    level=logging.ERROR,
+                    exc_info=True,
+                    reason="unexpected_error",
+                )
                 return ConnectResult(
                     success=False,
                     config=dict(self.config),
@@ -225,9 +276,13 @@ class AppController:
                 displayable_roles = profile.get("displayableRoles")
             except (requests.RequestException, APIResponseError) as exc:
                 displayable_roles = None
-                logger.warning(
-                    "RetroAchievements role lookup failed error=%s",
-                    format_api_error(exc),
+                log_event(
+                    logger,
+                    AREA_RA,
+                    "role_lookup_failed",
+                    level=logging.WARNING,
+                    error_type=exc.__class__.__name__,
+                    detail=format_api_error(exc),
                 )
 
             derived_dev_mode = resolve_dev_mode(
@@ -239,12 +294,20 @@ class AppController:
                 self.config["dev_mode"] = derived_dev_mode
                 try:
                     save_config(self.config, self.platform)
-                    logger.info(
-                        "Dev Mode derived from RetroAchievements permissions enabled=%s",
-                        derived_dev_mode,
+                    log_event(
+                        logger,
+                        AREA_CONFIG,
+                        "developer_mode_derived",
+                        enabled=derived_dev_mode,
                     )
                 except OSError:
-                    logger.exception("Configuration save failed after role detection")
+                    log_event(
+                        logger,
+                        AREA_CONFIG,
+                        "role_save_failed",
+                        level=logging.ERROR,
+                        exc_info=True,
+                    )
                     return ConnectResult(
                         success=False,
                         config=dict(self.config),
@@ -256,7 +319,12 @@ class AppController:
 
             started = self.worker.start(self.config)
             if not started:
-                logger.warning("Worker did not start after successful credential validation")
+                log_event(
+                    logger,
+                    AREA_WORKER,
+                    "start_failed_after_validation",
+                    level=logging.WARNING,
+                )
                 return ConnectResult(
                     success=False,
                     config=dict(self.config),
@@ -266,7 +334,7 @@ class AppController:
                     error_message="Could not start the monitoring worker.",
                 )
 
-            logger.info("Connect completed worker_started=True")
+            log_event(logger, AREA_SETTINGS, "connect_completed", worker_started=True)
             return ConnectResult(
                 success=True,
                 config=dict(self.config),
@@ -275,13 +343,13 @@ class AppController:
             )
 
     def disconnect(self, timeout=35):
-        logger.info("Disconnect requested timeout=%s", timeout)
+        log_event(logger, AREA_WORKER, "disconnect_requested", timeout_sec=timeout)
         stopped = self.worker.stop(timeout=timeout)
-        logger.info("Disconnect completed stopped=%s", stopped)
+        log_event(logger, AREA_WORKER, "disconnect_completed", stopped=stopped)
         return stopped
 
     def shutdown(self, timeout=35):
-        logger.info("Controller shutdown requested timeout=%s", timeout)
+        log_event(logger, AREA_SHUTDOWN, "controller_requested", timeout_sec=timeout)
         return self.disconnect(timeout=timeout)
 
     def install_update(self):

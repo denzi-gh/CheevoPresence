@@ -14,7 +14,12 @@ import time
 from tkinter import messagebox
 
 from desktop.core.constants import APP_NAME
-from desktop.core.log_events import AREA_AUTOSTART, AREA_UPDATE, log_event
+from desktop.core.log_events import (
+    AREA_AUTOSTART,
+    AREA_PLATFORM,
+    AREA_UPDATE,
+    log_event,
+)
 from desktop.platform.base import PlatformServices
 from desktop.platform.windows_secrets import protect_api_key, unprotect_api_key
 
@@ -53,19 +58,30 @@ def acquire_single_instance():
         kernel32.CloseHandle.restype = ctypes.c_bool
         mutex = kernel32.CreateMutexW(None, False, SINGLE_INSTANCE_MUTEX_NAME)
         if not mutex:
-            logger.warning("Windows single-instance mutex creation failed")
+            log_event(
+                logger,
+                AREA_PLATFORM,
+                "single_instance_create_failed",
+                level=logging.WARNING,
+            )
             return False
 
         if ctypes.get_last_error() == ERROR_ALREADY_EXISTS:
             kernel32.CloseHandle(mutex)
-            logger.info("Windows single-instance mutex already exists")
+            log_event(logger, AREA_PLATFORM, "single_instance_exists")
             return False
 
         _single_instance_mutex = mutex
-        logger.info("Windows single-instance mutex acquired")
+        log_event(logger, AREA_PLATFORM, "single_instance_acquired")
         return True
-    except Exception:
-        logger.exception("Windows single-instance mutex acquisition failed")
+    except Exception:  # noqa: BLE001 native mutex boundary; failure is logged
+        log_event(
+            logger,
+            AREA_PLATFORM,
+            "single_instance_failed",
+            level=logging.ERROR,
+            exc_info=True,
+        )
         return False
 
 
@@ -76,13 +92,25 @@ def notify_already_running():
         try:
             ctypes.windll.user32.MessageBoxW(None, message, APP_NAME, 0x40)
             return
-        except Exception:  # any native failure falls back to the tk box
-            logger.debug("Native message box unavailable", exc_info=True)
+        except Exception:  # noqa: BLE001 any native failure falls back to the tk box
+            log_event(
+                logger,
+                AREA_PLATFORM,
+                "native_message_box_unavailable",
+                level=logging.DEBUG,
+                exc_info=True,
+            )
 
     try:
         messagebox.showinfo(APP_NAME, message)
-    except Exception:  # notification is best-effort (e.g. headless tk)
-        logger.debug("tk message box unavailable", exc_info=True)
+    except Exception:  # noqa: BLE001 notification is best-effort (e.g. headless tk)
+        log_event(
+            logger,
+            AREA_PLATFORM,
+            "tk_message_box_unavailable",
+            level=logging.DEBUG,
+            exc_info=True,
+        )
 
 
 def request_running_app_exit():
@@ -122,10 +150,21 @@ def start_exit_listener(callback):
         initial_state = False
         event = kernel32.CreateEventW(None, manual_reset, initial_state, EXIT_EVENT_NAME)
         if not event:
-            logger.warning("Windows exit listener event could not be created")
+            log_event(
+                logger,
+                AREA_PLATFORM,
+                "exit_listener_create_failed",
+                level=logging.WARNING,
+            )
             return None
     except (OSError, AttributeError):
-        logger.warning("Windows exit listener could not start", exc_info=True)
+        log_event(
+            logger,
+            AREA_PLATFORM,
+            "exit_listener_start_failed",
+            level=logging.WARNING,
+            exc_info=True,
+        )
         return None
 
     _exit_event_handle = event
@@ -137,8 +176,14 @@ def start_exit_listener(callback):
             result = kernel32.WaitForSingleObject(event, infinite)
             if result == wait_object_0:
                 callback()
-        except Exception:
-            logger.exception("Windows exit listener failed")
+        except Exception:  # noqa: BLE001 native listener boundary; failure is logged
+            log_event(
+                logger,
+                AREA_PLATFORM,
+                "exit_listener_failed",
+                level=logging.ERROR,
+                exc_info=True,
+            )
 
     _exit_listener_thread = threading.Thread(target=listen_for_exit, daemon=True)
     _exit_listener_thread.start()

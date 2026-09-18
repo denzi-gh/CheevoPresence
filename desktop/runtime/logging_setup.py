@@ -1,22 +1,36 @@
 """Shared runtime logging setup for desktop shells."""
 
+import copy
 import json
 import logging
 import os
+import secrets
 import sys
+from datetime import datetime, timezone
 from logging.handlers import RotatingFileHandler
 
-from desktop.core.log_events import AREA_STARTUP, log_event
+from desktop.core.log_events import (
+    AREA_STARTUP,
+    log_event,
+    redact_log_text,
+    sanitize_log_value,
+)
 from desktop.runtime.storage import get_log_file
 
 LOGGER_NAME = "desktop"
-LOG_FORMAT = "%(asctime)s %(levelname)s %(name)s: %(message)s"
+LOG_FORMAT = (
+    "%(asctime)s %(levelname)s process=%(process_role)s pid=%(process)d "
+    "thread=%(threadName)s session=%(log_session)s %(name)s: %(message)s"
+)
 MAX_LOG_BYTES = 2 * 1024 * 1024
 BACKUP_COUNT = 5
 HANDLER_MARKER = "_cheevo_runtime_log_handler"
 CHILD_LOG_PREFIX = "@cheevo-log "
+LOG_SESSION_ENV = "CHEEVO_LOG_SESSION"
 # Set CHEEVO_LOG_LEVEL=DEBUG (or INFO/WARNING) to override the default level.
 LOG_LEVEL_ENV = "CHEEVO_LOG_LEVEL"
+_LOG_SESSION_ID = os.environ.get(LOG_SESSION_ENV, "").strip() or secrets.token_hex(4)
+MAX_LOG_RECORD_CHARS = 64 * 1024
 
 
 def _resolve_level(level):
@@ -44,21 +58,36 @@ def _remove_runtime_handlers(logger):
             handler.close()
 
 
+def _record_message(record, formatter):
+    try:
+        message = record.getMessage()
+    except Exception:  # noqa: BLE001 logging must not break the caller
+        message = f"<unformattable log message error_type={record.msg.__class__.__name__}>"
+    try:
+        if record.exc_info:
+            message = f"{message}\n{formatter.formatException(record.exc_info)}"
+        if record.stack_info:
+            message = f"{message}\n{formatter.formatStack(record.stack_info)}"
+    except Exception:  # noqa: BLE001 malformed exception state must remain loggable
+        message = f"{message}\n<exception formatting failed>"
+    return message
+
+
 class ChildLogFormatter(logging.Formatter):
     """Encode one settings-client record for the host's single log writer."""
 
     def format(self, record):
-        message = record.getMessage()
-        if record.exc_info:
-            message = f"{message}\n{self.formatException(record.exc_info)}"
-        if record.stack_info:
-            message = f"{message}\n{self.formatStack(record.stack_info)}"
+        message = _record_message(record, self)
+        message = redact_log_text(message)
+        if len(message) > MAX_LOG_RECORD_CHARS:
+            message = f"{message[:MAX_LOG_RECORD_CHARS]}...<truncated>"
         payload = {
             "created": record.created,
             "level": record.levelno,
             "logger": record.name,
             "message": message,
             "pid": record.process,
+            "session": _LOG_SESSION_ID,
             "thread": record.threadName,
         }
         return CHILD_LOG_PREFIX + json.dumps(
@@ -92,14 +121,48 @@ def decode_child_log_line(line):
     pid = payload.get("pid")
     thread_name = payload.get("thread")
     created = payload.get("created")
+    session = payload.get("session")
     return {
         "created": created if isinstance(created, (int, float)) else None,
         "level": level,
         "logger": name,
         "message": message,
         "pid": pid if isinstance(pid, int) else None,
+        "session": session if isinstance(session, str) else None,
         "thread": thread_name if isinstance(thread_name, str) else None,
     }
+
+
+class SafeLogFormatter(logging.Formatter):
+    """Render every record as one redacted line with stable runtime context."""
+
+    def __init__(self, process_role="host"):
+        super().__init__(LOG_FORMAT)
+        self.process_role = process_role
+
+    def formatTime(self, record, datefmt=None):
+        timestamp = datetime.fromtimestamp(record.created, tz=timezone.utc)
+        return timestamp.isoformat(timespec="milliseconds").replace("+00:00", "Z")
+
+    def format(self, record):
+        safe_record = copy.copy(record)
+        message = redact_log_text(_record_message(record, self), escape_controls=True)
+        if len(message) > MAX_LOG_RECORD_CHARS:
+            message = f"{message[:MAX_LOG_RECORD_CHARS]}...<truncated>"
+
+        safe_record.msg = message
+        safe_record.args = ()
+        safe_record.exc_info = None
+        safe_record.exc_text = None
+        safe_record.stack_info = None
+        safe_record.process_role = getattr(record, "process_role", self.process_role)
+        safe_record.log_session = getattr(record, "log_session", _LOG_SESSION_ID)
+        safe_record.threadName = sanitize_log_value(record.threadName)
+        return super().format(safe_record)
+
+
+def get_log_session_id():
+    return _LOG_SESSION_ID
 
 
 def setup_logging(platform=None, level=logging.INFO):
@@ -115,6 +178,7 @@ def setup_logging(platform=None, level=logging.INFO):
     for handler in logger.handlers:
         if _is_runtime_handler(handler) and _same_log_file(handler, log_file):
             handler.setLevel(level)
+            handler.setFormatter(SafeLogFormatter())
             return log_file
 
     _remove_runtime_handlers(logger)
@@ -135,7 +199,7 @@ def setup_logging(platform=None, level=logging.INFO):
 
     setattr(handler, HANDLER_MARKER, True)
     handler.setLevel(level)
-    handler.setFormatter(logging.Formatter(LOG_FORMAT))
+    handler.setFormatter(SafeLogFormatter())
     logger.addHandler(handler)
     log_event(logger, AREA_STARTUP, "logging_initialized", log_file=log_file)
     return log_file
@@ -162,7 +226,8 @@ def setup_child_logging(level=logging.INFO, stream=None):
 
 def get_log_level():
     """Effective level of the app logger that writes cheevo.log."""
-    return logging.getLogger(LOGGER_NAME).level
+    level = logging.getLogger(LOGGER_NAME).level
+    return logging.INFO if level == logging.NOTSET else level
 
 
 def set_log_level(level):

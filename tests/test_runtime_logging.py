@@ -1,15 +1,18 @@
 import io
 import logging
 import os
+import re
 import tempfile
 import unittest
 from logging.handlers import RotatingFileHandler
 
+from desktop.core.log_events import register_log_secret
 from desktop.runtime.logging_setup import (
     BACKUP_COUNT,
     HANDLER_MARKER,
     MAX_LOG_BYTES,
     decode_child_log_line,
+    get_log_level,
     setup_child_logging,
     setup_logging,
 )
@@ -48,6 +51,15 @@ class RuntimeLoggingTests(unittest.TestCase):
                 os.path.join(tmpdir, "CheevoPresence", "logs", "cheevo.log"),
                 get_log_file(platform),
             )
+
+    def test_unconfigured_log_level_reports_application_default(self):
+        app_logger = logging.getLogger("desktop")
+        original_level = app_logger.level
+        try:
+            app_logger.setLevel(logging.NOTSET)
+            self.assertEqual(logging.INFO, get_log_level())
+        finally:
+            app_logger.setLevel(original_level)
 
     def test_setup_logging_clamps_http_client_loggers(self):
         with tempfile.TemporaryDirectory() as tmpdir:
@@ -116,6 +128,36 @@ class RuntimeLoggingTests(unittest.TestCase):
             ]
             self.assertEqual(logging.DEBUG, handlers[0].level)
             self._close_runtime_handlers()
+
+    def test_file_formatter_redacts_direct_exceptions_into_one_line(self):
+        with tempfile.TemporaryDirectory() as tmpdir:
+            platform = FakePlatform(tmpdir)
+            secret = "DIRECT_EXCEPTION_SECRET"
+            register_log_secret(secret)
+            log_file = setup_logging(platform)
+            try:
+                raise RuntimeError(
+                    f"failed {secret} at https://example.test/api?token={secret}"
+                )
+            except RuntimeError:
+                logging.getLogger("desktop.test").exception("direct logger failure")
+            self._close_runtime_handlers()
+
+            with open(log_file, "r", encoding="utf-8") as handle:
+                lines = handle.read().splitlines()
+
+        self.assertEqual(2, len(lines))
+        self.assertNotIn(secret, "\n".join(lines))
+        self.assertNotIn("?token=", "\n".join(lines))
+        self.assertIn("RuntimeError", lines[-1])
+        self.assertIn(r"\nTraceback", lines[-1])
+        self.assertRegex(
+            lines[-1],
+            re.compile(
+                r"^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{3}Z ERROR "
+                r"process=host pid=\d+ thread=MainThread session=[0-9a-f]{8} "
+            ),
+        )
 
 
 if __name__ == "__main__":

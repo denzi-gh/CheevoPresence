@@ -33,7 +33,7 @@ from desktop.core.constants import (
     MAC_SETTINGS_CLIENT_FLAG,
     RA_SETTINGS_URL,
 )
-from desktop.core.log_events import AREA_SETTINGS, log_event
+from desktop.core.log_events import AREA_SETTINGS, AREA_SHUTDOWN, AREA_TRAY, log_event
 from desktop.platform.macos import get_exe_path
 from desktop.runtime.controller import AppController
 from desktop.runtime.storage import (
@@ -130,7 +130,7 @@ class MacOSMenuBarApp(TrayControllerBase):
         self._shutdown_lock = threading.Lock()
 
     def _application_did_finish_launching(self):
-        logger.info("macOS menu-bar app finished launching")
+        log_event(logger, AREA_TRAY, "app_finished_launching")
         self.settings_service.start()
         self._build_status_item()
         self._exit_listener = self.controller.platform.start_exit_listener(self.quit_app)
@@ -367,11 +367,16 @@ class MacOSMenuBarApp(TrayControllerBase):
         try:
             self._settings_process.wait(timeout=2)
         except subprocess.TimeoutExpired:
-            logger.warning("macOS settings process did not terminate; killing")
+            log_event(
+                logger,
+                AREA_SETTINGS,
+                "client_stop_timeout",
+                level=logging.WARNING,
+            )
             self._settings_process.kill()
             self._settings_process.wait(timeout=1)
         finish_settings_output_capture(self._settings_process)
-        logger.info("macOS settings process stopped")
+        log_event(logger, AREA_SETTINGS, "client_stopped")
         self._settings_process = None
 
     def open_ra_settings(self):
@@ -389,7 +394,7 @@ class MacOSMenuBarApp(TrayControllerBase):
             if self._shutdown_started:
                 return
             self._shutdown_started = True
-        logger.info("macOS menu-bar shutdown requested")
+        log_event(logger, AREA_SHUTDOWN, "menu_bar_requested")
         threading.Thread(target=self._shutdown_and_terminate, daemon=True).start()
 
     def _shutdown_and_terminate(self):
@@ -397,7 +402,7 @@ class MacOSMenuBarApp(TrayControllerBase):
             self._stop_settings_process()
             self.settings_service.stop()
             stopped = self.controller.shutdown()
-            logger.info("macOS menu-bar shutdown cleanup completed stopped=%s", stopped)
+            log_event(logger, AREA_SHUTDOWN, "menu_bar_cleanup_completed", stopped=stopped)
         finally:
             callAfter(NSApplication.sharedApplication().terminate_, None)
 
@@ -406,6 +411,6 @@ class MacOSMenuBarApp(TrayControllerBase):
         self.app.setActivationPolicy_(NSApplicationActivationPolicyAccessory)
         self._delegate = _MenuBarDelegate.alloc().initWithOwner_(self)
         self.app.setDelegate_(self._delegate)
-        logger.info("macOS menu-bar event loop starting")
+        log_event(logger, AREA_TRAY, "run_started")
         runEventLoop()
-        logger.info("macOS menu-bar event loop exited")
+        log_event(logger, AREA_TRAY, "run_exited")

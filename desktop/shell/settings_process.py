@@ -6,10 +6,41 @@ import logging
 import subprocess
 import threading
 
-from desktop.core.log_events import AREA_SETTINGS, log_event
-from desktop.runtime.logging_setup import decode_child_log_line
+from desktop.core.log_events import AREA_SETTINGS, format_event
+from desktop.runtime.logging_setup import (
+    LOG_SESSION_ENV,
+    decode_child_log_line,
+    get_log_session_id,
+)
 
 logger = logging.getLogger(__name__)
+
+
+def _emit_settings_record(
+    logger_name,
+    level,
+    message,
+    *,
+    created=None,
+    pid=None,
+    thread=None,
+    session=None,
+):
+    target = logging.getLogger(logger_name)
+    if not target.isEnabledFor(level):
+        return
+
+    record = target.makeRecord(logger_name, level, "", 0, message, (), None)
+    if created is not None:
+        record.created = created
+        record.msecs = (created - int(created)) * 1000
+    if pid is not None:
+        record.process = pid
+    if thread is not None:
+        record.threadName = thread
+    record.process_role = "settings"
+    record.log_session = session or get_log_session_id()
+    target.handle(record)
 
 
 def _forward_settings_output_line(line, fallback_pid=None):
@@ -17,39 +48,28 @@ def _forward_settings_output_line(line, fallback_pid=None):
     if payload is None:
         raw_line = str(line).rstrip("\r\n")
         if raw_line:
-            log_event(
-                logger,
-                AREA_SETTINGS,
-                "client_output",
+            _emit_settings_record(
+                logger.name,
+                logging.INFO,
+                format_event(
+                    AREA_SETTINGS,
+                    "client_output",
+                    pid=fallback_pid,
+                    output=raw_line,
+                ),
                 pid=fallback_pid,
-                output=raw_line,
             )
         return
 
-    target = logging.getLogger(payload["logger"])
-    level = payload["level"]
-    if not target.isEnabledFor(level):
-        return
-
-    record = target.makeRecord(
+    _emit_settings_record(
         payload["logger"],
-        level,
-        "",
-        0,
+        payload["level"],
         payload["message"],
-        (),
-        None,
+        created=payload["created"],
+        pid=payload["pid"] or fallback_pid,
+        thread=payload["thread"],
+        session=payload["session"],
     )
-    if payload["created"] is not None:
-        record.created = payload["created"]
-        record.msecs = (record.created - int(record.created)) * 1000
-    if payload["pid"] is not None:
-        record.process = payload["pid"]
-    elif fallback_pid is not None:
-        record.process = fallback_pid
-    if payload["thread"] is not None:
-        record.threadName = payload["thread"]
-    target.handle(record)
 
 
 def _capture_settings_output(process):
@@ -60,13 +80,16 @@ def _capture_settings_output(process):
         for line in stream:
             _forward_settings_output_line(line, fallback_pid=process.pid)
     except (OSError, ValueError) as exc:
-        log_event(
-            logger,
-            AREA_SETTINGS,
-            "client_output_failed",
-            level=logging.WARNING,
+        _emit_settings_record(
+            logger.name,
+            logging.WARNING,
+            format_event(
+                AREA_SETTINGS,
+                "client_output_failed",
+                pid=process.pid,
+                error_type=exc.__class__.__name__,
+            ),
             pid=process.pid,
-            error_type=exc.__class__.__name__,
         )
     finally:
         try:
@@ -77,9 +100,11 @@ def _capture_settings_output(process):
 
 def launch_settings_process(command, env, *, start_new_session=False):
     """Start a settings child and asynchronously forward all of its output."""
+    child_env = dict(env)
+    child_env[LOG_SESSION_ENV] = get_log_session_id()
     process = subprocess.Popen(
         command,
-        env=env,
+        env=child_env,
         start_new_session=start_new_session,
         stdout=subprocess.PIPE,
         stderr=subprocess.STDOUT,
