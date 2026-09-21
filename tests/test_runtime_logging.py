@@ -22,7 +22,7 @@ from desktop.runtime.logging_setup import (
     setup_logging,
     tail_log_lines,
 )
-from desktop.runtime.storage import get_log_dir, get_log_file
+from desktop.runtime.storage import get_crash_dir, get_log_dir, get_log_file
 
 
 class FakePlatform:
@@ -56,6 +56,10 @@ class RuntimeLoggingTests(unittest.TestCase):
             self.assertEqual(
                 os.path.join(tmpdir, "CheevoPresence", "logs", "cheevo.log"),
                 get_log_file(platform),
+            )
+            self.assertEqual(
+                os.path.join(tmpdir, "CheevoPresence", "logs", "crashes"),
+                get_crash_dir(platform),
             )
 
     def test_unconfigured_log_level_reports_application_default(self):

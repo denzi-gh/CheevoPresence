@@ -13,6 +13,7 @@ from desktop.core.constants import EXIT_APP_FLAG, SMOKE_FLAG, TRAY_FLAG
 from desktop.core.log_events import AREA_STARTUP, log_event
 from desktop.platform import get_platform_services
 from desktop.runtime.controller import AppController
+from desktop.runtime.crash_reporting import install_crash_reporting
 from desktop.runtime.diagnostics import log_startup_diagnostics
 from desktop.runtime.logging_setup import setup_logging
 
@@ -48,6 +49,7 @@ def run_shell(platform_name, run_app):
 
     # Only the process holding the real app instance lock canopen and rotate cheevo.log
     setup_logging(platform)
+    install_crash_reporting(platform, process_role="host")
     log_startup_diagnostics(platform)
     log_event(logger, AREA_STARTUP, "entrypoint_started", platform=platform_name, mode=mode)
     log_event(logger, AREA_STARTUP, "single_instance_acquired", mode=mode)

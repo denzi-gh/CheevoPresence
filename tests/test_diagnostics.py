@@ -58,6 +58,7 @@ class StartupDiagnosticsTests(unittest.TestCase):
         self.assertIn("[STARTUP] app_started", output)
         self.assertIn("[PATHS] resolved", output)
         self.assertIn("log_file=", output)
+        self.assertIn("crash_dir=", output)
 
 
 if __name__ == "__main__":

@@ -9,7 +9,7 @@ import sys
 import tkinter as tk
 from tkinter import messagebox
 
-from desktop.core.log_events import AREA_SETTINGS, log_event
+from desktop.core.log_events import AREA_SETTINGS, log_event, register_log_secret
 from desktop.shell.web_settings import WebSettingsWindow
 
 logger = logging.getLogger(__name__)
@@ -52,6 +52,8 @@ def _show_startup_error(message):
 
 
 def main():
+    from desktop.platform import get_platform_services
+    from desktop.runtime.crash_reporting import install_crash_reporting
     from desktop.runtime.logging_setup import setup_child_logging
     from desktop.shell.ipc import (
         SETTINGS_ADDRESS_ENV,
@@ -62,10 +64,15 @@ def main():
     # The host is the sole cheevo.log writer. It captures and forwards this
     # structured stream, including stderr output from early/native failures.
     setup_child_logging()
-    log_event(logger, AREA_SETTINGS, "client_started", pid=os.getpid())
 
     address = os.environ.get(SETTINGS_ADDRESS_ENV)
     auth_token = os.environ.get(SETTINGS_AUTH_ENV)
+    register_log_secret(auth_token)
+    crash_reporter = install_crash_reporting(
+        get_platform_services(),
+        process_role="settings",
+    )
+    log_event(logger, AREA_SETTINGS, "client_started", pid=os.getpid())
     try:
         controller = RemoteAppController(address, auth_token)
         WebSettingsWindow(
@@ -74,11 +81,10 @@ def main():
             on_ready=_install_present_handler,
         )
     except Exception as exc:  # noqa: BLE001 process entry boundary; logged and shown to the user
-        log_event(
-            logger,
-            AREA_SETTINGS,
-            "client_error",
-            level=logging.ERROR,
-            error_type=exc.__class__.__name__,
+        crash_reporter.capture_exception(
+            type(exc),
+            exc,
+            exc.__traceback__,
+            origin="settings_client_main",
         )
         _show_startup_error(str(exc) or "The settings client could not connect to the host app.")

@@ -15,6 +15,7 @@ from desktop.core.constants import (
 )
 from desktop.core.log_events import AREA_STARTUP, log_event
 from desktop.runtime.controller import AppController
+from desktop.runtime.crash_reporting import install_crash_reporting
 from desktop.runtime.diagnostics import log_startup_diagnostics
 from desktop.runtime.logging_setup import setup_logging
 from desktop.shell.ipc import RemoteAppController, SettingsHostService
@@ -137,6 +138,7 @@ def run_smoke(platform_name, platform, deadline_seconds=None):
         return 1
 
     setup_logging(platform)
+    install_crash_reporting(platform, process_role="host")
     log_startup_diagnostics(platform)
     log_event(logger, AREA_STARTUP, "smoke_started", platform=platform_name)
 

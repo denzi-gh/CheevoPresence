@@ -20,6 +20,7 @@ from desktop.core.log_events import (
 from desktop.runtime.storage import (
     get_config_dir,
     get_config_file,
+    get_crash_dir,
     get_log_dir,
     get_log_file,
     get_runtime_root_dir,
@@ -110,5 +111,6 @@ def log_startup_diagnostics(platform=None):
         config_file=get_config_file(platform),
         log_dir=get_log_dir(platform),
         log_file=get_log_file(platform),
+        crash_dir=get_crash_dir(platform),
         runtime_dir=get_runtime_root_dir(),
     )

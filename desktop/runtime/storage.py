@@ -61,6 +61,10 @@ def get_log_file(platform=None):
     return os.path.join(get_log_dir(platform), "cheevo.log")
 
 
+def get_crash_dir(platform=None):
+    return os.path.join(get_log_dir(platform), "crashes")
+
+
 RESOURCE_DIR = get_resource_dir()
 RUNTIME_ROOT_DIR = get_runtime_root_dir()
 LEGACY_CONFIG_FILE = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))), "config.json")

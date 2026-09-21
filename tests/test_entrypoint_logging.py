@@ -39,6 +39,9 @@ class EntrypointLoggingOwnershipTests(unittest.TestCase):
             return_value=platform,
         ), mock.patch.object(entrypoint, "setup_logging") as setup, mock.patch.object(
             entrypoint,
+            "install_crash_reporting",
+        ) as crash_reporting, mock.patch.object(
+            entrypoint,
             "log_startup_diagnostics",
         ) as diagnostics, mock.patch.object(
             entrypoint,
@@ -46,14 +49,18 @@ class EntrypointLoggingOwnershipTests(unittest.TestCase):
             return_value=controller,
         ), mock.patch.object(entrypoint.sys, "argv", argv):
             entrypoint.run_shell("windows", run_app)
-        return setup, diagnostics, run_app, controller
+        return setup, crash_reporting, diagnostics, run_app, controller
 
     def test_duplicate_instance_never_opens_log_file(self):
         platform = FakePlatform(acquired=False)
 
-        setup, diagnostics, run_app, _controller = self._run(platform, ["app"])
+        setup, crash_reporting, diagnostics, run_app, _controller = self._run(
+            platform,
+            ["app"],
+        )
 
         setup.assert_not_called()
+        crash_reporting.assert_not_called()
         diagnostics.assert_not_called()
         run_app.assert_not_called()
         self.assertTrue(platform.notified)
@@ -61,12 +68,13 @@ class EntrypointLoggingOwnershipTests(unittest.TestCase):
     def test_exit_helper_never_opens_log_file(self):
         platform = FakePlatform()
 
-        setup, diagnostics, run_app, _controller = self._run(
+        setup, crash_reporting, diagnostics, run_app, _controller = self._run(
             platform,
             ["app", "--exit"],
         )
 
         setup.assert_not_called()
+        crash_reporting.assert_not_called()
         diagnostics.assert_not_called()
         run_app.assert_not_called()
         self.assertTrue(platform.exit_requested)
@@ -74,18 +82,26 @@ class EntrypointLoggingOwnershipTests(unittest.TestCase):
     def test_update_helper_never_opens_log_file(self):
         platform = FakePlatform(helper=True)
 
-        setup, diagnostics, run_app, _controller = self._run(platform, ["app"])
+        setup, crash_reporting, diagnostics, run_app, _controller = self._run(
+            platform,
+            ["app"],
+        )
 
         setup.assert_not_called()
+        crash_reporting.assert_not_called()
         diagnostics.assert_not_called()
         run_app.assert_not_called()
 
     def test_instance_owner_configures_logging_before_constructing_app(self):
         platform = FakePlatform()
 
-        setup, diagnostics, run_app, controller = self._run(platform, ["app"])
+        setup, crash_reporting, diagnostics, run_app, controller = self._run(
+            platform,
+            ["app"],
+        )
 
         setup.assert_called_once_with(platform)
+        crash_reporting.assert_called_once_with(platform, process_role="host")
         diagnostics.assert_called_once_with(platform)
         run_app.assert_called_once_with(controller, tray_mode=False)
         self.assertTrue(platform.cleaned)
