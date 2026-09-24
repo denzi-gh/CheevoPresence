@@ -325,6 +325,8 @@ button, input, select { font-family: inherit; }
 }
 .field input:focus { border-color: rgba(217, 159, 43, .65); }
 .field input:disabled { color: #8a8f97; opacity: 1; }
+.field input[aria-invalid="true"] { border-color: #c2575c; }
+.field-error { margin: 6px 0 0; color: #e08a8f; font-size: 12px; line-height: 1.4; }
 .number-row input {
   height: 40px; padding: 10px 12px;
   font: 600 13px var(--mono); letter-spacing: .02em; -moz-appearance: textfield;

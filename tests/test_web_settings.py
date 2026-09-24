@@ -612,6 +612,8 @@ class SettingsServerTests(unittest.TestCase):
 
         self.assertEqual(200, status)
         self.assertRegex(body, r'<input[^>]*id="intervalInput"[^>]*min="45"[^>]*max="120"')
+        self.assertRegex(body, r'<input[^>]*id="intervalInput"[^>]*required[^>]*aria-describedby="intervalError"')
+        self.assertIn('id="intervalError" class="field-error hidden" aria-live="polite"', body)
         self.assertIn("Default and minimum: 45 seconds", body)
 
     def test_foreign_host_or_origin_is_rejected(self):

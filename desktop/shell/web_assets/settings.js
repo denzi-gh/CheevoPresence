@@ -10,7 +10,7 @@ var apiKeyVisible = false;
 function bindElements() {
   var ids = [
     "usernameInput", "usernameCheck", "apikeyInput", "revealKey",
-    "intervalInput", "timeoutInput",
+    "intervalInput", "intervalError", "timeoutInput",
     "profileCheck", "gamepageCheck", "achievementCheck", "playtimeCheck",
     "consoleNameCheck", "gameTypeCheck", "bootCheck",
     "devActivityCheck", "devSetsCheck",
@@ -92,7 +92,7 @@ function formPayload() {
   return {
     username: els.usernameInput.value,
     apikey: els.apikeyInput.value,
-    interval: parseInt(els.intervalInput.value, 10),
+    interval: els.intervalInput.valueAsNumber,
     timeout: parseInt(els.timeoutInput.value, 10),
     show_profile_button: els.profileCheck.checked,
     show_gamepage_button: els.gamepageCheck.checked,
@@ -121,11 +121,31 @@ function applyConfig(config) {
   els.bootCheck.checked = !!config.start_on_boot;
   els.devActivityCheck.checked = !!config.use_retroachievements_developer_titles;
   els.devSetsCheck.checked = !!config.show_developer_sets_button;
+  validatePollInterval();
+}
+
+function validatePollInterval() {
+  var input = els.intervalInput;
+  var message = "";
+  if (input.validity.rangeUnderflow) {
+    message = "Poll interval must be at least " + input.min + " seconds.";
+  } else if (input.validity.rangeOverflow) {
+    message = "Poll interval must be at most " + input.max + " seconds.";
+  } else if (!input.validity.valid) {
+    message = "Enter a whole number from " + input.min + " to " + input.max + " seconds.";
+  }
+  input.setAttribute("aria-invalid", message ? "true" : "false");
+  setText(els.intervalError, message);
+  els.intervalError.classList.toggle("hidden", !message);
+  return !message;
 }
 
 function scheduleSave() {
   if (saveTimer) { window.clearTimeout(saveTimer); }
+  if (!validatePollInterval()) { return; }
   saveTimer = window.setTimeout(function () {
+    saveTimer = null;
+    if (!validatePollInterval()) { return; }
     request("save_config", { payload: formPayload() }, null, function () {});
   }, 400);
 }
@@ -358,6 +378,11 @@ function toggleConnection() {
     }, function (err) { handleError("Disconnect Failed", err); });
     return;
   }
+  if (!validatePollInterval()) {
+    showScreen("behaviour");
+    els.intervalInput.focus();
+    return;
+  }
   els.connectButton.disabled = true;
   els.connectButton.classList.remove("connect-action");
   setText(els.connectButton, "Connecting...");
@@ -459,6 +484,7 @@ function bindEvents() {
   for (i = 0; i < autosaveInputs.length; i += 1) {
     autosaveInputs[i].addEventListener("change", scheduleSave);
   }
+  els.intervalInput.addEventListener("input", validatePollInterval);
 
   els.openLogsBtn.addEventListener("click", openLogs);
   els.aboutLogsBtn.addEventListener("click", openLogs);
