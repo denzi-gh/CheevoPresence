@@ -55,12 +55,17 @@ class ReplaceConfigTests(unittest.TestCase):
     def test_replace_config_normalizes_and_swaps(self):
         worker = _worker()
 
-        worker.replace_config({"username": "new", "apikey": "key"})
+        worker.replace_config({"username": "new", "apikey": "key", "interval": 5})
 
         self.assertEqual("new", worker.config["username"])
         # normalize_config fills defaults for omitted keys.
-        self.assertIn("interval", worker.config)
+        self.assertEqual(45, worker.config["interval"])
         self.assertIn("dev_mode", worker.config)
+
+    def test_initial_config_enforces_the_poll_interval_minimum(self):
+        worker = RPCWorker(initial_config={"interval": 5}, console_icons={})
+
+        self.assertEqual(45, worker.config["interval"])
 
     def test_config_snapshot_is_a_copy(self):
         worker = _worker()

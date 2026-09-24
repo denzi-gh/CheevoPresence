@@ -17,7 +17,7 @@ from urllib.parse import parse_qs, urlparse
 
 from desktop.core.constants import APP_NAME, APP_VERSION, RA_SETTINGS_URL
 from desktop.core.log_events import AREA_SETTINGS, log_event
-from desktop.core.settings import normalize_config
+from desktop.core.settings import DEFAULT_CONFIG, normalize_config
 from desktop.platform import get_platform_services
 from desktop.runtime.logging_setup import get_log_level
 from desktop.runtime.logging_setup import set_log_level as apply_log_level
@@ -313,7 +313,9 @@ class WebSettingsAPI:
             "start_on_boot": bool(
                 visible.get("start_on_boot", base.get("start_on_boot", False))
             ),
-            "interval": visible.get("interval", base.get("interval", 5)),
+            "interval": visible.get(
+                "interval", base.get("interval", DEFAULT_CONFIG["interval"])
+            ),
             "timeout": visible.get("timeout", base.get("timeout", 130)),
         }
         return normalize_config(merged)

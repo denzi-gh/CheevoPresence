@@ -19,6 +19,14 @@ class BackoffPolicyTests(unittest.TestCase):
     def test_max_delay_caps_large_intervals(self):
         self.assertEqual(60, BackoffPolicy(30).delay_for(1))
 
+    def test_45_second_interval_backs_off_and_recovers(self):
+        policy = BackoffPolicy(45)
+
+        self.assertEqual(45, policy.delay_for(0))
+        self.assertEqual(60, policy.delay_for(1))
+        self.assertEqual(60, policy.delay_for(4))
+        self.assertEqual(45, policy.delay_for(0))
+
 
 if __name__ == "__main__":
     unittest.main()

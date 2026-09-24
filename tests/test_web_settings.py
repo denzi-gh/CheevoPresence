@@ -102,6 +102,30 @@ def _presence_snapshot():
 
 
 class WebSettingsTests(unittest.TestCase):
+    def test_save_and_connect_enforce_poll_interval_bounds(self):
+        for action in ("save_config", "connect"):
+            for interval, expected in ((5, 45), (44, 45), (45, 45), (60, 60), (120, 120), (121, 120)):
+                with self.subTest(action=action, interval=interval):
+                    controller = FakeController(
+                        {"schema_version": 2, "username": "test-user", "apikey": "test-key"}
+                    )
+                    api = WebSettingsAPI(controller)
+
+                    result = getattr(api, action)({"interval": interval})
+
+                    self.assertTrue(result["success"])
+                    self.assertEqual(expected, controller.config["interval"])
+
+    def test_omitted_poll_interval_uses_saved_value_or_default(self):
+        for base, expected in (({}, 45), ({"interval": 60}, 60)):
+            with self.subTest(base=base):
+                controller = FakeController(base)
+
+                result = WebSettingsAPI(controller).save_config({})
+
+                self.assertTrue(result["success"])
+                self.assertEqual(expected, controller.saved_config["interval"])
+
     def test_connect_preserves_omitted_config_values(self):
         controller = FakeController(
             {
@@ -582,6 +606,13 @@ class SettingsServerTests(unittest.TestCase):
         self.assertIn('id="gameTypeCheck"', body)
         self.assertIn("show_console_name_in_title", body)
         self.assertIn("strip_game_type_from_title", body)
+
+    def test_page_exposes_the_poll_interval_minimum(self):
+        status, body = self._send("GET", f"/settings?k={self.token}")
+
+        self.assertEqual(200, status)
+        self.assertRegex(body, r'<input[^>]*id="intervalInput"[^>]*min="45"[^>]*max="120"')
+        self.assertIn("Default and minimum: 45 seconds", body)
 
     def test_foreign_host_or_origin_is_rejected(self):
         status, body = self._send("GET", f"/settings?k={self.token}", host="cheevo.example")

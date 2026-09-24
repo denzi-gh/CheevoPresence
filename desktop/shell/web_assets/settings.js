@@ -110,7 +110,7 @@ function applyConfig(config) {
   config = config || {};
   els.usernameInput.value = config.username || "";
   els.apikeyInput.value = config.apikey || "";
-  els.intervalInput.value = valueOr(config.interval, 5);
+  els.intervalInput.value = valueOr(config.interval, 45);
   els.timeoutInput.value = valueOr(config.timeout, 130);
   els.profileCheck.checked = !!config.show_profile_button;
   els.gamepageCheck.checked = !!config.show_gamepage_button;
