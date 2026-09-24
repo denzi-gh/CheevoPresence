@@ -128,11 +128,11 @@ function validatePollInterval() {
   var input = els.intervalInput;
   var message = "";
   if (input.validity.rangeUnderflow) {
-    message = "Poll interval must be at least " + input.min + " seconds.";
+    message = "Minimum: " + input.min + " seconds";
   } else if (input.validity.rangeOverflow) {
-    message = "Poll interval must be at most " + input.max + " seconds.";
+    message = "Maximum: " + input.max + " seconds";
   } else if (!input.validity.valid) {
-    message = "Enter a whole number from " + input.min + " to " + input.max + " seconds.";
+    message = "Use " + input.min + "\u2013" + input.max + " whole seconds";
   }
   input.setAttribute("aria-invalid", message ? "true" : "false");
   setText(els.intervalError, message);
