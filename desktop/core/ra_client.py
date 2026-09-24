@@ -46,7 +46,8 @@ class RAClient:
             f"users/{safe_username}",
             apikey,
             {
-                "fields[users]": "richPresence,richPresenceUpdatedAt,visibleRole,displayableRoles",
+                # Sparse fieldsets must retain the included relationship.
+                "fields[users]": "richPresence,richPresenceUpdatedAt,visibleRole,displayableRoles,lastGame",
                 "include": "lastGame",
                 "fields[games]": "title",
             },

@@ -171,7 +171,7 @@ class UserActivityTests(unittest.TestCase):
     def _fetch(self, payload):
         return RAClient(session=FakeSession(FakeResponse(payload))).get_user_activity("user", "key")
 
-    def test_request_uses_wes_sparse_fieldset_and_header_authentication(self):
+    def test_request_keeps_last_game_in_sparse_fieldset_and_uses_header_authentication(self):
         session = FakeSession(FakeResponse(_activity_payload()))
         client = RAClient(session=session, v2_base_url="https://api.example.test/v2/")
 
@@ -181,7 +181,7 @@ class UserActivityTests(unittest.TestCase):
         self.assertEqual({
             "url": "https://api.example.test/v2/users/Some%20User%2F%C3%9C%3F",
             "params": {
-                "fields[users]": "richPresence,richPresenceUpdatedAt,visibleRole,displayableRoles",
+                "fields[users]": "richPresence,richPresenceUpdatedAt,visibleRole,displayableRoles,lastGame",
                 "include": "lastGame",
                 "fields[games]": "title",
             },

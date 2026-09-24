@@ -3,7 +3,9 @@ import unittest
 from unittest.mock import patch
 
 import requests
+from worker_fakes import activity
 
+from desktop.core.ra_client import APIResponseError
 from desktop.core.roles import DEBUG_FORCE_ROLE_PERMISSION_ENV
 from desktop.runtime.controller import AppController
 
@@ -24,22 +26,33 @@ class FakeRAClient:
         self.permissions = permissions
         self.displayable_roles = displayable_roles
         self.profile_error = profile_error
+        self.activity_error = None
+        self.calls = []
 
-    def get_user_summary(self, _username, _apikey):
-        return {"Permissions": self.permissions}
+    def get_user_activity(self, _username, _apikey):
+        self.calls.append("activity")
+        if self.activity_error:
+            raise self.activity_error
+        return activity(
+            visible_role=self.displayable_roles[0] if self.displayable_roles else None,
+            displayable_roles=tuple(self.displayable_roles) if self.displayable_roles is not None else None,
+        )
 
-    def get_user_profile_v2(self, _username, _apikey):
+    def get_user_profile(self, _username, _apikey):
+        self.calls.append("profile")
         if self.profile_error is not None:
             raise self.profile_error
-        return {"displayableRoles": self.displayable_roles}
+        return {"Permissions": self.permissions}
 
 
 class FakeWorker:
     def __init__(self):
         self.started_config = None
+        self.seed = None
 
-    def start(self, config):
+    def start(self, config, **seed):
         self.started_config = dict(config)
+        self.seed = seed
         return True
 
 
@@ -80,6 +93,9 @@ class ControllerRoleTests(unittest.TestCase):
         self.assertTrue(controller.worker.started_config["dev_mode"])
         self.assertEqual(2, save_config.call_count)
         self.assertTrue(save_config.call_args_list[-1].args[0]["dev_mode"])
+        self.assertEqual(["activity"], controller.ra_client.calls)
+        self.assertEqual(("developer",), controller.worker.seed["initial_activity"].displayable_roles)
+        self.assertFalse(controller.worker.seed["permissions_loaded"])
 
     def test_non_developer_roles_clear_manual_dev_mode(self):
         controller = self._controller(6, displayable_roles=["artist"])
@@ -113,8 +129,8 @@ class ControllerRoleTests(unittest.TestCase):
         self.assertFalse(result.config["dev_mode"])
         self.assertFalse(controller.worker.started_config["dev_mode"])
 
-    def test_role_lookup_failure_falls_back_to_permissions(self):
-        controller = self._controller(3, profile_error=requests.HTTPError("nope"))
+    def test_missing_v2_roles_fall_back_to_profile_permissions(self):
+        controller = self._controller(3)
         config = {
             "username": "user",
             "apikey": "key",
@@ -128,6 +144,9 @@ class ControllerRoleTests(unittest.TestCase):
         self.assertTrue(result.config["dev_mode"])
         self.assertTrue(controller.worker.started_config["dev_mode"])
         self.assertEqual(2, save_config.call_count)
+        self.assertEqual(["activity", "profile"], controller.ra_client.calls)
+        self.assertEqual(3, controller.worker.seed["permissions"])
+        self.assertTrue(controller.worker.seed["permissions_loaded"])
 
     def test_debug_forced_permission_enables_dev_mode_for_normal_permissions(self):
         controller = self._controller(1, displayable_roles=["artist"])
@@ -147,6 +166,34 @@ class ControllerRoleTests(unittest.TestCase):
         self.assertTrue(result.config["dev_mode"])
         self.assertTrue(controller.worker.started_config["dev_mode"])
         self.assertEqual(2, save_config.call_count)
+        self.assertEqual(["activity"], controller.ra_client.calls)
+
+    def test_v2_failure_does_not_start_worker_or_attempt_legacy_requests(self):
+        for error in (requests.Timeout(), requests.ConnectionError(), APIResponseError()):
+            with self.subTest(error=type(error)):
+                controller = self._controller(3)
+                controller.ra_client.activity_error = error
+                with patch("desktop.runtime.controller.save_config"):
+                    result = controller.connect({"username": "user", "apikey": "key"})
+                self.assertFalse(result.success)
+                self.assertIsNone(controller.worker.started_config)
+                self.assertEqual(["activity"], controller.ra_client.calls)
+
+    def test_permissions_fallback_failure_does_not_start_worker(self):
+        controller = self._controller(3, profile_error=requests.Timeout())
+        with patch("desktop.runtime.controller.save_config"):
+            result = controller.connect({"username": "user", "apikey": "key"})
+        self.assertFalse(result.success)
+        self.assertIsNone(controller.worker.started_config)
+        self.assertEqual(["activity", "profile"], controller.ra_client.calls)
+
+    def test_known_visible_role_with_hidden_developer_role_unlocks_dev_mode(self):
+        controller = self._controller(1, displayable_roles=["artist", "developer"])
+        with patch("desktop.runtime.controller.save_config"):
+            result = controller.connect({"username": "user", "apikey": "key"})
+        self.assertTrue(result.success)
+        self.assertTrue(result.config["dev_mode"])
+        self.assertEqual(["activity"], controller.ra_client.calls)
 
 
 if __name__ == "__main__":

@@ -1,6 +1,8 @@
 var els = {};
 var latestState = null;
 var pollingTimer = null;
+var stateRequestPending = false;
+var stateRefreshFailed = false;
 var logsTimer = null;
 var eventsBound = false;
 var activeScreen = "status";
@@ -55,6 +57,7 @@ function handleError(title, err) {
 function request(method, params, onSuccess, onError) {
   var xhr = new XMLHttpRequest();
   xhr.open("POST", "/api/" + method, true);
+  if (method === "get_state") { xhr.timeout = 5000; }
   xhr.setRequestHeader("Content-Type", "application/json");
   xhr.setRequestHeader("X-Cheevo-Token", window.CHEEVO_API_TOKEN || "");
   xhr.onreadystatechange = function () {
@@ -358,9 +361,19 @@ function applyState(state) {
 }
 
 function refreshState() {
-  request("get_state", {}, function (state) { applyState(state); }, function () {
-    window.clearInterval(pollingTimer);
-    showMessage("Connection Lost", "The CheevoPresence background app is no longer available.");
+  if (stateRequestPending) { return; }
+  stateRequestPending = true;
+  request("get_state", {}, function (state) {
+    stateRequestPending = false;
+    if (stateRefreshFailed && els.messageTitle.textContent === "Connection Lost") { hideMessage(); }
+    stateRefreshFailed = false;
+    applyState(state);
+  }, function () {
+    stateRequestPending = false;
+    if (!stateRefreshFailed) {
+      showMessage("Connection Lost", "Could not refresh the app status. Retrying automatically...");
+    }
+    stateRefreshFailed = true;
   });
 }
 

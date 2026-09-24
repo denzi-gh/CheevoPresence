@@ -12,9 +12,10 @@ from desktop.core.api import (
     format_api_error,
     ra_get_game,
     ra_get_game_info_and_user_progress,
-    ra_get_user_profile_v2,
+    ra_get_player_games_v2,
+    ra_get_user_activity,
+    ra_get_user_profile,
     ra_get_user_progress,
-    ra_get_user_summary,
 )
 from desktop.core.log_events import (
     AREA_DISCORD,
@@ -23,9 +24,11 @@ from desktop.core.log_events import (
     log_event,
 )
 from desktop.core.ra_client import APIResponseError
+from desktop.core.ra_models import UserActivity
 from desktop.core.roles import (
     coerce_permissions,
     debug_forced_role_permission,
+    needs_permissions_fallback,
     resolve_dev_mode,
     role_from_api,
 )
@@ -40,38 +43,23 @@ from desktop.runtime.presence_builder import (
     PLAY_MODE_HARDCORE,
     PLAY_MODE_SOFTCORE,
     PresenceBuilder,
-    coerce_progress_int,
 )
 from desktop.runtime.state import MirroredPresence, WorkerState
 from desktop.runtime.storage import load_config, load_console_icons
 
 logger = logging.getLogger(__name__)
-ROLE_REFRESH_INTERVAL_SECONDS = 15 * 60
+MODE_RECENT_GAMES = 10
+PROGRESS_FIELDS = ("NumPossibleAchievements", "NumAchieved", "NumAchievedHardcore")
+GAME_INFO_PROGRESS_FIELDS = ("NumAchievements", "NumAwardedToUser", "NumAwardedToUserHardcore")
 
-# GetUserSummary only surfaces achievements from the recently played games
-SUMMARY_RECENT_GAMES = 10
 
-
-def mode_from_summary(user_data):
-    games = user_data.get("RecentAchievements") if isinstance(user_data, dict) else None
-    if not isinstance(games, dict):
-        return None
+def mode_from_player_games(games):
     latest = None
-    for achievements in games.values():
-        if not isinstance(achievements, dict):
-            continue
-        for entry in achievements.values():
-            if not isinstance(entry, dict):
+    for game in games:
+        for date, hardcore in ((game.last_unlock_at, False), (game.last_unlock_hardcore_at, True)):
+            if date is None:
                 continue
-            try:
-                date = datetime.strptime(
-                    str(entry.get("DateAwarded", "")),
-                    "%Y-%m-%d %H:%M:%S",
-                ).replace(tzinfo=timezone.utc)
-            except ValueError:
-                continue
-            hardcore = coerce_progress_int(entry.get("HardcoreAchieved", 0))
-            # Tuple order lets the hardcore flag win a samesecond tie
+            # Hardcore wins when both unlock timestamps are equal.
             candidate = (date, hardcore)
             if latest is None or candidate > latest:
                 latest = candidate
@@ -80,7 +68,49 @@ def mode_from_summary(user_data):
     return PLAY_MODE_HARDCORE if latest[1] else PLAY_MODE_SOFTCORE
 
 
+def _nonnegative_int(value):
+    if isinstance(value, bool) or not isinstance(value, (int, str)):
+        return None
+    try:
+        value = int(value)
+    except ValueError:
+        return None
+    return value if value >= 0 else None
+
+
+def _game_metadata(payload, title):
+    if not isinstance(payload, dict):
+        return None
+    title = title if title is not None else payload.get("GameTitle", payload.get("Title"))
+    console_id = _nonnegative_int(payload.get("ConsoleID"))
+    if (
+        not isinstance(title, str)
+        or not isinstance(payload.get("ConsoleName"), str)
+        or console_id is None
+        or "ImageIcon" not in payload
+        or (payload["ImageIcon"] is not None and not isinstance(payload["ImageIcon"], str))
+    ):
+        return None
+    return {
+        "GameTitle": title,
+        "ConsoleName": payload["ConsoleName"],
+        "ConsoleID": console_id,
+        "ImageIcon": payload["ImageIcon"],
+    }
+
+
+def _progress_counts(payload, fields=PROGRESS_FIELDS):
+    if not isinstance(payload, dict):
+        return None
+    counts = [_nonnegative_int(payload.get(field)) for field in fields]
+    if any(count is None for count in counts):
+        return None
+    return dict(zip(PROGRESS_FIELDS, counts))
+
+
 class RPCWorker:
+    _activity: UserActivity | None
+    _initial_activity: UserActivity | None
 
     def __init__(
         self,
@@ -108,6 +138,12 @@ class RPCWorker:
         self._game_data = None
         self._play_mode = None
         self._playtime_start = None
+        self._playtime_seeded = False
+        self._progress_data = None
+        self._activity = None
+        self._initial_activity = None
+        self._permissions = None
+        self._permissions_loaded = False
         self.current_status = "disconnected"
         self.status_text = "Not running"
         self.ra_connected = False
@@ -116,10 +152,6 @@ class RPCWorker:
         self.ra_role_label = ""
         self.ra_role_tier = ""
         self.ra_dev_mode = False
-        self._ra_role_cache_username = None
-        self._ra_role_cache_visible_role = None
-        self._ra_role_cache_displayable_roles = None
-        self._ra_role_cache_at = 0.0
         self.mirrored_presence = None
 
     # Delegating views onto the gateway-owned connection state. Keeping them as
@@ -186,10 +218,6 @@ class RPCWorker:
                 self.ra_role_label = ""
                 self.ra_role_tier = ""
                 self.ra_dev_mode = False
-                self._ra_role_cache_username = None
-                self._ra_role_cache_visible_role = None
-                self._ra_role_cache_displayable_roles = None
-                self._ra_role_cache_at = 0.0
                 self.mirrored_presence = None
 
     def set_ra_role(self, permissions, visible_role=None, displayable_roles=None):
@@ -241,7 +269,7 @@ class RPCWorker:
     def is_stopping(self):
         return self.get_state().is_stopping
 
-    def start(self, config=None):
+    def start(self, config=None, *, initial_activity=None, permissions=None, permissions_loaded=False):
         with self._state_lock:
             if self.running or (self.thread is not None and self.thread.is_alive()):
                 log_event(logger, AREA_WORKER, "start_skipped", reason="already_running")
@@ -262,6 +290,10 @@ class RPCWorker:
                 return False
 
             self.config = cfg
+            self._clear_game_state()
+            self._initial_activity = initial_activity
+            self._permissions = permissions
+            self._permissions_loaded = permissions_loaded
             self._stop_event.clear()
             self.running = True
             log_event(
@@ -344,34 +376,88 @@ class RPCWorker:
     def _clear_game_state(self):
         self._current_game_id = None
         self._game_data = None
+        self._progress_data = None
+        self._activity = None
+        self._play_mode = None
         self._playtime_start = None
+        self._playtime_seeded = False
 
-    def _update_play_mode(self, user_data):
-        mode = mode_from_summary(user_data)
+    def _refresh_game(self, username, apikey, activity, game_changed):
+        activity_changed = (
+            self._activity is None
+            or activity.rich_presence_updated_at != self._activity.rich_presence_updated_at
+        )
+        game_id = activity.game_id
+        game_data = dict(self._game_data) if self._game_data else None
+        progress_data = self._progress_data
+        playtime_start = self._playtime_start
+        playtime_seeded = self._playtime_seeded
+        mode = self._play_mode
+        playtime_enabled = self._config_snapshot().get("show_total_playtime", True)
+        needs_playtime = playtime_enabled and not playtime_seeded
+
+        if game_changed or needs_playtime:
+            game_info = {}
+            if playtime_enabled:
+                game_info = ra_get_game_info_and_user_progress(username, apikey, game_id)
+                if self._should_stop():
+                    return
+                playtime = _nonnegative_int(game_info.get("UserTotalPlaytime"))
+                playtime_start = int(time.time()) - playtime if playtime else None
+                playtime_seeded = True
+                if playtime:
+                    log_event(logger, AREA_RA, "playtime_seeded", playtime_sec=playtime)
+            else:
+                playtime_start = None
+                playtime_seeded = False
+
+            game_data = _game_metadata(game_info, activity.game_title)
+            if game_data is None:
+                game_data = _game_metadata(
+                    ra_get_game(username, apikey, game_id), activity.game_title,
+                )
+                if self._should_stop():
+                    return
+                if game_data is None:
+                    raise APIResponseError("Incomplete game metadata")
+            progress = _progress_counts(game_info, GAME_INFO_PROGRESS_FIELDS)
+            progress_data = {str(game_id): progress} if progress is not None else None
+        elif activity_changed:
+            progress_data = None
+
+        if progress_data is None:
+            payload = ra_get_user_progress(username, apikey, game_id)
+            if self._should_stop():
+                return
+            progress = _progress_counts(payload.get(str(game_id)))
+            if progress is None:
+                raise APIResponseError("Incomplete achievement progress")
+            progress_data = {str(game_id): progress}
+
+        if game_changed or activity_changed:
+            games = ra_get_player_games_v2(username, apikey, limit=MODE_RECENT_GAMES)
+            if self._should_stop():
+                return
+            if not any(game.game_id == game_id for game in games):
+                games += ra_get_player_games_v2(username, apikey, game_id=game_id, limit=1)
+                if self._should_stop():
+                    return
+            mode = mode_from_player_games(games)
+
+        if activity.game_title is not None:
+            game_data["GameTitle"] = activity.game_title
+        # Commit only after all required RA reads succeeded, so failures retry.
+        self._game_data = game_data
+        self._progress_data = progress_data
+        self._current_game_id = game_id
+        self._activity = activity
+        self._playtime_start = playtime_start
+        self._playtime_seeded = playtime_seeded
         if mode != self._play_mode:
-            self._play_mode = mode
             log_event(logger, AREA_RA, "play_mode_changed", mode=mode)
-
-    def _seed_playtime_start(self, username, apikey, game_id):
-        # Backdates Discord's elapsed timer to the user's total playtime for the game
-        self._playtime_start = None
-        if not self._config_snapshot().get("show_total_playtime", True):
-            return
-        try:
-            payload = ra_get_game_info_and_user_progress(username, apikey, game_id)
-        except (requests.RequestException, APIResponseError) as exc:
-            log_event(
-                logger,
-                AREA_RA,
-                "playtime_seed_failed",
-                level=logging.WARNING,
-                error_type=exc.__class__.__name__,
-            )
-            return
-        playtime = coerce_progress_int(payload.get("UserTotalPlaytime", 0))
-        if playtime > 0:
-            self._playtime_start = int(time.time()) - playtime
-            log_event(logger, AREA_RA, "playtime_seeded", playtime_sec=playtime)
+        self._play_mode = mode
+        if game_changed and self.rpc_connected:
+            self.start_time = int(time.time())
 
     def _clear_mirrored_presence(self):
         with self._state_lock:
@@ -415,49 +501,20 @@ class RPCWorker:
     def _presence_builder(self):
         return PresenceBuilder(self._config_snapshot(), self.console_icons)
 
-    def _roles_for_user(self, username, apikey):
-        now = time.monotonic()
-        if (
-            self._ra_role_cache_username == username
-            and now - self._ra_role_cache_at < ROLE_REFRESH_INTERVAL_SECONDS
+    def _apply_activity_roles(self, username, apikey, activity):
+        if not self._permissions_loaded and needs_permissions_fallback(
+            activity.visible_role, activity.displayable_roles, debug_forced_role_permission(),
         ):
-            return (
-                self._ra_role_cache_visible_role,
-                self._ra_role_cache_displayable_roles,
-            )
-
-        try:
-            profile = ra_get_user_profile_v2(username, apikey)
-            visible_role = profile.get("visibleRole")
-            displayable_roles = profile.get("displayableRoles")
-        except requests.RequestException as exc:
-            visible_role = None
-            displayable_roles = None
-            log_event(
-                logger,
-                AREA_RA,
-                "v2_role_lookup_failed",
-                level=logging.WARNING,
-                error_type=exc.__class__.__name__,
-                detail=format_api_error(exc),
-            )
-        except APIResponseError:
-            visible_role = None
-            displayable_roles = None
-            log_event(
-                logger,
-                AREA_RA,
-                "v2_role_lookup_failed",
-                level=logging.WARNING,
-                error_type="APIResponseError",
-                reason="unexpected_payload",
-            )
-
-        self._ra_role_cache_username = username
-        self._ra_role_cache_visible_role = visible_role
-        self._ra_role_cache_displayable_roles = displayable_roles
-        self._ra_role_cache_at = now
-        return visible_role, displayable_roles
+            profile = ra_get_user_profile(username, apikey)
+            if self._should_stop():
+                return
+            self._permissions = coerce_permissions(profile.get("Permissions"))
+            self._permissions_loaded = True
+        self.set_ra_role(
+            self._permissions,
+            visible_role=activity.visible_role,
+            displayable_roles=activity.displayable_roles,
+        )
 
     def _loop(self):
         try:
@@ -478,37 +535,22 @@ class RPCWorker:
 
             while not self._should_stop():
                 try:
-                    user_data = ra_get_user_summary(
-                        username,
-                        apikey,
-                        recent_games=SUMMARY_RECENT_GAMES,
-                        recent_achievements=1,
-                    )
+                    activity = self._initial_activity
+                    self._initial_activity = None
+                    if activity is None:
+                        activity = ra_get_user_activity(username, apikey)
                     if self._should_stop():
                         break
-                    self._update_play_mode(user_data)
 
                     was_ra_connected = self.ra_connected
+                    self._apply_activity_roles(username, apikey, activity)
+                    if self._should_stop():
+                        break
                     self.set_ra_status(True)
-                    visible_role, displayable_roles = self._roles_for_user(username, apikey)
-                    self.set_ra_role(
-                        user_data.get("Permissions"),
-                        visible_role=visible_role,
-                        displayable_roles=displayable_roles,
-                    )
                     if not was_ra_connected:
                         log_event(logger, AREA_RA, "connection_succeeded")
-                    last_game_id = coerce_progress_int(user_data.get("LastGameID", 0))
-
-                    rp_msg = user_data.get("RichPresenceMsg", "")
-                    if not isinstance(rp_msg, str):
-                        raise APIResponseError
-
-                    rp_date_str = user_data.get("RichPresenceMsgDate", "")
-                    if rp_date_str is None:
-                        rp_date_str = ""
-                    if not isinstance(rp_date_str, str):
-                        raise APIResponseError
+                    last_game_id = activity.game_id
+                    rp_msg = activity.rich_presence
 
                     if not last_game_id:
                         if self.status_text != "Not playing":
@@ -520,20 +562,11 @@ class RPCWorker:
                         self._sleep(interval)
                         continue
 
-                    is_active = True
-                    if timeout_sec > 0 and rp_date_str:
-                        try:
-                            rp_date = datetime.strptime(
-                                rp_date_str,
-                                "%Y-%m-%d %H:%M:%S",
-                            ).replace(tzinfo=timezone.utc)
-                            time_diff = (datetime.now(timezone.utc) - rp_date).total_seconds()
-                            if time_diff > timeout_sec:
-                                is_active = False
-                        except ValueError:
-                            pass
-                    elif not rp_date_str:
-                        is_active = False
+                    rp_date = activity.rich_presence_updated_at
+                    is_active = rp_date is not None and (
+                        timeout_sec == 0
+                        or (datetime.now(timezone.utc) - rp_date).total_seconds() <= timeout_sec
+                    )
 
                     if not is_active:
                         if self.status_text != "Not actively playing":
@@ -551,21 +584,12 @@ class RPCWorker:
                         self._sleep(interval)
                         continue
 
-                    progress_data = user_data.get("Awarded")
-                    if not isinstance(progress_data, dict) or str(last_game_id) not in progress_data:
-                        progress_data = ra_get_user_progress(username, apikey, last_game_id)
-
                     game_changed = last_game_id != self._current_game_id
-                    if game_changed:
-                        self._game_data = ra_get_game(username, apikey, last_game_id)
-                        self._current_game_id = last_game_id
-                        if self.rpc_connected:
-                            self.start_time = int(time.time())
-                        self._seed_playtime_start(username, apikey, last_game_id)
+                    self._refresh_game(username, apikey, activity, game_changed)
                     game_data = self._game_data
+                    progress_data = self._progress_data
                     if self._should_stop():
                         break
-
 
                     playtime_enabled = self._config_snapshot().get("show_total_playtime", True)
                     start_time = (
@@ -590,8 +614,7 @@ class RPCWorker:
                     if self._should_stop():
                         break
 
-                    # Status changes (new game) are logged at INFO; steady-state
-                    # refreshes every few seconds stay at DEBUG to keep the log small.
+                    # Game changes are logged at INFO; steady-state updates at DEBUG.
                     presence_level = logging.INFO if game_changed else logging.DEBUG
                     if game_changed:
                         log_event(
@@ -696,7 +719,9 @@ class RPCWorker:
         finally:
             self._disconnect_rpc()
             self._clear_game_state()
-            self._play_mode = None
+            self._initial_activity = None
+            self._permissions = None
+            self._permissions_loaded = False
             self.set_ra_status(False)
             self._current_thread_done()
             if self._stop_event.is_set():

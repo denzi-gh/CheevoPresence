@@ -129,6 +129,12 @@ def roles_grant_dev_mode(displayable_roles):
     return False
 
 
+def needs_permissions_fallback(visible_role, displayable_roles, forced_permission=None):
+    if forced_permission in FORCEABLE_PERMISSIONS or isinstance(forced_permission, RoleInfo):
+        return False
+    return role_from_visible_role(visible_role) is None or displayable_roles is None
+
+
 def resolve_dev_mode(permissions, displayable_roles, forced_permission=None):
     if forced_permission in FORCEABLE_PERMISSIONS:
         role = ROLE_BY_PERMISSION.get(forced_permission)
