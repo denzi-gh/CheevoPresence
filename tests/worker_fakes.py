@@ -147,13 +147,10 @@ class WorkerHarness:
 
         self.worker._sleep = sleep
         with ExitStack() as stack:
-            stack.enter_context(patch("requests.Session.request", side_effect=AssertionError("Unexpected HTTP request")))
-            for old_method in ("get_user_summary", "get_user_profile_v2"):
-                forbidden = stack.enter_context(patch(
-                    f"desktop.core.ra_client.RAClient.{old_method}",
-                    side_effect=AssertionError(f"Obsolete runtime request: {old_method}"),
-                ))
-                stack.callback(forbidden.assert_not_called)
+            unexpected_http = stack.enter_context(patch(
+                "requests.Session.request", side_effect=AssertionError("Unexpected HTTP request"),
+            ))
+            stack.callback(unexpected_http.assert_not_called)
             for name, endpoint in self.ENDPOINTS.items():
                 stack.enter_context(patch(f"desktop.runtime.worker.{endpoint}", side_effect=record(name)))
             clock = stack.enter_context(patch("desktop.runtime.worker.datetime"))

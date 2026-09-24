@@ -1,4 +1,4 @@
-"""Shared RetroAchievements API compatibility helpers and error formatting."""
+"""Shared RetroAchievements API helpers and error formatting."""
 
 import requests
 
@@ -34,19 +34,6 @@ def ra_get_player_games_v2(username, apikey, *, game_id=None, limit=10):
 
 def ra_get_user_profile(username, apikey):
     return _DEFAULT_CLIENT.get_user_profile(username, apikey)
-
-
-def ra_get_user_summary(username, apikey, recent_games=0, recent_achievements=0):
-    return _DEFAULT_CLIENT.get_user_summary(
-        username,
-        apikey,
-        recent_games=recent_games,
-        recent_achievements=recent_achievements,
-    )
-
-
-def ra_get_user_profile_v2(username, apikey):
-    return _DEFAULT_CLIENT.get_user_profile_v2(username, apikey)
 
 
 def ra_get_game(username, apikey, game_id):
