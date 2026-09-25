@@ -5,6 +5,7 @@ from datetime import datetime, timezone
 
 import requests
 
+from desktop.core.constants import APP_VERSION
 from desktop.core.ra_client import APIResponseError, RAClient
 from desktop.core.ra_models import PlayerGameActivity, UserActivity
 
@@ -80,6 +81,9 @@ class RAClientTests(unittest.TestCase):
         self.assertEqual(1, len(session.calls))
         self.assertEqual("https://example.test/API/API_GetUserProfile.php", session.calls[0]["url"])
         self.assertEqual({"u": "user", "y": "key"}, session.calls[0]["params"])
+        self.assertEqual(
+            {"User-Agent": f"CheevoPresence/{APP_VERSION}"}, session.calls[0]["headers"]
+        )
 
     def test_get_game_and_progress_use_expected_endpoints(self):
         session = FakeSession(FakeResponse({}))
@@ -92,6 +96,8 @@ class RAClientTests(unittest.TestCase):
         self.assertEqual({"z": "user", "y": "key", "i": 123}, session.calls[0]["params"])
         self.assertTrue(session.calls[1]["url"].endswith("/API_GetUserProgress.php"))
         self.assertEqual({"u": "user", "y": "key", "i": 123}, session.calls[1]["params"])
+        for call in session.calls:
+            self.assertEqual({"User-Agent": f"CheevoPresence/{APP_VERSION}"}, call["headers"])
 
     def test_get_game_info_and_user_progress_uses_expected_endpoint(self):
         session = FakeSession(FakeResponse({}))
@@ -103,6 +109,9 @@ class RAClientTests(unittest.TestCase):
             session.calls[0]["url"].endswith("/API_GetGameInfoAndUserProgress.php")
         )
         self.assertEqual({"u": "user", "y": "key", "g": 668}, session.calls[0]["params"])
+        self.assertEqual(
+            {"User-Agent": f"CheevoPresence/{APP_VERSION}"}, session.calls[0]["headers"]
+        )
 
     def test_rejects_non_dict_payload(self):
         client = RAClient(session=FakeSession(FakeResponse([])))
@@ -136,7 +145,11 @@ class UserActivityTests(unittest.TestCase):
                 "include": "lastGame",
                 "fields[games]": "title",
             },
-            "headers": {"X-API-Key": "secret-key", "Accept": "application/vnd.api+json"},
+            "headers": {
+                "X-API-Key": "secret-key",
+                "Accept": "application/vnd.api+json",
+                "User-Agent": f"CheevoPresence/{APP_VERSION}",
+            },
             "timeout": 10,
         }, session.calls[0])
         self.assertEqual(UserActivity(
@@ -336,7 +349,11 @@ class PlayerGameActivityTests(unittest.TestCase):
                 "page[number]": 1,
                 "page[size]": 10,
             },
-            "headers": {"X-API-Key": "key", "Accept": "application/vnd.api+json"},
+            "headers": {
+                "X-API-Key": "key",
+                "Accept": "application/vnd.api+json",
+                "User-Agent": f"CheevoPresence/{APP_VERSION}",
+            },
             "timeout": 10,
         }, session.calls[0])
 

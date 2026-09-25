@@ -4,7 +4,7 @@ from urllib.parse import quote
 
 import requests
 
-from desktop.core.constants import RA_API_BASE, RA_API_V2_BASE
+from desktop.core.constants import APP_VERSION, RA_API_BASE, RA_API_V2_BASE
 from desktop.core.ra_models import APIResponseError, PlayerGameActivity, UserActivity
 
 
@@ -19,7 +19,7 @@ class RAClient:
         response = self.session.get(
             f"{base_url or self.base_url}/{path}",
             params=params,
-            headers=headers,
+            headers={**(headers or {}), "User-Agent": f"CheevoPresence/{APP_VERSION}"},
             timeout=timeout,
         )
         response.raise_for_status()
