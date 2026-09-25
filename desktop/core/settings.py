@@ -2,7 +2,9 @@
 
 from dataclasses import asdict, dataclass
 
-SCHEMA_VERSION = 1
+SCHEMA_VERSION = 2
+MIN_POLL_INTERVAL_SECONDS = 45
+MAX_POLL_INTERVAL_SECONDS = 120
 
 _TRUE_STRINGS = frozenset({"1", "true", "yes", "on"})
 _FALSE_STRINGS = frozenset({"0", "false", "no", "off"})
@@ -35,8 +37,13 @@ def _coerce_bool(value, default):
 def _coerce_int(value, default):
     try:
         return int(value)
-    except (TypeError, ValueError):
+    except (TypeError, ValueError, OverflowError):
         return default
+
+
+def _normalize_poll_interval(value):
+    interval = _coerce_int(value, MIN_POLL_INTERVAL_SECONDS)
+    return min(MAX_POLL_INTERVAL_SECONDS, max(MIN_POLL_INTERVAL_SECONDS, interval))
 
 
 @dataclass(frozen=True)
@@ -54,7 +61,7 @@ class AppConfig:
     dev_mode: bool = False
     use_retroachievements_developer_titles: bool = True
     show_developer_sets_button: bool = True
-    interval: int = 5
+    interval: int = MIN_POLL_INTERVAL_SECONDS
     timeout: int = 130
     start_on_boot: bool = False
     schema_version: int = SCHEMA_VERSION
@@ -81,8 +88,7 @@ class AppConfig:
             for key in _BOOL_FIELDS
         }
 
-        interval = _coerce_int(raw.get("interval", defaults.interval), defaults.interval)
-        interval = min(120, max(5, interval))
+        interval = _normalize_poll_interval(raw.get("interval"))
 
         timeout = _coerce_int(raw.get("timeout", defaults.timeout), defaults.timeout)
         timeout = max(0, min(3600, timeout))
@@ -114,8 +120,9 @@ def migrate_config(raw):
     if not isinstance(raw, dict):
         return {}
     migrated = dict(raw)
-    # version = migrated.get("schema_version", 0)
-    # if version < 2: migrated["new_field"] = migrated.pop("old_field", ...)
+    version = _coerce_int(migrated.get("schema_version", 0), 0)
+    if version < 2:
+        migrated["interval"] = _normalize_poll_interval(migrated.get("interval"))
     migrated["schema_version"] = SCHEMA_VERSION
     return migrated
 

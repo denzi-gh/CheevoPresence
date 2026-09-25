@@ -9,7 +9,8 @@
   "strip_game_type_from_title": true,
   "dev_mode": false,
   "use_retroachievements_developer_titles": true,
-  "interval": 5,
+  "interval": 45,
   "timeout": 130,
-  "start_on_boot": false
+  "start_on_boot": false,
+  "schema_version": 2
 }

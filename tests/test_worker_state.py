@@ -2,8 +2,6 @@ import threading
 import unittest
 from unittest.mock import patch
 
-import requests
-
 from desktop.core.roles import DEBUG_FORCE_ROLE_PERMISSION_ENV
 from desktop.runtime.presence_builder import PresenceBuilder
 from desktop.runtime.state import MirroredPresence, WorkerState
@@ -126,41 +124,6 @@ class WorkerStateTests(unittest.TestCase):
         state = worker.get_state()
         self.assertFalse(state.ra_dev_mode)
         self.assertFalse(worker.config["dev_mode"])
-
-    def test_roles_fetch_is_cached(self):
-        worker = RPCWorker(initial_config={}, console_icons={})
-
-        with patch(
-            "desktop.runtime.worker.ra_get_user_profile_v2",
-            return_value={
-                "visibleRole": "code-reviewer",
-                "displayableRoles": ["code-reviewer", "developer"],
-            },
-        ) as get_profile:
-            first = worker._roles_for_user("SomeUser", "key")
-            second = worker._roles_for_user("SomeUser", "key")
-
-        self.assertEqual(("code-reviewer", ["code-reviewer", "developer"]), first)
-        self.assertEqual(("code-reviewer", ["code-reviewer", "developer"]), second)
-        get_profile.assert_called_once_with("SomeUser", "key")
-
-    def test_roles_fetch_failure_falls_back_to_permissions(self):
-        worker = RPCWorker(initial_config={"dev_mode": False}, console_icons={})
-
-        with patch(
-            "desktop.runtime.worker.ra_get_user_profile_v2",
-            side_effect=requests.HTTPError("nope"),
-        ):
-            visible_role, displayable_roles = worker._roles_for_user("SomeUser", "key")
-
-        self.assertIsNone(visible_role)
-        self.assertIsNone(displayable_roles)
-        worker.set_ra_role(3, visible_role=visible_role, displayable_roles=displayable_roles)
-        state = worker.get_state()
-        self.assertEqual(3, state.ra_permissions)
-        self.assertEqual("Developer", state.ra_role_label)
-        self.assertEqual("developer", state.ra_role_tier)
-        self.assertTrue(worker.config["dev_mode"])
 
     def test_debug_forced_admin_permission_displays_role_without_dev_mode(self):
         worker = RPCWorker(initial_config={"dev_mode": False}, console_icons={})

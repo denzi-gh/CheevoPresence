@@ -1,6 +1,8 @@
 var els = {};
 var latestState = null;
 var pollingTimer = null;
+var stateRequestPending = false;
+var stateRefreshFailed = false;
 var logsTimer = null;
 var eventsBound = false;
 var activeScreen = "status";
@@ -10,7 +12,7 @@ var apiKeyVisible = false;
 function bindElements() {
   var ids = [
     "usernameInput", "usernameCheck", "apikeyInput", "revealKey",
-    "intervalInput", "timeoutInput",
+    "intervalInput", "intervalError", "timeoutInput",
     "profileCheck", "gamepageCheck", "achievementCheck", "playtimeCheck",
     "consoleNameCheck", "gameTypeCheck", "bootCheck",
     "devActivityCheck", "devSetsCheck",
@@ -55,6 +57,7 @@ function handleError(title, err) {
 function request(method, params, onSuccess, onError) {
   var xhr = new XMLHttpRequest();
   xhr.open("POST", "/api/" + method, true);
+  if (method === "get_state") { xhr.timeout = 5000; }
   xhr.setRequestHeader("Content-Type", "application/json");
   xhr.setRequestHeader("X-Cheevo-Token", window.CHEEVO_API_TOKEN || "");
   xhr.onreadystatechange = function () {
@@ -92,7 +95,7 @@ function formPayload() {
   return {
     username: els.usernameInput.value,
     apikey: els.apikeyInput.value,
-    interval: parseInt(els.intervalInput.value, 10),
+    interval: els.intervalInput.valueAsNumber,
     timeout: parseInt(els.timeoutInput.value, 10),
     show_profile_button: els.profileCheck.checked,
     show_gamepage_button: els.gamepageCheck.checked,
@@ -110,7 +113,7 @@ function applyConfig(config) {
   config = config || {};
   els.usernameInput.value = config.username || "";
   els.apikeyInput.value = config.apikey || "";
-  els.intervalInput.value = valueOr(config.interval, 5);
+  els.intervalInput.value = valueOr(config.interval, 45);
   els.timeoutInput.value = valueOr(config.timeout, 130);
   els.profileCheck.checked = !!config.show_profile_button;
   els.gamepageCheck.checked = !!config.show_gamepage_button;
@@ -121,11 +124,31 @@ function applyConfig(config) {
   els.bootCheck.checked = !!config.start_on_boot;
   els.devActivityCheck.checked = !!config.use_retroachievements_developer_titles;
   els.devSetsCheck.checked = !!config.show_developer_sets_button;
+  validatePollInterval();
+}
+
+function validatePollInterval() {
+  var input = els.intervalInput;
+  var message = "";
+  if (input.validity.rangeUnderflow) {
+    message = "Minimum: " + input.min + " seconds";
+  } else if (input.validity.rangeOverflow) {
+    message = "Maximum: " + input.max + " seconds";
+  } else if (!input.validity.valid) {
+    message = "Use " + input.min + "\u2013" + input.max + " whole seconds";
+  }
+  input.setAttribute("aria-invalid", message ? "true" : "false");
+  setText(els.intervalError, message);
+  els.intervalError.classList.toggle("hidden", !message);
+  return !message;
 }
 
 function scheduleSave() {
   if (saveTimer) { window.clearTimeout(saveTimer); }
+  if (!validatePollInterval()) { return; }
   saveTimer = window.setTimeout(function () {
+    saveTimer = null;
+    if (!validatePollInterval()) { return; }
     request("save_config", { payload: formPayload() }, null, function () {});
   }, 400);
 }
@@ -338,9 +361,19 @@ function applyState(state) {
 }
 
 function refreshState() {
-  request("get_state", {}, function (state) { applyState(state); }, function () {
-    window.clearInterval(pollingTimer);
-    showMessage("Connection Lost", "The CheevoPresence background app is no longer available.");
+  if (stateRequestPending) { return; }
+  stateRequestPending = true;
+  request("get_state", {}, function (state) {
+    stateRequestPending = false;
+    if (stateRefreshFailed && els.messageTitle.textContent === "Connection Lost") { hideMessage(); }
+    stateRefreshFailed = false;
+    applyState(state);
+  }, function () {
+    stateRequestPending = false;
+    if (!stateRefreshFailed) {
+      showMessage("Connection Lost", "Could not refresh the app status. Retrying automatically...");
+    }
+    stateRefreshFailed = true;
   });
 }
 
@@ -356,6 +389,11 @@ function toggleConnection() {
     request("disconnect", {}, function (result) {
       if (result.state) { applyState(result.state); } else { refreshState(); }
     }, function (err) { handleError("Disconnect Failed", err); });
+    return;
+  }
+  if (!validatePollInterval()) {
+    showScreen("behaviour");
+    els.intervalInput.focus();
     return;
   }
   els.connectButton.disabled = true;
@@ -459,6 +497,7 @@ function bindEvents() {
   for (i = 0; i < autosaveInputs.length; i += 1) {
     autosaveInputs[i].addEventListener("change", scheduleSave);
   }
+  els.intervalInput.addEventListener("input", validatePollInterval);
 
   els.openLogsBtn.addEventListener("click", openLogs);
   els.aboutLogsBtn.addEventListener("click", openLogs);

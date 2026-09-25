@@ -1,141 +1,71 @@
-import time
 import unittest
-from datetime import datetime, timezone
-from unittest.mock import patch
+from datetime import timedelta
 
 import requests
-
-from desktop.runtime.worker import RPCWorker
+from worker_fakes import NOW, WorkerHarness, activity, game_info
 
 EMERALD_PLAYTIME = 130592
 
 
-class PlaytimePresence:
-    def __init__(self, worker, stop_after):
-        self.worker = worker
-        self.stop_after = stop_after
-        self.updates = []
-        self.pipe = None
-
-    def connect(self):
-        pass
-
-    def update(self, **kwargs):
-        self.updates.append(kwargs)
-        if len(self.updates) >= self.stop_after:
-            self.worker._stop_event.set()
-
-    def clear(self):
-        pass
-
-    def close(self):
-        pass
-
-
-def _summary(game_id=668):
-    return {
-        "LastGameID": game_id,
-        "RichPresenceMsg": "Playing Level 1",
-        "RichPresenceMsgDate": datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M:%S"),
-        "RecentAchievements": {},
-        "Awarded": _progress(game_id),
-    }
-
-
-def _game():
-    return {
-        "GameTitle": "Mega Game",
-        "ConsoleName": "GBA",
-        "ConsoleID": "5",
-        "ImageIcon": "/Images/126553.png",
-    }
-
-
-def _progress(game_id=668):
-    return {
-        str(game_id): {
-            "NumPossibleAchievements": 197,
-            "NumAchieved": 29,
-            "NumAchievedHardcore": 29,
-        }
-    }
-
-
 class WorkerPlaytimeTests(unittest.TestCase):
-    def _run_loop(self, game_infos, stop_after=1, show_total_playtime=True):
-        worker = RPCWorker(
-            initial_config={
-                "username": "user",
-                "apikey": "key",
-                "show_achievement_progress": True,
-                "show_total_playtime": show_total_playtime,
-            },
-            console_icons={"5": "gba-icon"},
-        )
-        presences = []
+    def test_playtime_backdates_presence_and_is_not_reseeded_by_activity(self):
+        run = WorkerHarness([activity(), activity(rich_presence_updated_at=NOW + timedelta(seconds=45))])
+        run.api["info"].return_value = game_info(UserTotalPlaytime=EMERALD_PLAYTIME)
+        run.run()
+        self.assertEqual(1, run.api["info"].call_count)
+        self.assertEqual([int(NOW.timestamp()) - EMERALD_PLAYTIME] * 2, [u["start"] for u in run.gateway.updates])
 
-        def presence_factory(client_id, pipe=None):
-            presence = PlaytimePresence(worker, stop_after)
-            presence.pipe = pipe
-            presences.append(presence)
-            return presence
+    def test_fetch_failure_uses_backoff_and_retries_before_publishing(self):
+        run = WorkerHarness([activity(), activity()])
+        run.api["info"].side_effect = [requests.ConnectionError("offline"), game_info(UserTotalPlaytime=EMERALD_PLAYTIME)]
+        run.run()
+        self.assertEqual([60, 45], run.waits)
+        self.assertEqual(1, len(run.gateway.updates))
+        self.assertEqual(int(NOW.timestamp()) - EMERALD_PLAYTIME, run.gateway.updates[0]["start"])
+        run.api["game"].assert_not_called()
+        run.api["progress"].assert_not_called()
 
-        worker._presence_factory = presence_factory
-        worker.running = True
-        worker._sleep = lambda seconds: None
+    def test_zero_or_missing_playtime_uses_session_timer_without_repeated_fetches(self):
+        for value in (0, None, "invalid"):
+            with self.subTest(value=value):
+                run = WorkerHarness([activity(), activity()])
+                run.api["info"].return_value = game_info(UserTotalPlaytime=value)
+                run.run()
+                self.assertEqual(int(NOW.timestamp()), run.gateway.updates[1]["start"])
+                self.assertEqual(1, run.api["info"].call_count)
+        run = WorkerHarness([activity(), activity()])
+        del run.api["info"].return_value["UserTotalPlaytime"]
+        run.run()
+        self.assertEqual(int(NOW.timestamp()), run.gateway.updates[1]["start"])
+        self.assertEqual(1, run.api["info"].call_count)
 
-        with (
-            patch("desktop.runtime.worker.ra_get_user_summary", return_value=_summary()),
-            patch("desktop.runtime.worker.ra_get_game", return_value=_game()),
-            # The Awarded block covers the game, so the fallback must not fire.
-            patch("desktop.runtime.worker.ra_get_user_progress", side_effect=[]),
-            patch(
-                "desktop.runtime.worker.ra_get_game_info_and_user_progress",
-                side_effect=game_infos,
-            ) as info_calls,
-        ):
-            worker._loop()
+    def test_disabled_option_never_calls_the_combined_endpoint(self):
+        run = WorkerHarness([activity(), activity()], show_total_playtime=False).run()
+        run.api["info"].assert_not_called()
+        self.assertEqual(["activity", "game", "progress", "mode"], run.requests[0])
+        self.assertEqual(["activity"], run.requests[1])
+        self.assertEqual(int(NOW.timestamp()), run.gateway.updates[1]["start"])
 
-        updates = [kwargs for presence in presences for kwargs in presence.updates]
-        return worker, updates, info_calls
+    def test_enabling_playtime_fetches_once_and_reuses_combined_progress(self):
+        run = WorkerHarness([activity()] * 4, show_total_playtime=False)
 
-    def test_playtime_backdates_the_presence_start(self):
-        _worker, updates, info_calls = self._run_loop(
-            game_infos=[{"UserTotalPlaytime": EMERALD_PLAYTIME}],
-        )
+        def change_setting(iteration, harness):
+            harness.worker.replace_config(harness.worker.config | {"show_total_playtime": iteration != 2})
 
-        self.assertEqual(1, info_calls.call_count)
-        expected = int(time.time()) - EMERALD_PLAYTIME
-        self.assertAlmostEqual(expected, updates[0]["start"], delta=10)
+        run.run(after_iteration=change_setting)
+        self.assertEqual(1, run.api["info"].call_count)
+        self.assertEqual(1, run.api["progress"].call_count)
+        self.assertEqual(1, run.api["game"].call_count)
+        self.assertEqual(int(NOW.timestamp()) - 900, run.gateway.updates[1]["start"])
+        self.assertEqual(int(NOW.timestamp()), run.gateway.updates[2]["start"])
+        self.assertEqual(int(NOW.timestamp()) - 900, run.gateway.updates[3]["start"])
 
-    def test_fetch_failure_falls_back_to_the_session_start(self):
-        _worker, updates, _info_calls = self._run_loop(
-            game_infos=[requests.ConnectionError("offline")],
-            stop_after=2,
-        )
-
-        # The second poll carries the gateway's session start stamped at
-        # connect time — not a backdated one.
-        self.assertAlmostEqual(int(time.time()), updates[1]["start"], delta=10)
-
-    def test_zero_playtime_falls_back_to_the_session_start(self):
-        worker, updates, _info_calls = self._run_loop(
-            game_infos=[{"UserTotalPlaytime": 0}],
-            stop_after=2,
-        )
-
-        self.assertIsNone(worker._playtime_start)
-        self.assertAlmostEqual(int(time.time()), updates[1]["start"], delta=10)
-
-    def test_disabled_option_never_calls_the_endpoint(self):
-        _worker, updates, info_calls = self._run_loop(
-            game_infos=[{"UserTotalPlaytime": EMERALD_PLAYTIME}],
-            stop_after=2,
-            show_total_playtime=False,
-        )
-
-        info_calls.assert_not_called()
-        self.assertAlmostEqual(int(time.time()), updates[1]["start"], delta=10)
+    def test_game_change_and_resume_after_inactivity_reseed_playtime(self):
+        for next_activity in (activity(game_id=456), activity(rich_presence_updated_at=NOW - timedelta(hours=1))):
+            with self.subTest(next_activity=next_activity):
+                run = WorkerHarness([activity(), next_activity, activity()]).run()
+                expected_calls = 3 if next_activity.game_id == 456 else 2
+                self.assertEqual(expected_calls, run.api["info"].call_count)
 
 
 if __name__ == "__main__":

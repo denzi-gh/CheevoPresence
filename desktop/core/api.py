@@ -1,4 +1,4 @@
-"""Shared RetroAchievements API compatibility helpers and error formatting."""
+"""Shared RetroAchievements API helpers and error formatting."""
 
 import requests
 
@@ -24,17 +24,16 @@ def trimmer(text, max_units=128):
 _DEFAULT_CLIENT = RAClient()
 
 
-def ra_get_user_summary(username, apikey, recent_games=0, recent_achievements=0):
-    return _DEFAULT_CLIENT.get_user_summary(
-        username,
-        apikey,
-        recent_games=recent_games,
-        recent_achievements=recent_achievements,
-    )
+def ra_get_user_activity(username, apikey):
+    return _DEFAULT_CLIENT.get_user_activity(username, apikey)
 
 
-def ra_get_user_profile_v2(username, apikey):
-    return _DEFAULT_CLIENT.get_user_profile_v2(username, apikey)
+def ra_get_player_games_v2(username, apikey, *, game_id=None, limit=10):
+    return _DEFAULT_CLIENT.get_player_games_v2(username, apikey, game_id=game_id, limit=limit)
+
+
+def ra_get_user_profile(username, apikey):
+    return _DEFAULT_CLIENT.get_user_profile(username, apikey)
 
 
 def ra_get_game(username, apikey, game_id):

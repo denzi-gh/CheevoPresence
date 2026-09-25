@@ -11,7 +11,12 @@ import requests
 
 from desktop.core.api import format_api_error
 from desktop.core.ra_client import APIResponseError, RAClient
-from desktop.core.roles import debug_forced_role_permission, resolve_dev_mode
+from desktop.core.roles import (
+    coerce_permissions,
+    debug_forced_role_permission,
+    needs_permissions_fallback,
+    resolve_dev_mode,
+)
 from desktop.core.settings import normalize_config
 from desktop.platform import get_platform_services
 from desktop.runtime.storage import (
@@ -176,10 +181,20 @@ class AppController:
                 warning_message = autostart_error
 
             try:
-                user_summary = self.ra_client.get_user_summary(
+                activity = self.ra_client.get_user_activity(
                     self.config["username"],
                     self.config["apikey"],
                 )
+                permissions = None
+                permissions_loaded = False
+                if needs_permissions_fallback(
+                    activity.visible_role, activity.displayable_roles, debug_forced_role_permission(),
+                ):
+                    profile = self.ra_client.get_user_profile(
+                        self.config["username"], self.config["apikey"],
+                    )
+                    permissions = coerce_permissions(profile.get("Permissions"))
+                    permissions_loaded = True
                 logger.info("RetroAchievements credential validation succeeded")
             except requests.RequestException as exc:
                 logger.warning(
@@ -217,22 +232,9 @@ class AppController:
                     error_message="Unexpected error",
                 )
 
-            try:
-                profile = self.ra_client.get_user_profile_v2(
-                    self.config["username"],
-                    self.config["apikey"],
-                )
-                displayable_roles = profile.get("displayableRoles")
-            except (requests.RequestException, APIResponseError) as exc:
-                displayable_roles = None
-                logger.warning(
-                    "RetroAchievements role lookup failed error=%s",
-                    format_api_error(exc),
-                )
-
             derived_dev_mode = resolve_dev_mode(
-                user_summary.get("Permissions"),
-                displayable_roles,
+                permissions,
+                activity.displayable_roles,
                 forced_permission=debug_forced_role_permission(),
             )
             if self.config.get("dev_mode", False) != derived_dev_mode:
@@ -254,7 +256,12 @@ class AppController:
                         error_message="Could not write the configuration file.",
                     )
 
-            started = self.worker.start(self.config)
+            started = self.worker.start(
+                self.config,
+                initial_activity=activity,
+                permissions=permissions,
+                permissions_loaded=permissions_loaded,
+            )
             if not started:
                 logger.warning("Worker did not start after successful credential validation")
                 return ConnectResult(

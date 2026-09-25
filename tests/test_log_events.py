@@ -55,13 +55,13 @@ class SanitizeTests(unittest.TestCase):
 
     def test_url_query_is_stripped(self):
         value = sanitize_log_value(
-            "https://retroachievements.org/API/API_GetUserSummary.php?z=user&y=SECRETKEY"
+            "https://retroachievements.org/API/API_GetUserProfile.php?u=user&y=SECRETKEY"
         )
-        self.assertEqual("https://retroachievements.org/API/API_GetUserSummary.php", value)
+        self.assertEqual("https://retroachievements.org/API/API_GetUserProfile.php", value)
         self.assertNotIn("SECRETKEY", value)
 
     def test_event_with_apikey_never_leaks(self):
-        message = format_event("RA", "poll", apikey="SUPERSECRET", endpoint="user_summary")
+        message = format_event("RA", "poll", apikey="SUPERSECRET", endpoint="user_activity")
         self.assertNotIn("SUPERSECRET", message)
         self.assertIn("apikey=<redacted>", message)
 
