@@ -57,7 +57,7 @@ class AppConfig:
     show_achievement_progress: bool = True
     show_total_playtime: bool = True
     show_console_name_in_title: bool = False
-    strip_game_type_from_title: bool = False
+    strip_game_type_from_title: bool = True
     dev_mode: bool = False
     use_retroachievements_developer_titles: bool = True
     show_developer_sets_button: bool = True

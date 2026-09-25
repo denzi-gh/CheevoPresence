@@ -236,14 +236,14 @@ class PresenceBuilderTests(unittest.TestCase):
         self.assertEqual("Mario Kart Wii (Wii)", result.update_kwargs["name"])
         self.assertEqual("Mario Kart Wii", result.game_title)
 
-    def test_can_strip_game_type_prefix_from_title(self):
+    def test_strips_game_type_prefix_from_title_by_default(self):
         for raw_title, expected in (
             ("~Hack~ Newer: Falling Leaf", "Newer: Falling Leaf"),
             ("~Homebrew~ My Game", "My Game"),
             ("~Prototype~ ~Demo~ Test Game", "Test Game"),
         ):
             with self.subTest(raw_title=raw_title):
-                result = self._builder(strip_game_type_from_title=True).build(
+                result = self._builder().build(
                     "user",
                     123,
                     "Playing",

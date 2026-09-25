@@ -120,7 +120,7 @@ function applyConfig(config) {
   els.achievementCheck.checked = !!config.show_achievement_progress;
   els.playtimeCheck.checked = !!config.show_total_playtime;
   els.consoleNameCheck.checked = !!config.show_console_name_in_title;
-  els.gameTypeCheck.checked = !!config.strip_game_type_from_title;
+  els.gameTypeCheck.checked = !!valueOr(config.strip_game_type_from_title, true);
   els.bootCheck.checked = !!config.start_on_boot;
   els.devActivityCheck.checked = !!config.use_retroachievements_developer_titles;
   els.devSetsCheck.checked = !!config.show_developer_sets_button;

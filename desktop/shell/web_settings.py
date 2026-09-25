@@ -304,7 +304,7 @@ class WebSettingsAPI:
             "strip_game_type_from_title": bool(
                 visible.get(
                     "strip_game_type_from_title",
-                    base.get("strip_game_type_from_title", False),
+                    base.get("strip_game_type_from_title", True),
                 )
             ),
             "dev_mode": bool(base.get("dev_mode", False)),

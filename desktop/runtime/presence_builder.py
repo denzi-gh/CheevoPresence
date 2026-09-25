@@ -116,7 +116,7 @@ class PresenceBuilder:
         if not isinstance(console_name, str):
             raise APIResponseError
 
-        if self.config.get("strip_game_type_from_title", False):
+        if self.config.get("strip_game_type_from_title", True):
             game_title = strip_game_type_prefix(game_title)
         activity_game_title = format_game_title(
             game_title,
