@@ -21,7 +21,7 @@ jobs:
       - name: setup python
         uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7
         with:
-          python-version: "3.12"
+          python-version: "3.14"
           cache: pip
           cache-dependency-path: |
             requirements/base.txt
@@ -72,7 +72,7 @@ jobs:
 
       - name: upload smoke log
         if: failure()
-        uses: actions/upload-artifact@v7
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
         with:
           name: windows-smoke-cheevo.log
           path: ~/AppData/Roaming/CheevoPresence/logs/cheevo.log
@@ -90,14 +90,14 @@ jobs:
           Pop-Location
 
       - name: upload exe
-        uses: actions/upload-artifact@v7
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
         with:
           path: release-assets/windows/CheevoPresence.exe
           archive: false
           if-no-files-found: error
 
       - name: upload checksum
-        uses: actions/upload-artifact@v7
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
         with:
           path: release-assets/windows/CheevoPresence.exe.sha256
           archive: false
@@ -141,7 +141,7 @@ jobs:
 
       - name: upload smoke log
         if: failure()
-        uses: actions/upload-artifact@v7
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
         with:
           name: macos-${{ matrix.arch }}-smoke-cheevo.log
           path: ~/Library/Application Support/CheevoPresence/logs/cheevo.log
@@ -156,14 +156,14 @@ jobs:
           shasum -a 256 "CheevoPresence-macos-${{ matrix.arch }}.zip" > "CheevoPresence-macos-${{ matrix.arch }}.zip.sha256"
 
       - name: upload zip
-        uses: actions/upload-artifact@v7
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
         with:
           path: release-assets/macos/CheevoPresence-macos-${{ matrix.arch }}.zip
           archive: false
           if-no-files-found: error
 
       - name: upload checksum
-        uses: actions/upload-artifact@v7
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
         with:
           path: release-assets/macos/CheevoPresence-macos-${{ matrix.arch }}.zip.sha256
           archive: false
@@ -202,7 +202,7 @@ jobs:
 
       - name: upload smoke log
         if: failure()
-        uses: actions/upload-artifact@v7
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
         with:
           name: linux-smoke-cheevo.log
           path: ~/.local/state/CheevoPresence/logs/cheevo.log
@@ -231,14 +231,14 @@ jobs:
           sha256sum "$package.tar.gz" > "$package.tar.gz.sha256"
 
       - name: upload tarball
-        uses: actions/upload-artifact@v7
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
         with:
           path: release-assets/linux/CheevoPresence-linux-x86_64.tar.gz
           archive: false
           if-no-files-found: error
 
       - name: upload checksum
-        uses: actions/upload-artifact@v7
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
         with:
           path: release-assets/linux/CheevoPresence-linux-x86_64.tar.gz.sha256
           archive: false
